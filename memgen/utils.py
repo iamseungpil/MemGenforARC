@@ -25,7 +25,7 @@ CONVERSATION_TEMPLATE = r"""
         {{ "<|im_start|>assistant\n" + content + "<|im_end|>\n" }}
         {%- endgeneration -%}
     {%- elif message.role == "tool" -%}
-    {{ "<|im_start|>" + "user\n"  + content + "<|im_end|>\n" }}
+    {{ "<|im_start|>user\n"  + content + "<|im_end|>\n" }}
     {%- endif -%}
 {%- endfor -%}
 {# ───── generation prompt ───── #}

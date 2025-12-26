@@ -15,10 +15,11 @@ class Config:
         runner_config = self.build_runner_config(config, **user_config)
         model_config = self.build_model_config(config, **user_config)
         dataset_config = self.build_dataset_config(config, **user_config)
+        arc_config = self.build_arc_config(config, **user_config)
 
         # Override the default configuration with user options.
-        self.config = OmegaConf.merge(  
-            runner_config, model_config, dataset_config, user_config
+        self.config = OmegaConf.merge(
+            runner_config, model_config, dataset_config, arc_config, user_config
         )
     
 
@@ -41,8 +42,14 @@ class Config:
             raise KeyError(
                 "Expecting 'dataset' as the root key for dataset configuration."
             )
-        
+
         return dict(dataset=dataset)
+
+    @staticmethod
+    def build_arc_config(config, **kwargs):
+        """Build ARC-specific configuration."""
+        arc = config.get("arc", {})
+        return dict(arc=arc)
     
     def _convert_to_dot_list(self, opts):
         if opts is None:

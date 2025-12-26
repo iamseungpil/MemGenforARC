@@ -23,10 +23,24 @@ from transformers import (
 )
 from transformers.trainer_utils import seed_worker
 from transformers.utils import is_datasets_available, is_flash_attn_2_available, is_peft_available, is_rich_available
+
+# Patch vLLM for TRL compatibility (GuidedDecodingParams was added in newer vLLM versions)
+try:
+    from vllm.sampling_params import GuidedDecodingParams
+except ImportError:
+    # Create a dummy class for compatibility with TRL 0.16.0.dev0
+    class GuidedDecodingParams:
+        """Dummy class for vLLM compatibility with TRL."""
+        def __init__(self, *args, **kwargs):
+            pass
+
+    import vllm.sampling_params
+    vllm.sampling_params.GuidedDecodingParams = GuidedDecodingParams
+
 from trl import GRPOTrainer, GRPOConfig
 from trl.trainer.utils import selective_log_softmax
 from trl.data_utils import maybe_apply_chat_template, is_conversational 
-from trl.models import create_reference_model, prepare_deepspeed, prepare_fsdp, unwrap_model_for_generation
+from trl.models import create_reference_model, prepare_deepspeed, unwrap_model_for_generation
 if is_peft_available():
     from peft import PeftConfig, get_peft_model
 if is_wandb_available():
@@ -35,6 +49,7 @@ if is_wandb_available():
 from interactions.base_interaction import (
     InteractionManager, InteractionDataProto
 )
+from interactions.arc_multiturn_interaction import ARCSeedPoolManager
 from data.base_env import StaticEnv, DynamicEnv
 
 from .utils import (
@@ -62,10 +77,11 @@ class WeaverGRPOTrainer(GRPOTrainer):
         peft_config: Optional["PeftConfig"] = None,
         env_class = None,   # env main class
         env_main_config = None,  # configs to initialize an env object
-        generation_manager: InteractionManager = None  # manage the interaction between agent and env
+        generation_manager: InteractionManager = None,  # manage the interaction between agent and env
+        seed_pool_manager: Optional[ARCSeedPoolManager] = None  # manage 5 seeds × 7 turns for ARC
     ):
         super().__init__(
-            model, 
+            model,
             reward_funcs,
             args,
             train_dataset,
@@ -76,15 +92,73 @@ class WeaverGRPOTrainer(GRPOTrainer):
             optimizers,
             peft_config
         )
-        
+
+        # CRITICAL: Prevent TRL from creating a full reference model copy.
+        # MemGenModel contains LoRA adapters inside weaver.model (PeftModel),
+        # but TRL doesn't recognize it as PEFT since MemGenModel itself isn't a PeftModel.
+        # We use MemGenModel.disable_adapter() context manager instead for reference logits.
+        if self.ref_model is not None:
+            import logging
+            logging.warning(
+                "Removing ref_model created by TRL. MemGenModel.disable_adapter() "
+                "will be used for reference logits computation instead."
+            )
+            del self.ref_model
+            self.ref_model = None
+            torch.cuda.empty_cache()
+
         self.env_class = env_class
         self.env_main_config = env_main_config
         self.generation_manager = generation_manager
-        
+        self.seed_pool_manager = seed_pool_manager
+
+        # TRL compatibility: Set attributes that may not be set by parent __init__
+        # This handles version differences in TRL where some attributes are expected
+        self.mask_truncated_completions = getattr(self.args, 'mask_truncated_completions', True)
+        self.num_iterations = getattr(self.args, 'num_iterations', 1)
+        self.scale_rewards = getattr(self.args, 'scale_rewards', True)  # Default: normalize advantages by std
+
+        # Generate reward function names for logging
+        self.reward_func_names = []
+        for i, func in enumerate(self.reward_funcs):
+            if hasattr(func, '__name__'):
+                self.reward_func_names.append(func.__name__)
+            elif hasattr(func, 'name'):
+                self.reward_func_names.append(func.name)
+            else:
+                self.reward_func_names.append(f"reward_func_{i}")
+
+        # Initialize logs for tracking completions and rewards
+        self._logs = {
+            "prompt": [],
+            "completion": [],
+            "rewards": {name: [] for name in self.reward_func_names},
+            "advantages": []
+        }
+
+        # Get model forward method parameter names for compatibility checks
+        import inspect
+        try:
+            self.model_kwarg_keys = set(inspect.signature(model.forward).parameters.keys())
+        except (ValueError, TypeError):
+            # Fallback if signature inspection fails
+            self.model_kwarg_keys = set()
+
         assert self.max_prompt_length == generation_manager.config.max_start_length
         assert self.max_completion_length == generation_manager.config.max_response_length
-        assert self.temperature == generation_manager.config.temperature   
-    
+        # Access temperature from args (GRPOConfig) instead of self.temperature
+        assert self.args.temperature == generation_manager.config.temperature
+
+    def _get_train_sampler(self, dataset=None) -> Optional[Sampler]:
+        """
+        Override to fix compatibility between TRL GRPOTrainer and transformers Trainer.
+
+        The transformers Trainer now passes dataset to sampler_fn, but TRL's GRPOTrainer
+        doesn't accept this argument. This override makes it compatible.
+        """
+        # Call parent's implementation without the dataset argument
+        return super()._get_train_sampler()
+
     def _build_multiturn_envs(self, inputs: list[dict[str, Union[torch.Tensor, Any]]]) -> tuple[list[list[dict]], list]:
         init_messages, envs = [], []
 
@@ -99,13 +173,70 @@ class WeaverGRPOTrainer(GRPOTrainer):
             envs.append(env)
         
         return init_messages, envs
-    
+
+    def _calculate_rewards(
+        self,
+        inputs: list[dict[str, Any]],
+        prompts: list,
+        completions: list,
+        completion_ids_list: list[torch.Tensor]
+    ) -> torch.Tensor:
+        """
+        Calculate rewards for each prompt-completion pair using reward functions.
+
+        This method mirrors TRL's reward calculation pattern but is adapted for
+        WeaverGRPOTrainer's custom needs.
+
+        Args:
+            inputs: List of input dictionaries containing task data
+            prompts: List of prompts
+            completions: List of completions (text)
+            completion_ids_list: List of completion token IDs
+
+        Returns:
+            rewards_per_func: Tensor of shape (num_prompts, num_reward_funcs)
+        """
+        device = self.accelerator.device
+        rewards_per_func = torch.zeros(len(prompts), len(self.reward_funcs), device=device)
+
+        for i, (reward_func, reward_processing_class) in enumerate(
+            zip(self.reward_funcs, self.reward_processing_classes)
+        ):
+            if isinstance(reward_func, nn.Module):
+                # For neural network reward models
+                if is_conversational(inputs[0]):
+                    from trl.data_utils import apply_chat_template
+                    messages = [{"messages": p + c} for p, c in zip(prompts, completions)]
+                    texts = [apply_chat_template(x, reward_processing_class)["text"] for x in messages]
+                else:
+                    texts = [p + c for p, c in zip(prompts, completions)]
+                reward_inputs = reward_processing_class(
+                    texts, return_tensors="pt", padding=True, padding_side="right", add_special_tokens=False
+                )
+                reward_inputs = super()._prepare_inputs(reward_inputs)
+                with torch.inference_mode():
+                    rewards_per_func[:, i] = reward_func(**reward_inputs).logits[:, 0]
+            else:
+                # For callable reward functions (like env.compute_reward)
+                # Extract additional kwargs from inputs (excluding prompt and completion)
+                keys = [key for key in inputs[0] if key not in ["prompt", "completion"]]
+                reward_kwargs = {key: [example[key] for example in inputs] for key in keys}
+
+                # Call the reward function
+                output_reward_func = reward_func(prompts=prompts, completions=completions, **reward_kwargs)
+                rewards_per_func[:, i] = torch.tensor(output_reward_func, dtype=torch.float32, device=device)
+
+        # Gather rewards across processes for proper normalization
+        rewards_per_func = gather(rewards_per_func)
+
+        return rewards_per_func
+
     def _get_per_token_logps(
-        self, model, 
-        input_ids: torch.Tensor, 
+        self, model,
+        input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
-        labels: torch.Tensor, 
         logits_to_keep: int,
+        labels: torch.Tensor = None,
         batch_size: int = None
     ) -> torch.Tensor:
         batch_size = batch_size or input_ids.size(0)  # Chunk inputs into smaller batches to reduce memory peak
@@ -116,7 +247,12 @@ class WeaverGRPOTrainer(GRPOTrainer):
             attention_mask_batch = attention_mask[start : start + batch_size]
 
             # Build model inputs - check if the model supports logits_to_keep (some models and VLMs don't)
-            model_inputs = {"input_ids": input_ids_batch, "attention_mask": attention_mask_batch, "labels": labels}
+            model_inputs = {
+                "input_ids": input_ids_batch,
+                "attention_mask": attention_mask_batch,
+                "labels": labels,
+                "is_grpo": True,  # Tell MemGenModel to use GRPO forward (skip conversation parsing)
+            }
 
             # Only add logits_to_keep if the model supports it
             if "logits_to_keep" in self.model_kwarg_keys:
@@ -125,28 +261,110 @@ class WeaverGRPOTrainer(GRPOTrainer):
 
             outputs = model(**model_inputs)
             logits = outputs.logits
-            labels = outputs.supervised_labels
-            
+
+            # Handle both MemGenModel (with supervised_labels) and standard models
+            if hasattr(outputs, 'supervised_labels') and outputs.supervised_labels is not None:
+                supervised_labels = outputs.supervised_labels
+            else:
+                # For standard models (e.g., reference model), use the original labels
+                # Need to slice the labels to match the batch
+                supervised_labels = labels[start : start + batch_size] if labels is not None else None
+                if supervised_labels is None:
+                    # Fallback: create mask where all completion tokens are supervised
+                    supervised_labels = input_ids_batch.clone()
+                    supervised_labels[:, :-logits_to_keep] = -100
+
             # Exclude the last value: it corresponds to the next token pred
             logits = logits[:, :-1, :]  # (B, L-1, H)
             # Only keep the last logits_to_keep. For model that support logits_to_keep, this is a no-op.
             logits = logits[:, -logits_to_keep:, :]  # (B, logits_to_keep, H)
             # Divide logits by sampling temperature.
             # See https://huggingface.co/blog/the_n_implementation_details_of_rlhf_with_ppo#policy-training-implementation-details
-            logits = logits / self.temperature
+            logits = logits / self.args.temperature
 
             completion_ids = input_ids_batch[:, -logits_to_keep:]
             logps = selective_log_softmax(logits, completion_ids)  # compute logprobs
             all_logps.append(logps)
-            
-            labels = labels[:, -logits_to_keep:]
-            mask = (labels != -100).long()  
+
+            supervised_labels = supervised_labels[:, -logits_to_keep:]
+            mask = (supervised_labels != -100).long()
             supervise_masks.append(mask)
 
         logps = torch.cat(all_logps, dim=0)
         masks = torch.cat(supervise_masks, dim=0)
         return logps, masks
 
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+        """
+        Override compute_loss to handle our tuple-returning _get_per_token_logps.
+
+        This is adapted from TRL's GRPOTrainer.compute_loss to work with MemGen's
+        supervised masking approach where _get_per_token_logps returns (logps, masks).
+        """
+        if return_outputs:
+            raise ValueError("The GRPOTrainer does not support returning outputs")
+
+        # Compute the per-token log probabilities for the model
+        prompt_ids, prompt_mask = inputs["prompt_ids"], inputs["prompt_mask"]
+        completion_ids, completion_mask = inputs["completion_ids"], inputs["completion_mask"]
+        input_ids = torch.cat([prompt_ids, completion_ids], dim=1)
+        attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)
+        logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
+
+        # Our _get_per_token_logps returns (logps, masks) tuple
+        result = self._get_per_token_logps(model, input_ids, attention_mask, logits_to_keep)
+        if isinstance(result, tuple):
+            per_token_logps, supervise_mask = result
+        else:
+            per_token_logps = result
+            supervise_mask = None
+
+        # Compute the KL divergence between the model and the reference model
+        if self.beta != 0.0:
+            ref_per_token_logps = inputs["ref_per_token_logps"]
+            # Handle ref_per_token_logps which might also be a tuple from ref model
+            if isinstance(ref_per_token_logps, tuple):
+                ref_per_token_logps = ref_per_token_logps[0]
+            per_token_kl = (
+                torch.exp(ref_per_token_logps - per_token_logps) - (ref_per_token_logps - per_token_logps) - 1
+            )
+
+        # Compute the loss
+        advantages = inputs["advantages"]
+        # When using num_iterations == 1, old_per_token_logps == per_token_logps, so we can skip it's computation (see
+        # _generate_and_score_completions) and use per_token_logps.detach() instead.
+        old_per_token_logps = inputs["old_per_token_logps"]
+        if isinstance(old_per_token_logps, tuple):
+            old_per_token_logps = old_per_token_logps[0]
+        if self.num_iterations > 1:
+            pass  # old_per_token_logps is already from inputs
+        else:
+            old_per_token_logps = per_token_logps.detach()
+
+        coef_1 = torch.exp(per_token_logps - old_per_token_logps)
+        coef_2 = torch.clamp(coef_1, 1 - self.epsilon, 1 + self.epsilon)
+        per_token_loss1 = coef_1 * advantages.unsqueeze(1)
+        per_token_loss2 = coef_2 * advantages.unsqueeze(1)
+        per_token_loss = -torch.min(per_token_loss1, per_token_loss2)
+        if self.beta != 0.0:
+            per_token_loss = per_token_loss + self.beta * per_token_kl
+
+        # Use supervise_mask if available, otherwise fall back to completion_mask
+        mask = supervise_mask if supervise_mask is not None else completion_mask
+        loss = (per_token_loss * mask).sum() / mask.sum()
+
+        # Log the metrics
+        mode = "eval" if self.control.should_evaluate else "train"
+
+        if self.beta != 0.0:
+            mean_kl = ((per_token_kl * mask).sum(dim=1) / mask.sum(dim=1)).mean()
+            self._metrics[mode]["kl"].append(self.accelerator.gather_for_metrics(mean_kl).mean().item())
+
+        is_clipped = (per_token_loss1 < per_token_loss2).float()
+        clip_ratio = (is_clipped * mask).sum() / mask.sum()
+        self._metrics[mode]["clip_ratio"].append(self.accelerator.gather_for_metrics(clip_ratio).mean().item())
+
+        return loss
 
     # NOTE - currently we only deal with text input and leave multimodal as a feature work
     def _generate_and_score_completions(
@@ -287,8 +505,20 @@ class WeaverGRPOTrainer(GRPOTrainer):
                     else nullcontext()
                 ):
                     # Use GenerationManager to coordinate the interaction between the agent and the environment
-                    self.generation_manager.actor_rollout_wg = unwrapped_model  
-                    final_gen_batch_output = self.generation_manager.run_agent_loop(gen_batch=gen_batch)
+                    self.generation_manager.actor_rollout_wg = unwrapped_model
+
+                    # Use seed pool manager for ARC multi-seed training (5 seeds × 7 turns)
+                    if self.seed_pool_manager is not None:
+                        # Update the manager's reference to the unwrapped model
+                        self.seed_pool_manager.interaction_manager.actor_rollout_wg = unwrapped_model
+                        # Run 5 seeds per task and select best trajectory
+                        final_gen_batch_output, seed_info = self.seed_pool_manager.run_seed_pool(gen_batch=gen_batch)
+                        # Log seed selection info
+                        if seed_info:
+                            avg_best_score = sum(s["seed_scores"][s["selected_seed"]]["score"] for s in seed_info) / len(seed_info)
+                            self._metrics["train"]["seed_pool/avg_best_score"].append(avg_best_score)
+                    else:
+                        final_gen_batch_output = self.generation_manager.run_agent_loop(gen_batch=gen_batch)
         
         # parse outputs
         prompts = final_gen_batch_output.batch["prompts"].to(device)  # prompt ids
@@ -297,7 +527,9 @@ class WeaverGRPOTrainer(GRPOTrainer):
         attention_mask = final_gen_batch_output.batch["attention_mask"].to(device)  # attention_mask on prompt and response
         prompt_mask = attention_mask[:, :prompts.size(1)]  
         completion_mask = final_gen_batch_output.batch["info_mask"][:, prompts.size(1):].to(device) 
-        is_eos = completion_ids == self.eos_token_id
+        # Get eos_token_id from processing_class (tokenizer)
+        eos_token_id = self.processing_class.eos_token_id
+        is_eos = completion_ids == eos_token_id
         assert completion_ids.shape == completion_mask.shape
 
         # Construct labels: Supervise only the agent response portion.
@@ -325,23 +557,24 @@ class WeaverGRPOTrainer(GRPOTrainer):
             # When using num_iterations == 1 and steps_per_generation <= gradient_accumulation_steps
             # old_per_token_logps == per_token_logps, so we can skip it's computation here, and use
             # per_token_logps.detach() instead.
-            if self.num_iterations > 1 or self.args.steps_per_generation > self.args.gradient_accumulation_steps:
-                old_per_token_logps, old_supervise_mask = self._get_per_token_logps( 
-                    self.model, prompt_completion_ids, attention_mask, labels, logits_to_keep
+            steps_per_generation = getattr(self.args, 'steps_per_generation', 1)
+            if self.num_iterations > 1 or steps_per_generation > self.args.gradient_accumulation_steps:
+                old_per_token_logps, old_supervise_mask = self._get_per_token_logps(
+                    self.model, prompt_completion_ids, attention_mask, logits_to_keep, labels
                 )
             else:
                 old_per_token_logps, old_supervise_mask = None, None
-            
+
             # Compute the per-token log probabilities for the reference model
             if self.beta != 0.0:
                 if self.ref_model is not None:
                     ref_per_token_logps, ref_supervise_mask = self._get_per_token_logps(
-                        self.ref_model, prompt_completion_ids, attention_mask, labels, logits_to_keep
+                        self.ref_model, prompt_completion_ids, attention_mask, logits_to_keep, labels
                     )
                 else:
                     with self.accelerator.unwrap_model(self.model).disable_adapter():
                         ref_per_token_logps, ref_supervise_mask = self._get_per_token_logps(
-                            self.model, prompt_completion_ids, attention_mask, labels, logits_to_keep
+                            self.model, prompt_completion_ids, attention_mask, logits_to_keep, labels
                         )
             else: 
                 ref_per_token_logps, ref_supervise_mask = None, None
@@ -445,7 +678,7 @@ class WeaverGRPOTrainer(GRPOTrainer):
         assert prompt_ids.shape == prompt_mask.shape
         assert completion_ids.shape == completion_mask.shape
         assert input_ids.shape == attention_mask.shape == labels.shape
-        per_token_logps, supervise_mask = self._get_per_token_logps(model, input_ids, attention_mask, labels, logits_to_keep)
+        per_token_logps, supervise_mask = self._get_per_token_logps(model, input_ids, attention_mask, logits_to_keep, labels)
         
         # Compute the KL divergence between the model and the reference model
         if self.beta != 0.0:

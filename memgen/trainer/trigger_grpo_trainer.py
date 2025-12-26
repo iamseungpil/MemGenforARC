@@ -1,6 +1,17 @@
+# Patch vLLM for TRL compatibility (GuidedDecodingParams was added in newer vLLM versions)
+try:
+    from vllm.sampling_params import GuidedDecodingParams
+except ImportError:
+    class GuidedDecodingParams:
+        """Dummy class for vLLM compatibility with TRL."""
+        def __init__(self, *args, **kwargs):
+            pass
+    import vllm.sampling_params
+    vllm.sampling_params.GuidedDecodingParams = GuidedDecodingParams
+
 from trl import GRPOTrainer, GRPOConfig
-from trl.data_utils import maybe_apply_chat_template 
-from trl.models import unwrap_model_for_generation, create_reference_model   
+from trl.data_utils import maybe_apply_chat_template
+from trl.models import unwrap_model_for_generation, create_reference_model
 from trl.trainer.utils import selective_log_softmax
 from transformers import (
     PreTrainedModel, 

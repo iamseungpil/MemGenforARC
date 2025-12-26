@@ -1,0 +1,27 @@
+name: memgen_arc
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - cudatoolkit=12.4
+  - pip:
+    - accelerate==1.10.1
+    - datasets==4.0.0
+    - numpy==2.3.5
+    - omegaconf==2.3.0
+    - peft==0.17.1
+    - requests==2.32.5
+    - safetensors==0.7.0
+    - torch==2.7.1
+    - tqdm==4.67.1
+    - transformers==4.55.4
+    - trl==0.21.0
+    - wandb==0.23.0
+    - wikipedia==1.4.0
+    - fastapi
+    - uvicorn
+    - pyyaml

@@ -18,12 +18,14 @@ def set_seed(random_seed: int, use_gpu: bool):
     os.environ['PYTHONHASHSEED'] = str(random_seed)
     np.random.seed(random_seed)
     torch.manual_seed(random_seed)
-    torch.cuda.manual_seed(random_seed)
-    if use_gpu:
-        torch.cuda.manual_seed_all(random_seed)
 
-    torch.backends.cudnn.deterministic = True   
-    torch.backends.cudnn.benchmark = False      
+    # Only set CUDA seeds if CUDA is available
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(random_seed)
+        if use_gpu:
+            torch.cuda.manual_seed_all(random_seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
     print(f"set seed: {random_seed}")
 
@@ -44,12 +46,20 @@ def parse_args():
     return args
 
 def build_working_dir(config: Config) -> str:
-    
-    # parent dir: <train/evaluate>/<dataset_name>/<reasoner_model_name>
+
+    # parent dir: /data/memgen/<train/evaluate>/<dataset_name>/<reasoner_model_name>
     mode = config.run_cfg.mode
     dataset_name = config.dataset_cfg.name
-    model_name = config.model_cfg.model_name.split("/")[1]
-    parent_dir = os.path.join("results", mode, dataset_name, model_name)
+
+    # Safely extract model name - handle both "org/model" and "model" formats
+    full_model_name = config.model_cfg.model_name
+    if "/" in full_model_name:
+        model_name = full_model_name.split("/")[-1]  # Use last part after /
+    else:
+        model_name = full_model_name  # Use as-is for local paths
+
+    # Use /data folder for all outputs (checkpoints, logs, etc.)
+    parent_dir = os.path.join("/data/memgen", mode, dataset_name, model_name)
 
     # name: <prompt_aug_num>_<prompt_latents_len>_<inference_aug_num>_<inference_latents_len>_<timestamp>
     max_prompt_aug_num = config.model_cfg.max_prompt_aug_num
@@ -57,7 +67,7 @@ def build_working_dir(config: Config) -> str:
     max_inference_aug_num = config.model_cfg.max_inference_aug_num
     inference_latents_len = config.model_cfg.weaver.inference_latents_len
     time = datetime.now().strftime("%Y%m%d-%H%M%S")
-    working_dir = f"pn={max_prompt_aug_num}_pl={prompt_latents_len}_in={max_inference_aug_num}_il={inference_latents_len}_{time}" 
+    working_dir = f"pn={max_prompt_aug_num}_pl={prompt_latents_len}_in={max_inference_aug_num}_il={inference_latents_len}_{time}"
 
     return os.path.join(parent_dir, working_dir)
 

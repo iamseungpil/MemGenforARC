@@ -5,9 +5,59 @@ import copy
 
 from interactions.base_interaction import (
     InteractionDataProto,
-    InteractionConfig, 
+    InteractionConfig,
     InteractionManager
 )
+
+
+def compute_assistant_mask_qwen(input_ids: torch.Tensor, tokenizer) -> torch.Tensor:
+    """
+    Manually compute assistant token masks for Qwen models.
+
+    Qwen's chat template doesn't include {% generation %} markers, so we need to
+    manually identify assistant response tokens.
+
+    Pattern: <|im_start|>assistant\n ... <|im_end|>
+    Token IDs: 151644 (im_start), 77091 (assistant), 198 (newline), ... 151645 (im_end)
+
+    Args:
+        input_ids: (batch_size, seq_len) tensor of token IDs
+        tokenizer: The tokenizer to get special token IDs
+
+    Returns:
+        mask: (batch_size, seq_len) tensor where 1 = assistant token, 0 = other
+    """
+    batch_size, seq_len = input_ids.shape
+    mask = torch.zeros_like(input_ids, dtype=torch.long)
+
+    # Get special token IDs
+    im_start_id = 151644  # <|im_start|>
+    im_end_id = 151645    # <|im_end|>
+    assistant_id = 77091  # assistant
+
+    for b in range(batch_size):
+        in_assistant = False
+        for i in range(seq_len):
+            token_id = input_ids[b, i].item()
+
+            # Check for start of assistant message: <|im_start|>assistant
+            if i < seq_len - 1:
+                if token_id == im_start_id and input_ids[b, i + 1].item() == assistant_id:
+                    in_assistant = True
+                    continue
+
+            # Check for end of message: <|im_end|>
+            if token_id == im_end_id:
+                in_assistant = False
+                continue
+
+            # Mark assistant tokens (skip the "assistant\n" part)
+            if in_assistant and token_id != assistant_id and token_id != 198:  # 198 = newline
+                # Also skip <think> and </think> tokens if present
+                if token_id not in [151667, 151668]:  # <think>, </think>
+                    mask[b, i] = 1
+
+    return mask
 
 
 class MultiTurnInteractionManager(InteractionManager):
@@ -248,7 +298,15 @@ class MultiTurnInteractionManager(InteractionManager):
         output.batch["responses"] = response_ids["input_ids"]
         response_attn_mask = response_ids["attention_mask"]
 
-        completion_info_mask = response_ids["assistant_masks"]
+        # Qwen3's chat template doesn't support return_assistant_tokens_mask properly
+        # (missing {% generation %} keyword), so we compute it manually
+        assistant_masks = response_ids.get("assistant_masks")
+        if assistant_masks is None or assistant_masks.sum() == 0:
+            completion_info_mask = compute_assistant_mask_qwen(
+                response_ids["input_ids"], self.tokenizer
+            )
+        else:
+            completion_info_mask = assistant_masks
 
         # ---------- input_ids ----------
         output.batch["input_ids"] = torch.cat(

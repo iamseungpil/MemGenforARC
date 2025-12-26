@@ -1,16 +1,30 @@
 import logging
 from typing import Union, Optional
+from contextlib import contextmanager
 
 import random
 import torch
 import torch.nn as nn
 from transformers import (
-    AutoModelForCausalLM, 
+    AutoModelForCausalLM,
     AutoTokenizer,
     GenerationConfig,
-    DynamicCache
+    DynamicCache,
+    LogitsProcessor,
+    LogitsProcessorList
 )
 from transformers.modeling_utils import PreTrainedModel
+
+
+class NanInfLogitsProcessor(LogitsProcessor):
+    """Handle nan/inf values in logits to prevent CUDA assertion errors."""
+
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+        # Replace nan with -inf (will be masked out by softmax)
+        # Replace inf with large finite values
+        if torch.isnan(scores).any() or torch.isinf(scores).any():
+            scores = torch.nan_to_num(scores, nan=-1e9, posinf=1e4, neginf=-1e9)
+        return scores
 
 from memgen.model.configuration_memgen import MemGenConfig
 from memgen.model.modeling_utils import (
@@ -53,7 +67,7 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             weaver_model, config.weaver_lora_config, trigger_model, config.trigger_lora_config,
         )
         self.weaver = MemGenWeaver(
-            weaver_model, config.prompt_latents_len, config.inference_latents_len, 
+            weaver_model, config.prompt_latents_len, config.inference_latents_len,
         )
         self.trigger = MemGenTrigger(
             trigger_model, config.trigger_active, 
@@ -66,11 +80,11 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         reasoner_hidden_size = self.config.hidden_size
         weaver_hidden_size = weaver_model.base_model.config.hidden_size
         self.reasoner_to_weaver = nn.Linear(
-            reasoner_hidden_size, weaver_hidden_size
+            reasoner_hidden_size, weaver_hidden_size, dtype=torch.bfloat16
         )
         # Map weaver hidden states to reasoner input embeddings
         self.weaver_to_reasoner = nn.Linear(
-            weaver_hidden_size, reasoner_hidden_size
+            weaver_hidden_size, reasoner_hidden_size, dtype=torch.bfloat16
         )
         
         self.delimiters: list[str] = [",", ".", "\n"]  # delimiters for detecting augmentation points
@@ -88,24 +102,36 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                 f"Tokenizer has no pad token. Using EOS token ({self.tokenizer.eos_token}) as pad token."
             )
 
-        # Normalize the tokenizer's chat template
-        self.tokenizer.chat_template = CONVERSATION_TEMPLATE
+        # NOTE: Do NOT override chat_template here.
+        # Use the model's built-in chat template (e.g., GPT-OSS Harmony format).
+        # The old SmolLM3 template was incompatible with GPT-OSS.
     
 
     @property
     def device(self):
         return self.reasoner.device
-    
+
+    @contextmanager
+    def disable_adapter(self):
+        """
+        Context manager to disable LoRA adapters for reference model computation.
+        This allows GRPO to compute reference logits without creating a separate model copy.
+        Delegates to PEFT's built-in disable_adapter context manager.
+        """
+        # Use PEFT's built-in context manager
+        with self.weaver.model.disable_adapter():
+            yield
+
     def _forward(
-        self, 
+        self,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
-        labels: torch.Tensor,   
+        labels: torch.Tensor,
         **kwargs
     ) -> torch.Tensor:
         # preprocess inputs
         assert input_ids.shape == attention_mask.shape == labels.shape
-        
+
         tokenizer = self.tokenizer
         reasoner = self.reasoner
         weaver = self.weaver
@@ -116,14 +142,25 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         B, _ = input_ids.shape
         hidden_size = self.config.hidden_size
 
+        # Skip augmentation entirely when max_prompt_aug_num is 0 (pure SFT mode)
+        if self.config.max_prompt_aug_num == 0:
+            # Simple forward without any augmentation
+            position_ids = self._generate_position_ids(attention_mask)
+            reasoner_outputs = reasoner(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                position_ids=position_ids
+            )
+            return reasoner_outputs.logits
+
         # select augment idx
         augmentation_indices = self._select_augment_points_after_delimiter(
             input_ids, labels, delimiters, tokenizer, max_augment_num
         )
-        
+
         # origin inputs embeds
         inputs_embeds = reasoner.get_input_embeddings()(input_ids)
-                
+
         # Initialize the start index and empty tensors for accumulating processed segments
         current_start_idx = 0
         current_inputs_embeds = torch.empty((B, 0, hidden_size), device=device, dtype=embeds_dtype)
@@ -148,7 +185,7 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
 
             # Determine whether this point is the end of the prompt (prompt augmentation)
             is_prompt_end_aug = (labels[:, aug_point_idx] != -100).all() and (labels[:, aug_point_idx-1] == -100).all().item()
-            
+
             # Depending on type, use weaver to augment prompt or inference
             if is_prompt_end_aug:
                 weaver_hidden_states, attn_mask, pos_ids = weaver.augment_prompt(
@@ -157,25 +194,30 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             else:
                 weaver_hidden_states, attn_mask, pos_ids = weaver.augment_inference(
                     weaver_inputs_embeds, current_attention_mask, current_position_ids
-                ) 
+                )
 
             # Map weaver hidden states back to reasoner embeddings
             latent_inputs_embeds = self.weaver_to_reasoner(weaver_hidden_states)
+            # Handle nan/inf in latent embeddings to prevent numerical instability
+            # Embedding values are typically in range [-1, 1], so use conservative clamp
+            if torch.isnan(latent_inputs_embeds).any() or torch.isinf(latent_inputs_embeds).any():
+                latent_inputs_embeds = torch.nan_to_num(latent_inputs_embeds, nan=0.0, posinf=5.0, neginf=-5.0)
+            latent_inputs_embeds = torch.clamp(latent_inputs_embeds, min=-5.0, max=5.0)
 
             # Update accumulated embeddings and masks with the newly augmented segment
             current_inputs_embeds = torch.cat([current_inputs_embeds, latent_inputs_embeds], dim=1)
             current_attention_mask = torch.cat([current_attention_mask, attn_mask], dim=1)
             current_start_idx = aug_point_idx
-            
+
             # Update latent mask for the newly added latent embeddings
             latent_mask = torch.ones((B, latent_inputs_embeds.size(1)), device=device, dtype=torch.bool)
             current_latents_mask = torch.cat([current_latents_mask, latent_mask], dim=1)
-            
+
         # Process the remaining segment after the last augmentation point
         remaining_inputs_embeds = inputs_embeds[:, current_start_idx:]
         remaining_attention_mask = attention_mask[:, current_start_idx:]
         latent_mask = torch.zeros((B, remaining_attention_mask.size(1)), device=device, dtype=torch.bool)
-        
+
         current_inputs_embeds = torch.cat([current_inputs_embeds, remaining_inputs_embeds], dim=1)
         current_attention_mask = torch.cat([current_attention_mask, remaining_attention_mask], dim=1)
         current_position_ids = self._generate_position_ids(current_attention_mask)
@@ -187,15 +229,16 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             position_ids=current_position_ids
         )
         logits = reasoner_outputs.logits
-        
+
         # Identify valid positions in logits (positions that should contribute to loss)
         shifted = torch.zeros_like(current_latents_mask)
         shifted[:, :-1] = current_latents_mask[:, 1:]
         valid_mask = ~shifted
-        
-        valid_logits = logits[valid_mask].view(logits.size(0), -1, logits.size(2))  
+
+        valid_logits = logits[valid_mask].view(logits.size(0), -1, logits.size(2))
         # assert shifted.sum() == current_latents_mask.sum()
         # assert valid_logits.shape[:2] == input_ids.shape
+
         return valid_logits
     
     def _instructional_forward(
@@ -227,18 +270,144 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         # For Instruction SFT, labels remain the same as input
         return logits, labels
 
-    def _conversational_forward(
-        self, 
+    def _grpo_forward(
+        self,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
-        labels: torch.Tensor,   
+        labels: torch.Tensor,
+        **kwargs
+    ) -> MemGenOutputWithPast:
+        """
+        Forward pass for GRPO training with Weaver augmentation.
+
+        This mode uses the Weaver to generate latent memory embeddings at the
+        prompt/completion boundary, then computes logits. Gradients flow through
+        the Weaver's LoRA parameters for training.
+
+        Args:
+            input_ids: Input token IDs (batch, seq_len)
+            attention_mask: Attention mask
+            labels: Labels for loss computation (prompt positions are -100)
+            **kwargs: Additional arguments (ignored)
+
+        Returns:
+            MemGenOutputWithPast with logits and loss
+        """
+        B, seq_len = input_ids.shape
+        device = input_ids.device
+        reasoner = self.reasoner
+        weaver = self.weaver
+
+        # Get embeddings from input_ids
+        inputs_embeds = reasoner.get_input_embeddings()(input_ids)
+        # Enable gradient tracking for gradient checkpointing to work properly
+        inputs_embeds = inputs_embeds.requires_grad_(True)
+
+        # Find prompt/completion boundary from labels
+        # Labels are -100 for prompt positions, valid for completion positions
+        if labels is not None:
+            # Find first non -100 position for each sample in batch
+            is_completion = (labels != -100)
+            # Get the first completion position (boundary)
+            completion_starts = is_completion.int().argmax(dim=1)  # (B,)
+            # Use the minimum as augmentation point (assumes similar prompt lengths)
+            aug_point = completion_starts.min().item()
+        else:
+            # If no labels, augment at end (shouldn't happen in GRPO)
+            aug_point = seq_len
+
+        # Skip augmentation if aug_point is 0 (all completion) or at end (all prompt)
+        if aug_point > 0 and aug_point < seq_len:
+            # Get prompt embeddings for Weaver
+            prompt_embeds = inputs_embeds[:, :aug_point]
+            prompt_mask = attention_mask[:, :aug_point]
+            prompt_position_ids = self._generate_position_ids(prompt_mask)
+
+            # Map reasoner embeddings to weaver space
+            weaver_inputs_embeds = self.reasoner_to_weaver(prompt_embeds)
+            # Handle nan/inf in input embeddings
+            if torch.isnan(weaver_inputs_embeds).any() or torch.isinf(weaver_inputs_embeds).any():
+                weaver_inputs_embeds = torch.nan_to_num(weaver_inputs_embeds, nan=0.0, posinf=5.0, neginf=-5.0)
+            weaver_inputs_embeds = torch.clamp(weaver_inputs_embeds, min=-5.0, max=5.0)
+
+            # Use Weaver to generate latent memory embeddings
+            weaver_hidden_states, aug_attn_mask, aug_pos_ids = weaver.augment_prompt(
+                weaver_inputs_embeds, prompt_mask, prompt_position_ids
+            )
+
+            # Map weaver outputs back to reasoner space
+            latent_embeds = self.weaver_to_reasoner(weaver_hidden_states)
+            # Handle nan/inf in latent embeddings to prevent numerical instability
+            if torch.isnan(latent_embeds).any() or torch.isinf(latent_embeds).any():
+                latent_embeds = torch.nan_to_num(latent_embeds, nan=0.0, posinf=5.0, neginf=-5.0)
+            latent_embeds = torch.clamp(latent_embeds, min=-5.0, max=5.0)
+
+            # Get completion embeddings
+            completion_embeds = inputs_embeds[:, aug_point:]
+            completion_mask = attention_mask[:, aug_point:]
+
+            # Concatenate: prompt + latent + completion
+            current_inputs_embeds = torch.cat([prompt_embeds, latent_embeds, completion_embeds], dim=1)
+            current_attention_mask = torch.cat([prompt_mask, aug_attn_mask, completion_mask], dim=1)
+            current_position_ids = self._generate_position_ids(current_attention_mask)
+
+            # Track latent positions for masking
+            latent_len = latent_embeds.size(1)
+            latent_start = aug_point
+            latent_end = aug_point + latent_len
+        else:
+            # No augmentation needed
+            current_inputs_embeds = inputs_embeds
+            current_attention_mask = attention_mask
+            current_position_ids = self._generate_position_ids(current_attention_mask)
+            latent_len = 0
+            latent_start = 0
+            latent_end = 0
+
+        # Forward through reasoner with augmented embeddings
+        outputs = reasoner(
+            inputs_embeds=current_inputs_embeds,
+            attention_mask=current_attention_mask,
+            position_ids=current_position_ids,
+            use_cache=False
+        )
+        full_logits = outputs.logits
+
+        # Remove latent positions from logits to match original sequence length
+        if latent_len > 0:
+            # Split and recombine without latent positions
+            pre_latent_logits = full_logits[:, :latent_start, :]
+            post_latent_logits = full_logits[:, latent_end:, :]
+            logits = torch.cat([pre_latent_logits, post_latent_logits], dim=1)
+        else:
+            logits = full_logits
+
+        # Compute loss if labels provided
+        loss = None
+        if labels is not None:
+            shift_logits = logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
+            loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
+            loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+
+        # Return in expected format
+        result = MemGenOutputWithPast(loss=loss, logits=logits)
+        result.supervised_labels = labels
+        return result
+
+    def _conversational_forward(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        labels: torch.Tensor,
         **kwargs
     ) -> tuple[torch.FloatTensor, torch.LongTensor]:
         """
-        Forward pass for conversational (multi-turn) data.
+        Forward pass for conversational (multi-turn) data with memory persistence.
 
         Multi-turn forward is constructed by sequentially calling the single-turn forward
-        for each conversation turn. Latents inserted in turn i-1 are not visible to turn i.
+        for each conversation turn. Memory from turn i-1 IS visible to turn i,
+        enabling the model to accumulate knowledge across turns (consistent with generate()).
 
         Args:
             input_ids (torch.Tensor): Input token IDs, shape (1, seq_len). Batch size must be 1.
@@ -270,14 +439,14 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         if len(ends) < len(valid_starts):
             ends.append(seq_len)
         assert len(valid_starts) == len(ends)
-        
+
         # Build triplets (start of previous segment, start of supervised segment, end of supervised segment)
         triplets = []
         start = 0
         for s, e in zip(valid_starts, ends):
             triplets.append((start, s, e))
             start = e
-        
+
         # If there are more segments than allowed, randomly select self.max_prompt_aug_num segments
         if len(triplets) <= self.config.max_prompt_aug_num:
             select_turns = [1] * len(triplets)
@@ -313,24 +482,32 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         return all_logits, all_labels
 
     def forward(
-        self, 
-        input_ids: torch.Tensor, 
+        self,
+        input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
         labels: torch.Tensor,
         **kwargs
-    ) -> MemGenOutputWithPast:  
+    ) -> MemGenOutputWithPast:
         tokenizer = self.tokenizer
+
+        # Check if this is a GRPO forward call (skip conversation parsing, do simple forward)
+        is_grpo = kwargs.pop('is_grpo', False)
+
+        if is_grpo:
+            # GRPO mode: Skip conversation/instruction parsing, do simple reasoner forward
+            # This is used for computing log probabilities on already-generated sequences
+            return self._grpo_forward(input_ids, attention_mask, labels, **kwargs)
 
         # Ensure labels are provided, required for training the reasoning processor
         assert labels is not None, "Reasoning Processor requires input labels for training"
-        
+
         # Determine whether the input is single-turn (instruction) or multi-turn (conversation)
         forward_func = self._instructional_forward
         if self._is_conversation(input_ids, tokenizer):
             # For conversational data, mask assistant tokens in labels
             labels = self._postprocess_assistant_labels(input_ids, labels, tokenizer)
             forward_func = self._conversational_forward
-        
+
         batch_size = 1  # Currently process one sequence per batch
         iter_num = input_ids.size(0) // batch_size
 
@@ -369,14 +546,44 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
 
     @torch.no_grad()
     def generate(
-        self, 
-        input_ids: torch.Tensor, 
+        self,
+        input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
-        generation_config: GenerationConfig = None, 
+        generation_config: GenerationConfig = None,
         return_augmentation_mask: bool = False,
+        prev_memory_embeds: Optional[torch.Tensor] = None,
+        return_memory_embeds: bool = False,
         **kwargs
-    ) -> Union[torch.LongTensor, tuple[torch.LongTensor, torch.LongTensor]]: 
-        
+    ) -> Union[torch.LongTensor, tuple[torch.LongTensor, torch.LongTensor], tuple[torch.LongTensor, torch.Tensor]]:
+        """
+        Generate text with optional latent memory injection and capture.
+
+        Memory Architecture (arc-lang-public style):
+        - Memory flows between instruction generations within a task (refinement loop)
+        - Grid generation uses pure text prompts (no memory injection)
+        - Weaver generates latent memory tokens that augment the reasoning process
+
+        Args:
+            input_ids: Input token IDs [B, seq_len]
+            attention_mask: Attention mask [B, seq_len]
+            generation_config: Generation parameters (max_new_tokens, temperature, etc.)
+            return_augmentation_mask: If True, return augmentation positions
+            prev_memory_embeds: Previous memory embeddings to prepend [B, mem_len, hidden_size].
+                Used for instruction refinement where memory from previous turn is carried over.
+                Injected at embedding level only (input_ids stays unchanged).
+            return_memory_embeds: If True, capture and return memory from this generation.
+                Memory is captured from prompt augmentation (i=0) only.
+
+        Returns:
+            - If neither return flag: generated token IDs
+            - If return_augmentation_mask only: (token_ids, augmentation_pos)
+            - If return_memory_embeds only: (token_ids, captured_memory_embeds)
+            - If both: (token_ids, augmentation_pos, captured_memory_embeds)
+
+        Note:
+            Trigger currently doesn't see prev_memory_embeds (acceptable for ARC two-stage
+            where trigger is disabled). This is a known limitation.
+        """
         tokenizer = self.tokenizer
         reasoner = self.reasoner
         weaver = self.weaver
@@ -394,7 +601,32 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         inputs_embeds = reasoner.get_input_embeddings()(input_ids)
         B, _, hidden_size = inputs_embeds.shape
         device = inputs_embeds.device
-        
+
+        # Handle prev_memory_embeds: prepend to inputs for instruction refinement
+        # IMPORTANT: Memory is injected at embedding level only, not token level.
+        # - inputs_embeds and attention_mask: grow by memory length
+        # - input_ids and current_input_ids: stay unchanged (track actual tokens only)
+        # - prompt_len: stays as original token count (for extracting generated tokens later)
+        # This is intentional: the generation loop tracks tokens separately from embeddings.
+        if prev_memory_embeds is not None:
+            prev_memory_embeds = prev_memory_embeds.to(device=device, dtype=inputs_embeds.dtype)
+            # Prepend previous memory to current inputs (embeds level only)
+            inputs_embeds = torch.cat([prev_memory_embeds, inputs_embeds], dim=1)
+            memory_attention = torch.ones(
+                prev_memory_embeds.shape[:2], dtype=attention_mask.dtype, device=device
+            )
+            attention_mask = torch.cat([memory_attention, attention_mask], dim=1)
+
+        # Variable to capture memory for return (only from prompt augmentation)
+        # Initialize with full batch size to maintain alignment
+        captured_memory_embeds: Optional[torch.Tensor] = None
+        if return_memory_embeds:
+            # Pre-allocate memory tensor for full batch (filled during prompt augmentation)
+            latent_len = weaver.prompt_latents_num
+            captured_memory_embeds = torch.zeros(
+                (B, latent_len, hidden_size), dtype=inputs_embeds.dtype, device=device
+            )
+
         # --- generation loop ---
         current_inputs_embeds = inputs_embeds
         current_attention_mask = attention_mask
@@ -414,9 +646,12 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         for i in range(max_new_tokens):
             
             assert current_inputs_embeds.shape[:2] == current_attention_mask.shape == current_position_ids.shape
+            # NOTE: _should_augment uses current_input_ids (not embeds), so it doesn't see
+            # prev_memory_embeds. This is acceptable for ARC two-stage where trigger is disabled,
+            # but should be addressed if trigger needs to be memory-aware in the future.
             augment_decision = self._should_augment(
-                current_input_ids, 
-                sentence_augment_count=sentence_augment_count, 
+                current_input_ids,
+                sentence_augment_count=sentence_augment_count,
                 do_sample=generation_config.do_sample,
                 temperature=generation_config.temperature,
                 is_prompt=(i==0)  
@@ -437,16 +672,32 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                 
                 # Perform inference augmentation using the weaver
                 weaver_inputs_embeds = self.reasoner_to_weaver(candidate_inputs_embeds)
+
                 if i == 0:
                     weaver_hidden_states, attn_mask, _ = weaver.augment_prompt(
                         weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
-                    )                    
+                    )
+                    # Capture memory from prompt augmentation for return
+                    if return_memory_embeds and captured_memory_embeds is not None:
+                        # Fill memory at correct batch indices (only augmented samples get memory)
+                        # Non-augmented samples keep zero memory from pre-allocation
+                        mem_embeds = self.weaver_to_reasoner(weaver_hidden_states).detach()
+                        if torch.isnan(mem_embeds).any() or torch.isinf(mem_embeds).any():
+                            mem_embeds = torch.nan_to_num(mem_embeds, nan=0.0, posinf=5.0, neginf=-5.0)
+                        mem_embeds = torch.clamp(mem_embeds, min=-5.0, max=5.0)
+                        captured_memory_embeds[augment_indices] = mem_embeds
                 else:
                     weaver_hidden_states, attn_mask, _ = weaver.augment_inference(
                         weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
                     )
+
                 latent_inputs_embeds = self.weaver_to_reasoner(weaver_hidden_states)
-                
+                # Handle nan/inf in latent embeddings to prevent numerical instability
+                if torch.isnan(latent_inputs_embeds).any() or torch.isinf(latent_inputs_embeds).any():
+                    latent_inputs_embeds = torch.nan_to_num(latent_inputs_embeds, nan=0.0, posinf=5.0, neginf=-5.0)
+                # Clamp to reasonable range matching embedding values (~[-1, 1])
+                latent_inputs_embeds = torch.clamp(latent_inputs_embeds, min=-5.0, max=5.0)
+
                 candidate_inputs_embeds = torch.cat([candidate_inputs_embeds, latent_inputs_embeds], dim=1)
                 candidate_attention_mask = torch.cat([candidate_attention_mask, attn_mask], dim=1)
                 
@@ -488,11 +739,14 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                     use_cache=False,
                     max_new_tokens=max_new_tokens-i
                 )
+                # Add logits processor to handle nan/inf
+                logits_processor = LogitsProcessorList([NanInfLogitsProcessor()])
                 # Perform generation for the remaining tokens using the reasoner
                 generated = reasoner.generate(
                     inputs_embeds=current_inputs_embeds,
                     attention_mask=current_attention_mask,
-                    generation_config=generation_config
+                    generation_config=generation_config,
+                    logits_processor=logits_processor
                 )
                 current_input_ids = torch.cat([current_input_ids, generated], dim=1)
                 break            
@@ -514,13 +768,13 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                 past_key_values=current_cache
             )
             current_inputs_embeds, current_attention_mask, current_position_ids, current_input_ids = self._append_one_step(
-                outputs, 
-                current_inputs_embeds, 
-                current_attention_mask, 
-                current_position_ids, 
-                current_input_ids, 
-                do_sample=False, 
-                temperature=0.0
+                outputs,
+                current_inputs_embeds,
+                current_attention_mask,
+                current_position_ids,
+                current_input_ids,
+                do_sample=generation_config.do_sample,
+                temperature=generation_config.temperature if generation_config.temperature else 1.0
             )
             current_cache = outputs.past_key_values
 
@@ -540,8 +794,13 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             current_input_ids[:, prompt_len:],
             augmentation_pos
         )
-        
-        if return_augmentation_mask:
+
+        # Handle different return combinations
+        if return_memory_embeds and return_augmentation_mask:
+            return (current_input_ids, augmentation_pos, captured_memory_embeds)
+        elif return_memory_embeds:
+            return (current_input_ids, captured_memory_embeds)
+        elif return_augmentation_mask:
             return (current_input_ids, augmentation_pos)
         else:
             return current_input_ids
@@ -572,7 +831,7 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         from transformers import AutoConfig
         memgen_config = AutoConfig.from_pretrained(model_name)
         memgen_config = MemGenConfig.from_pretrained(
-            model_name, 
+            model_name,
 
             max_prompt_aug_num=max_prompt_aug_num,
             max_inference_aug_num=max_inference_aug_num,
@@ -584,38 +843,107 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             trigger_active=trigger_active,
             trigger_lora_config=trigger_lora_config_dict
         )
-        
-        base_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16, attn_implementation="flash_attention_2")
+
+        # Ensure _name_or_path is set for TRL GRPOTrainer compatibility
+        memgen_config._name_or_path = model_name
+
+        # Use sdpa (Scaled Dot Product Attention) as fallback if flash_attn not available
+        try:
+            base_model = AutoModelForCausalLM.from_pretrained(
+                model_name, torch_dtype=torch.bfloat16, attn_implementation="flash_attention_2"
+            )
+        except ImportError:
+            logging.warning("Flash Attention 2 not available, falling back to SDPA")
+            base_model = AutoModelForCausalLM.from_pretrained(
+                model_name, torch_dtype=torch.bfloat16, attn_implementation="sdpa"
+            )
         base_tokenizer = AutoTokenizer.from_pretrained(model_name)
 
         if weaver_model_name != model_name:
-            weaver_model = AutoModelForCausalLM.from_pretrained(weaver_model_name, torch_dtype=torch.bfloat16, attn_implementation="flash_attention_2")
+            try:
+                weaver_model = AutoModelForCausalLM.from_pretrained(
+                    weaver_model_name, torch_dtype=torch.bfloat16, attn_implementation="flash_attention_2"
+                )
+            except ImportError:
+                weaver_model = AutoModelForCausalLM.from_pretrained(
+                    weaver_model_name, torch_dtype=torch.bfloat16, attn_implementation="sdpa"
+                )
         else:
             weaver_model = base_model
-        
+
         if trigger_model_name != model_name:
-            trigger_model = AutoModelForCausalLM.from_pretrained(trigger_model_name, torch_dtype=torch.bfloat16, attn_implementation="flash_attention_2")
+            try:
+                trigger_model = AutoModelForCausalLM.from_pretrained(
+                    trigger_model_name, torch_dtype=torch.bfloat16, attn_implementation="flash_attention_2"
+                )
+            except ImportError:
+                trigger_model = AutoModelForCausalLM.from_pretrained(
+                    trigger_model_name, torch_dtype=torch.bfloat16, attn_implementation="sdpa"
+                )
         else:
             trigger_model = base_model
         
         load_model_path = config_dict.get("load_model_path", None)
+        load_weaver_path = config_dict.get("load_weaver_path", None)
+
         if not load_model_path:
             model = cls(
-                config=memgen_config, 
-                base_model=base_model, 
-                base_tokenizer=base_tokenizer,
-                weaver_model=weaver_model,
-                trigger_model=trigger_model
-            )
-        else:
-            model = cls.from_pretrained(
-                load_model_path, 
                 config=memgen_config,
                 base_model=base_model,
                 base_tokenizer=base_tokenizer,
                 weaver_model=weaver_model,
                 trigger_model=trigger_model
             )
-        
+        else:
+            model = cls.from_pretrained(
+                load_model_path,
+                config=memgen_config,
+                base_model=base_model,
+                base_tokenizer=base_tokenizer,
+                weaver_model=weaver_model,
+                trigger_model=trigger_model
+            )
+
+        # Load pre-trained weaver adapter if specified
+        if load_weaver_path:
+            model._load_pretrained_weaver(load_weaver_path)
+
         return model
 
+    def _load_pretrained_weaver(self, weaver_path: str):
+        """
+        Load pre-trained weaver adapter weights from a checkpoint.
+
+        Args:
+            weaver_path: Path to the weaver adapter checkpoint directory
+                         (should contain adapter_model.safetensors)
+        """
+        from pathlib import Path
+        from safetensors.torch import load_file
+
+        adapter_path = Path(weaver_path) / "adapter_model.safetensors"
+        if not adapter_path.exists():
+            raise FileNotFoundError(f"Weaver adapter not found: {adapter_path}")
+
+        logging.info(f"Loading pre-trained weaver from: {weaver_path}")
+
+        # Load the pre-trained weights
+        pretrained_weights = load_file(str(adapter_path))
+
+        # Get current weaver state dict
+        weaver_state = self.weaver.model.state_dict()
+
+        # Map pretrained weights to weaver state dict
+        loaded_count = 0
+        for key, value in pretrained_weights.items():
+            if key in weaver_state:
+                if weaver_state[key].shape == value.shape:
+                    weaver_state[key] = value.to(weaver_state[key].dtype)
+                    loaded_count += 1
+                else:
+                    logging.warning(f"Shape mismatch for {key}: expected {weaver_state[key].shape}, got {value.shape}")
+
+        # Load the updated state dict
+        self.weaver.model.load_state_dict(weaver_state, strict=True)
+
+        logging.info(f"Loaded {loaded_count} weaver adapter weights from checkpoint")

@@ -1,28 +1,48 @@
 import os
 import random
+import logging
 
 from accelerate import Accelerator
 from datasets import Dataset
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from trl import SFTTrainer, SFTConfig, GRPOConfig
+from trl import SFTTrainer, SFTConfig
 from trl.models import unwrap_model_for_generation
 
 from data import (
     BaseBuilder,
 )
 from interactions.base_interaction import (
-    InteractionConfig,   
-    InteractionManager, 
+    InteractionConfig,
+    InteractionManager,
     InteractionDataProto
 )
 from interactions.singleturn_interaction import SingleTurnInteractionManager
 from interactions.multiturn_interaction import MultiTurnInteractionManager
+from interactions.arc_multiturn_interaction import (
+    ARCMultiTurnInteractionManager,
+    ARCSeedPoolManager
+)
 
 from memgen.model.modeling_memgen import MemGenModel
-from memgen.trainer.weaver_grpo_trainer import WeaverGRPOTrainer
-from memgen.trainer.trigger_grpo_trainer import TriggerGRPOTrainer
+
+# Lazy imports for GRPO trainers (to avoid vLLM compatibility issues)
+WeaverGRPOTrainer = None
+TriggerGRPOTrainer = None
+GRPOConfig = None
+
+def _lazy_import_grpo():
+    """Lazy import GRPO components to avoid vLLM compatibility issues."""
+    global WeaverGRPOTrainer, TriggerGRPOTrainer, GRPOConfig
+    if WeaverGRPOTrainer is None:
+        from memgen.trainer.weaver_grpo_trainer import WeaverGRPOTrainer as _WeaverGRPOTrainer
+        from memgen.trainer.trigger_grpo_trainer import TriggerGRPOTrainer as _TriggerGRPOTrainer
+        from trl import GRPOConfig as _GRPOConfig
+        WeaverGRPOTrainer = _WeaverGRPOTrainer
+        TriggerGRPOTrainer = _TriggerGRPOTrainer
+        GRPOConfig = _GRPOConfig
+
 from memgen.utils import (
     StaticEvalRecorder,
     DynamicEvalRecorder,
@@ -66,16 +86,39 @@ class MemGenRunner:
         self.trigger_valid_dataset = self._filter_dataset(self.trigger_valid_dataset)
         
         # initialize generation manager
+        # Check for ARC multi-turn/multi-seed mode
+        dataset_name = config.get("dataset", {}).get("name", "")
+        num_seeds = self.interaction_config_dict.get("num_seeds", 1)
+
         if self.env_cls.ENV_CARD == "STATIC":
             self.inter_cls = SingleTurnInteractionManager
+            self.generation_manager: InteractionManager = self.inter_cls(
+                self.processing_class, self.model, self.interaction_config
+            )
+            self.seed_pool_manager = None
         elif self.env_cls.ENV_CARD == "DYNAMIC":
-            self.inter_cls = MultiTurnInteractionManager
-        else: 
+            # Use ARC-specific manager for arc dataset with multi-seed
+            if dataset_name == "arc" and num_seeds > 1:
+                self.inter_cls = ARCMultiTurnInteractionManager
+                self.generation_manager: InteractionManager = self.inter_cls(
+                    self.processing_class, self.model, self.interaction_config,
+                    num_seeds=num_seeds
+                )
+                # Create seed pool manager for GRPO training
+                selection_strategy = self.interaction_config_dict.get("selection_strategy", "best_final")
+                self.seed_pool_manager = ARCSeedPoolManager(
+                    self.generation_manager,
+                    num_seeds=num_seeds,
+                    selection_strategy=selection_strategy
+                )
+            else:
+                self.inter_cls = MultiTurnInteractionManager
+                self.generation_manager: InteractionManager = self.inter_cls(
+                    self.processing_class, self.model, self.interaction_config
+                )
+                self.seed_pool_manager = None
+        else:
             raise ValueError("Unsupported environment type.")
-        
-        self.generation_manager: InteractionManager = self.inter_cls(
-            self.processing_class, self.model, self.interaction_config
-        )
     
     def _parse_train_dataset(self, train_dataset: Dataset) -> tuple[Dataset, Dataset]:
         
@@ -133,6 +176,7 @@ class MemGenRunner:
         
         # GRPO Trainer
         elif self.train_weaver_method == 'grpo':
+            _lazy_import_grpo()  # Lazy import to avoid vLLM compatibility issues
             weaver_trainer = WeaverGRPOTrainer(
                 model=self.model,
                 reward_funcs=[self.env_cls.compute_reward],
@@ -143,7 +187,9 @@ class MemGenRunner:
                 # --- add env into trainer ---
                 env_class=self.env_cls,
                 env_main_config=self.config.get("dataset"),
-                generation_manager=self.generation_manager
+                generation_manager=self.generation_manager,
+                # --- add seed pool manager for ARC multi-seed training ---
+                seed_pool_manager=self.seed_pool_manager
             )
         else:
             raise ValueError("Unsupported weaver training method.")
@@ -157,13 +203,50 @@ class MemGenRunner:
         self.model.open_component("weaver")
         log_trainable_params(self.model)
 
+        # Enable gradient checkpointing to save memory
+        # This trades compute for memory by recomputing activations during backward pass
+        if hasattr(self.model.reasoner, 'gradient_checkpointing_enable'):
+            self.model.reasoner.gradient_checkpointing_enable()
+            logging.info("Gradient checkpointing enabled for reasoner")
+        if hasattr(self.model.weaver.model, 'gradient_checkpointing_enable'):
+            self.model.weaver.model.gradient_checkpointing_enable()
+            logging.info("Gradient checkpointing enabled for weaver")
+
         # train weaver
         weaver_trainer = self._create_weaver_trainer()
         weaver_trainer.train()
-        weaver_trainer.save_model()   # save the best model
-        
-        # remove checkpoints and save weaver
+
+        # Save weaver LoRA weights only (avoid shared tensor issues with full model save)
         output_dir = weaver_trainer.args.output_dir
+        os.makedirs(output_dir, exist_ok=True)
+
+        try:
+            # Try to save the weaver LoRA adapter separately
+            weaver_lora_path = os.path.join(output_dir, "weaver_lora")
+            if hasattr(self.model.weaver.model, 'save_pretrained'):
+                self.model.weaver.model.save_pretrained(weaver_lora_path, safe_serialization=False)
+                logging.info(f"Saved weaver LoRA to {weaver_lora_path}")
+
+            # Also save projection layers
+            import torch
+            proj_path = os.path.join(output_dir, "projections.pt")
+            torch.save({
+                'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
+                'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
+                'prompt_query_latents': self.model.weaver.prompt_query_latents,
+                'inference_query_latents': self.model.weaver.inference_query_latents,
+            }, proj_path)
+            logging.info(f"Saved projections to {proj_path}")
+        except Exception as e:
+            logging.warning(f"Failed to save weaver separately: {e}")
+            # Fallback: try full model save with safe_serialization=False
+            try:
+                weaver_trainer.model.save_pretrained(output_dir, safe_serialization=False)
+                logging.info(f"Saved full model to {output_dir} with safe_serialization=False")
+            except Exception as e2:
+                logging.error(f"Failed to save model: {e2}")
+
+        # remove checkpoints
         remove_trainer_checkpoints(output_dir)
     
     
@@ -171,6 +254,7 @@ class MemGenRunner:
     def _create_trigger_trainer(self):
         
         if self.train_trigger_method == "grpo":
+            _lazy_import_grpo()  # Lazy import to avoid vLLM compatibility issues
             trigger_trainer = TriggerGRPOTrainer(
                 model=self.model, 
                 processing_class=self.processing_class, 
@@ -349,9 +433,14 @@ class MemGenRunner:
             # batch record
             rewards = []
             for env in input_data_proto.no_tensor_batch["envs"]:
-                reward = env.feedback()
+                feedback = env.feedback()
+                # Handle both tuple (score, solved) and float returns
+                if isinstance(feedback, tuple):
+                    reward = feedback[0]  # Extract score from (score, solved) tuple
+                else:
+                    reward = feedback
                 rewards.append(reward)
-            
+
             recorder.record_batch(inter_context, rewards)
         
         recorder.finalize()
@@ -373,23 +462,33 @@ class MemGenRunner:
         self.weaver_sft_training_args = SFTConfig(**weaver_sft_config)
         self.weaver_sft_training_args.output_dir = os.path.join(self.working_dir, "weaver")
 
-        # parse weaver grpo training args
+        # parse weaver grpo training args (only if using grpo)
         weaver_grpo_config = weaver_config.get("grpo", dict())
-        self.weaver_grpo_training_args = GRPOConfig(**weaver_grpo_config)
-        self.weaver_grpo_training_args.output_dir = os.path.join(self.working_dir, "weaver")
+        if self.train_weaver_method == "grpo":
+            _lazy_import_grpo()
+            self.weaver_grpo_training_args = GRPOConfig(**weaver_grpo_config)
+            self.weaver_grpo_training_args.output_dir = os.path.join(self.working_dir, "weaver")
+        else:
+            self.weaver_grpo_training_args = None
 
         # --- parse trigger training args ---
-        trigger_config = configs.get("trigger", dict()) 
+        trigger_config = configs.get("trigger", dict())
         self.train_trigger_method = configs.get("train_trigger_method", "grpo")
         if self.train_trigger_method not in ["grpo"]:
             raise ValueError("Unsupported trigger training method.")
-        
+
         trigger_grpo_config = trigger_config.get("grpo", dict())
-        self.trigger_grpo_training_args = GRPOConfig(**trigger_grpo_config)
-        self.trigger_grpo_training_args.output_dir = os.path.join(self.working_dir, "trigger")
+        if self.train_trigger:  # Only parse if training trigger
+            _lazy_import_grpo()
+            self.trigger_grpo_training_args = GRPOConfig(**trigger_grpo_config)
+            self.trigger_grpo_training_args.output_dir = os.path.join(self.working_dir, "trigger")
+        else:
+            self.trigger_grpo_training_args = None
 
         # --- parse interaction args ---
         interaction_configs = configs.get("interaction", {})
+        # Store raw dict for access to extra params (num_seeds, selection_strategy)
+        self.interaction_config_dict = interaction_configs
         self.interaction_config = InteractionConfig(
             max_turns=interaction_configs.get("max_turns", 30),
             max_start_length=interaction_configs.get("max_start_length", 1024),
