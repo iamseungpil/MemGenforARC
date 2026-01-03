@@ -93,11 +93,11 @@ class MultiTurnInteractionManager(InteractionManager):
 
         init_prompts = rollings.get("init_prompts")
         if init_prompts is None:
-            raise ValueError("")
-        
+            raise ValueError("init_prompts is required but not found in rollings")
+
         inter_histories = rollings.get("inter_histories")
         if inter_histories is None:
-            raise ValueError("")
+            raise ValueError("inter_histories is required but not found in rollings")
         
         chat_histories: List[List[Dict]] = []
         for init_prompt, inter_history in zip(init_prompts, inter_histories):

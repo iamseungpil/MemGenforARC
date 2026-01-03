@@ -1,23 +1,32 @@
-# Patch vLLM for TRL compatibility (GuidedDecodingParams was added in newer vLLM versions)
+# Patch vLLM for TRL compatibility BEFORE importing TRL
+# GuidedDecodingParams was added in newer vLLM versions
 try:
     from vllm.sampling_params import GuidedDecodingParams, SamplingParams
+    VLLM_AVAILABLE = True
 except ImportError:
-    class GuidedDecodingParams:
-        """Dummy class for vLLM compatibility with TRL."""
-        def __init__(self, *args, **kwargs):
-            pass
-    class SamplingParams:
-        """Dummy class for vLLM compatibility."""
-        def __init__(self, *args, **kwargs):
-            pass
-    import vllm.sampling_params
-    vllm.sampling_params.GuidedDecodingParams = GuidedDecodingParams
-    vllm.sampling_params.SamplingParams = SamplingParams
+    VLLM_AVAILABLE = False
+    # Need to patch vllm.sampling_params for TRL compatibility
+    try:
+        import vllm.sampling_params as _vllm_sp
+        if not hasattr(_vllm_sp, 'GuidedDecodingParams'):
+            _vllm_sp.GuidedDecodingParams = type('GuidedDecodingParams', (), {'__init__': lambda self, *a, **k: None})
+        if not hasattr(_vllm_sp, 'SamplingParams'):
+            from vllm import SamplingParams
+        else:
+            SamplingParams = _vllm_sp.SamplingParams
+        GuidedDecodingParams = _vllm_sp.GuidedDecodingParams
+    except ImportError:
+        GuidedDecodingParams = None
+        SamplingParams = None
 
 from trl import GRPOTrainer, GRPOConfig
 from trl.data_utils import maybe_apply_chat_template, is_conversational
 from trl.models import unwrap_model_for_generation, create_reference_model
 from trl.trainer.utils import selective_log_softmax
+try:
+    from trl.trainer.utils import profiling_context
+except ImportError:
+    from contextlib import nullcontext as profiling_context
 from transformers import (
     PreTrainedModel, 
     PreTrainedTokenizerBase, 

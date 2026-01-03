@@ -46,13 +46,13 @@ python -m accelerate.commands.launch \
     model.weaver.inference_latents_len ${INFERENCE_LATENTS_LEN} \
     model.trigger.model_name ${TRIGGER_MODEL} \
     model.trigger.active False \
-    datasets.mode ${TRAIN_METHOD} \
+    dataset.mode ${TRAIN_METHOD} \
     run.mode train \
     run.train_weaver True \
     run.train_trigger False \
     run.train_weaver_method ${TRAIN_METHOD} \
     run.weaver.sft.per_device_train_batch_size ${BATCH_SIZE} \
-    run.weaver.sft.per_device_train_batch_size ${BATCH_SIZE} \
+    run.weaver.sft.per_device_eval_batch_size ${BATCH_SIZE} \
     run.weaver.sft.bf16 True \
     run.interaction.do_sample True \
     run.interaction.temperature 1.0 \

@@ -20,6 +20,7 @@ TRIGGER_ACTIVE=False
 
 # Dataset configs
 DATASET_NAME="gsm8k"  # gsm8k, gpqa, kodcode, triviaqa
+TEMPERATURE=0.0       # Temperature for sampling (0.0 for greedy)
 
 # MemGen configs
 
