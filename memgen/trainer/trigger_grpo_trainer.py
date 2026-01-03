@@ -1,16 +1,21 @@
 # Patch vLLM for TRL compatibility (GuidedDecodingParams was added in newer vLLM versions)
 try:
-    from vllm.sampling_params import GuidedDecodingParams
+    from vllm.sampling_params import GuidedDecodingParams, SamplingParams
 except ImportError:
     class GuidedDecodingParams:
         """Dummy class for vLLM compatibility with TRL."""
         def __init__(self, *args, **kwargs):
             pass
+    class SamplingParams:
+        """Dummy class for vLLM compatibility."""
+        def __init__(self, *args, **kwargs):
+            pass
     import vllm.sampling_params
     vllm.sampling_params.GuidedDecodingParams = GuidedDecodingParams
+    vllm.sampling_params.SamplingParams = SamplingParams
 
 from trl import GRPOTrainer, GRPOConfig
-from trl.data_utils import maybe_apply_chat_template
+from trl.data_utils import maybe_apply_chat_template, is_conversational
 from trl.models import unwrap_model_for_generation, create_reference_model
 from trl.trainer.utils import selective_log_softmax
 from transformers import (
@@ -25,7 +30,8 @@ from contextlib import nullcontext
 import torch
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.utils.data import Dataset
-from accelerate.utils import gather_object
+from accelerate.utils import gather_object, broadcast_object_list, gather
+import torch.nn as nn
 
 from interactions.base_interaction import InteractionDataProto
 from interactions.tensor_utils import TensorHelper, TensorConfig
@@ -116,7 +122,64 @@ class TriggerGRPOTrainer(GRPOTrainer):
         logps[augmentation_valid_mask] = 0
 
         return logps
-    
+
+    def _calculate_rewards(
+        self,
+        inputs: list[dict[str, Any]],
+        prompts: list,
+        completions: list,
+        completion_ids_list: list[torch.Tensor]
+    ) -> torch.Tensor:
+        """
+        Calculate rewards for each prompt-completion pair using reward functions.
+
+        This method mirrors TRL's reward calculation pattern but is adapted for
+        TriggerGRPOTrainer's custom needs.
+
+        Args:
+            inputs: List of input dictionaries containing task data
+            prompts: List of prompts
+            completions: List of completions (text)
+            completion_ids_list: List of completion token IDs
+
+        Returns:
+            rewards_per_func: Tensor of shape (num_prompts, num_reward_funcs)
+        """
+        device = self.accelerator.device
+        rewards_per_func = torch.zeros(len(prompts), len(self.reward_funcs), device=device)
+
+        for i, (reward_func, reward_processing_class) in enumerate(
+            zip(self.reward_funcs, self.reward_processing_classes)
+        ):
+            if isinstance(reward_func, nn.Module):
+                # For neural network reward models
+                if is_conversational(inputs[0]):
+                    from trl.data_utils import apply_chat_template
+                    messages = [{"messages": p + c} for p, c in zip(prompts, completions)]
+                    texts = [apply_chat_template(x, reward_processing_class)["text"] for x in messages]
+                else:
+                    texts = [p + c for p, c in zip(prompts, completions)]
+                reward_inputs = reward_processing_class(
+                    texts, return_tensors="pt", padding=True, padding_side="right", add_special_tokens=False
+                )
+                reward_inputs = super()._prepare_inputs(reward_inputs)
+                with torch.inference_mode():
+                    rewards_per_func[:, i] = reward_func(**reward_inputs).logits[:, 0]
+            else:
+                # For callable reward functions (like env.compute_reward)
+                # Extract additional kwargs from inputs (excluding prompt and completion)
+                keys = [key for key in inputs[0] if key not in ["prompt", "completion"]]
+                reward_kwargs = {key: [example[key] for example in inputs] for key in keys}
+
+                # Call the reward function
+                output_reward_func = reward_func(prompts=prompts, completions=completions, **reward_kwargs)
+                rewards_per_func[:, i] = torch.tensor(output_reward_func, dtype=torch.float32, device=device)
+
+        # Gather rewards across processes for proper normalization
+        rewards_per_func = gather(rewards_per_func)
+
+        return rewards_per_func
+
     def _generate_and_score_completions(
         self, inputs: list[dict[str, Union[torch.Tensor, Any]]]
     ) -> dict[str, Union[torch.Tensor, Any]]:

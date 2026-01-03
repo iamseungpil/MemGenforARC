@@ -10,7 +10,7 @@ from typing import Dict, List
 from datasets import Dataset, DatasetDict
 
 from data.base_builder import BaseBuilder
-from data.arc.env import ARCEnv, ARCCodeEnv, ARCDynamicEnv
+from data.arc.env import ARCEnv, ARCDynamicEnv
 
 # Import prompts from arc module
 from arc.prompts import (
@@ -74,7 +74,7 @@ class ARCBuilder(BaseBuilder):
         Return the appropriate environment class based on configuration.
 
         Uses ARCDynamicEnv for multi-turn training,
-        otherwise uses ARCEnv (or ARCCodeEnv) for single-turn training.
+        otherwise uses ARCEnv for single-turn training.
         """
         max_turns = self.full_config.get("max_turns", 1)
         num_seeds = self.full_config.get("num_seeds", 1)

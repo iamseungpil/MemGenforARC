@@ -99,12 +99,15 @@ def main():
         working_dir=working_dir
     )
 
-    # train or evaluate 
+    # train or evaluate
     if config.run_cfg.mode == "train":
         runner.train()
-    
+
     elif config.run_cfg.mode == "evaluate":
         runner.evaluate()
+
+    elif config.run_cfg.mode == "evaluate_ltpo":
+        runner.evaluate_with_ltpo()
 
 if __name__ == "__main__":
     main()

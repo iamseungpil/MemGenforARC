@@ -51,6 +51,18 @@ dataset:
 run:
   seed: 42
 
+  # LTPO (Latent Thought Policy Optimization) configs for test-time optimization
+  ltpo:
+    enabled: true
+    lr: 0.03
+    sigma: 0.1
+    sigma_decay: 0.99
+    max_steps: 10
+    reward_threshold: -1.0
+    top_k: 10
+    use_auto_grad: true
+    verbose: false
+
   # Training mode
   mode: train
   train_weaver: true

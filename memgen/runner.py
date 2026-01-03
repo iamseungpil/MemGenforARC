@@ -111,15 +111,16 @@ class MemGenRunner:
         tokenizer = self.processing_class
 
         # Determine max length based on training mode
-        max_len = 1024
+        max_len = 1024  # default for evaluation mode
         if self.train_weaver and self.train_weaver_method == "sft":
             max_len = self.weaver_sft_training_args.max_length
         elif self.train_weaver and self.train_weaver_method == "grpo":
             max_len = self.weaver_grpo_training_args.max_prompt_length
         elif self.train_trigger and self.train_trigger_method == "grpo":
             max_len = self.trigger_grpo_training_args.max_prompt_length
-        else:
-            raise ValueError("Wrong training mode.")
+        # For evaluate/evaluate_ltpo mode, use interaction config or default
+        elif hasattr(self, 'interaction_config') and self.interaction_config is not None:
+            max_len = getattr(self.interaction_config, 'max_prompt_length', 1024)
 
         # Function to filter out samples exceeding max length
         def filter_func(sample):
@@ -473,3 +474,367 @@ class MemGenRunner:
             batch_size=interaction_configs.get("batch_size", 32),
             output_dir=os.path.join(self.working_dir, "evaluate")
         )
+
+        # --- parse LTPO configs ---
+        ltpo_configs = configs.get("ltpo", {})
+        self.ltpo_config = ltpo_configs
+
+    # ===== LTPO Test-Time Evaluation =====
+    def _create_ltpo_optimizer(self):
+        """
+        Create MemGenLTPOOptimizer instance from configuration.
+
+        Returns:
+            MemGenLTPOOptimizer instance configured with LTPO parameters
+        """
+        from ltpo.memgen_ltpo import MemGenLTPOOptimizer
+
+        ltpo_cfg = self.ltpo_config
+        if not ltpo_cfg.get("enabled", False):
+            return None
+
+        ltpo_optimizer = MemGenLTPOOptimizer(
+            model=self.model.reasoner,
+            lr=ltpo_cfg.get("lr", 0.03),
+            sigma=ltpo_cfg.get("sigma", 0.1),
+            sigma_decay=ltpo_cfg.get("sigma_decay", 0.99),
+            max_steps=ltpo_cfg.get("max_steps", 10),
+            reward_threshold=ltpo_cfg.get("reward_threshold", -1.0),
+            top_k=ltpo_cfg.get("top_k", 10),
+            use_auto_grad=ltpo_cfg.get("use_auto_grad", True),
+        )
+
+        return ltpo_optimizer
+
+    def evaluate_with_ltpo(self):
+        """
+        Evaluate model with LTPO test-time optimization.
+
+        This method is the entry point for LTPO-enhanced evaluation.
+        It creates the LTPO optimizer and delegates to environment-specific
+        evaluation methods.
+        """
+        self.model = self.model.to(torch.bfloat16)
+        self.model.fix_component("weaver")
+        self.model.fix_component("trigger")
+
+        # Create LTPO optimizer
+        ltpo_optimizer = self._create_ltpo_optimizer()
+        ltpo_verbose = self.ltpo_config.get("verbose", False)
+
+        if ltpo_optimizer is None:
+            logging.warning("LTPO is disabled in config, falling back to standard evaluate()")
+            return self.evaluate()
+
+        logging.info(f"[LTPO] Starting LTPO-enhanced evaluation with config: {self.ltpo_config}")
+
+        evaluate_func_mapping = {
+            "STATIC": self._static_evaluate_with_ltpo,
+            "DYNAMIC": self._dynamic_evaluate_with_ltpo
+        }
+        evaluate_func = evaluate_func_mapping.get(self.env.ENV_CARD)
+        if evaluate_func is None:
+            raise ValueError("The env has unrecognized ENV_CARD attribute")
+
+        return evaluate_func(ltpo_optimizer, ltpo_verbose)
+
+    def _static_evaluate_with_ltpo(self, ltpo_optimizer, ltpo_verbose: bool = False):
+        """
+        Static environment evaluation with LTPO optimization.
+
+        Args:
+            ltpo_optimizer: MemGenLTPOOptimizer instance
+            ltpo_verbose: Whether to print LTPO optimization progress
+        """
+        accelerator = Accelerator()
+        writer = create_tensorboard(save_dir=self.working_dir)
+
+        batch_size = self.interaction_config.batch_size
+        output_dir = self.interaction_config.output_dir
+
+        # prepare dataset and dataloader
+        test_dataloader = accelerator.prepare(DataLoader(
+            dataset=self.test_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            collate_fn=lambda batch: batch
+        ))
+
+        # prepare model
+        model_wrapped = accelerator.prepare_model(model=self.model, evaluation_mode=True)
+        model_wrapped.eval()
+
+        # construct eval recorder
+        test_funcs = [self.env_cls.compute_reward]
+        save_file = os.path.join(output_dir, "answer_ltpo.json")
+        recorder = StaticEvalRecorder(compute_metrics=test_funcs, writer=writer, log_file=save_file)
+
+        # batch generation with LTPO
+        for test_batch in tqdm(test_dataloader):
+            with unwrap_model_for_generation(
+                model_wrapped, accelerator
+            ) as unwrapped_model:
+                # construct InteractionDataProto object
+                prompts = [x["prompt"] for x in test_batch]
+                prompt_inputs = self.processing_class(
+                    text=prompts, return_tensors="pt", padding=True, padding_side="left", add_special_tokens=True
+                )
+                prompt_ids, prompt_mask = prompt_inputs["input_ids"], prompt_inputs["attention_mask"]
+                gen_batch = InteractionDataProto()
+                gen_batch.batch["input_ids"] = prompt_ids.to(accelerator.device)
+                gen_batch.batch["attention_mask"] = prompt_mask.to(accelerator.device)
+                gen_batch.no_tensor_batch["initial_prompts"] = [x["prompt"] for x in test_batch]
+
+                # Set LTPO optimizer on generation manager
+                self.generation_manager.actor_rollout_wg = unwrapped_model
+
+                # Run generation with LTPO - pass optimizer through generation call
+                gen_output = self._run_agent_loop_with_ltpo(
+                    gen_batch, unwrapped_model, ltpo_optimizer, ltpo_verbose
+                )
+
+                completion_ids = gen_output.batch["responses"]
+                completions = self.processing_class.batch_decode(completion_ids, skip_special_tokens=True)
+
+            recorder.record_batch(completions, test_batch)
+        recorder.finalize()
+        writer.close()
+
+    def _dynamic_evaluate_with_ltpo(self, ltpo_optimizer, ltpo_verbose: bool = False):
+        """
+        Dynamic environment evaluation with LTPO optimization.
+
+        Args:
+            ltpo_optimizer: MemGenLTPOOptimizer instance
+            ltpo_verbose: Whether to print LTPO optimization progress
+        """
+        def _set_batch_envs(batch: list) -> tuple[list[str], list[str], list]:
+            system_prompts, init_user_prompts, envs = [], [], []
+            for task_config in batch:
+                env = self.env_cls(self.config.get("dataset"))
+                system_prompt, init_user_prompt = env.set_env(task_config)
+
+                system_prompts.append(system_prompt)
+                init_user_prompts.append(init_user_prompt)
+                envs.append(env)
+
+            return system_prompts, init_user_prompts, envs
+
+        def _build_data_proto(
+            system_prompts: list[str], init_user_prompts: list[str], envs: list
+        ) -> InteractionDataProto:
+            messages = []
+            for system_prompt, init_user_prompt in zip(system_prompts, init_user_prompts):
+                system_message = {"role": "system", "content": system_prompt}
+                user_message = {"role": "user", "content": init_user_prompt}
+                init_messages = [system_message, user_message]
+                messages.append(init_messages)
+
+            data_proto = InteractionDataProto()
+            data_proto.no_tensor_batch["init_prompts"] = messages
+            data_proto.no_tensor_batch["envs"] = envs
+
+            return data_proto
+
+        # ===== body =====
+        output_dir = self.interaction_config.output_dir
+
+        accelerator = Accelerator()
+        writer = create_tensorboard(save_dir=self.working_dir)
+        save_file = os.path.join(output_dir, "conversations_ltpo.txt")
+        recorder = DynamicEvalRecorder(writer=writer, log_file=save_file)
+
+        batch_size = self.interaction_config.batch_size
+
+        # prepare dataset and dataloader
+        test_dataloader = accelerator.prepare(DataLoader(
+            dataset=self.test_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            collate_fn=lambda batch: batch
+        ))
+
+        # prepare model
+        model_wrapped = accelerator.prepare_model(model=self.model, evaluation_mode=True)
+        model_wrapped.eval()
+
+        # batch generate with LTPO
+        for step, test_batch in tqdm(enumerate(test_dataloader)):
+            with unwrap_model_for_generation(
+                model_wrapped, accelerator
+            ) as unwrapped_model:
+                system_prompts, init_user_prompts, envs = _set_batch_envs(test_batch)
+                input_data_proto = _build_data_proto(system_prompts, init_user_prompts, envs)
+
+                self.generation_manager.actor_rollout_wg = unwrapped_model
+
+                # Run generation with LTPO
+                outputs: InteractionDataProto = self._run_multiturn_loop_with_ltpo(
+                    input_data_proto, unwrapped_model, ltpo_optimizer, ltpo_verbose
+                )
+
+                inter_histories = outputs.no_tensor_batch["inter_histories"]
+                inter_context = self.processing_class.apply_chat_template(inter_histories, tokenize=False)
+
+            # batch record
+            rewards = []
+            for env in input_data_proto.no_tensor_batch["envs"]:
+                feedback = env.feedback()
+                if isinstance(feedback, tuple):
+                    reward = feedback[0]
+                else:
+                    reward = feedback
+                rewards.append(reward)
+
+            recorder.record_batch(inter_context, rewards)
+
+        recorder.finalize()
+        writer.close()
+
+    def _run_agent_loop_with_ltpo(
+        self,
+        gen_batch: InteractionDataProto,
+        model,
+        ltpo_optimizer,
+        ltpo_verbose: bool
+    ) -> InteractionDataProto:
+        """
+        Run single-turn agent loop with LTPO optimization.
+
+        This method wraps the generation call to pass LTPO optimizer.
+        """
+        from transformers import GenerationConfig
+
+        input_ids = gen_batch.batch["input_ids"]
+        attention_mask = gen_batch.batch["attention_mask"]
+
+        # Create generation config
+        gen_config = GenerationConfig(
+            max_new_tokens=self.interaction_config.max_response_length,
+            do_sample=self.interaction_config.do_sample,
+            temperature=self.interaction_config.temperature if self.interaction_config.do_sample else None,
+            pad_token_id=self.processing_class.pad_token_id,
+            eos_token_id=self.processing_class.eos_token_id,
+        )
+
+        # Generate with LTPO optimizer
+        generated_ids = model.generate(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            generation_config=gen_config,
+            ltpo_optimizer=ltpo_optimizer,
+            ltpo_verbose=ltpo_verbose,
+        )
+
+        # Extract only generated tokens (remove prompt)
+        prompt_len = input_ids.size(1)
+        response_ids = generated_ids[:, prompt_len:]
+
+        # Build output proto
+        output = InteractionDataProto()
+        output.batch["responses"] = response_ids
+        output.no_tensor_batch = gen_batch.no_tensor_batch
+
+        return output
+
+    def _run_multiturn_loop_with_ltpo(
+        self,
+        input_data_proto: InteractionDataProto,
+        model,
+        ltpo_optimizer,
+        ltpo_verbose: bool
+    ) -> InteractionDataProto:
+        """
+        Run multi-turn agent loop with LTPO optimization.
+
+        This method wraps the multi-turn generation to pass LTPO optimizer.
+        """
+        from transformers import GenerationConfig
+
+        envs = input_data_proto.no_tensor_batch["envs"]
+        init_prompts = input_data_proto.no_tensor_batch["init_prompts"]
+        max_turns = self.interaction_config.max_turns
+
+        # Initialize histories
+        inter_histories = [list(init_prompt) for init_prompt in init_prompts]
+        done_flags = [False] * len(envs)
+
+        for turn in range(max_turns):
+            # Skip if all done
+            if all(done_flags):
+                break
+
+            # Prepare batch for generation
+            active_indices = [i for i, done in enumerate(done_flags) if not done]
+
+            # Tokenize current conversation histories
+            batch_messages = [inter_histories[i] for i in active_indices]
+            batch_texts = [
+                self.processing_class.apply_chat_template(
+                    msgs, tokenize=False, add_generation_prompt=True
+                )
+                for msgs in batch_messages
+            ]
+
+            # Tokenize with left padding
+            inputs = self.processing_class(
+                text=batch_texts,
+                return_tensors="pt",
+                padding=True,
+                padding_side="left",
+                truncation=True,
+                max_length=self.interaction_config.max_prompt_length,
+            )
+
+            input_ids = inputs["input_ids"].to(model.device)
+            attention_mask = inputs["attention_mask"].to(model.device)
+
+            # Create generation config
+            gen_config = GenerationConfig(
+                max_new_tokens=self.interaction_config.max_response_length,
+                do_sample=self.interaction_config.do_sample,
+                temperature=self.interaction_config.temperature if self.interaction_config.do_sample else None,
+                pad_token_id=self.processing_class.pad_token_id,
+                eos_token_id=self.processing_class.eos_token_id,
+            )
+
+            # Generate with LTPO optimizer
+            generated_ids = model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                generation_config=gen_config,
+                ltpo_optimizer=ltpo_optimizer,
+                ltpo_verbose=ltpo_verbose,
+            )
+
+            # Extract responses
+            prompt_len = input_ids.size(1)
+            response_ids = generated_ids[:, prompt_len:]
+            responses = self.processing_class.batch_decode(response_ids, skip_special_tokens=True)
+
+            # Process each response through environment
+            for batch_idx, orig_idx in enumerate(active_indices):
+                response = responses[batch_idx].strip()
+                env = envs[orig_idx]
+
+                # Preprocess action
+                action = env.preprocess_action(response) if hasattr(env, 'preprocess_action') else response
+
+                # Step environment
+                observation, reward, done = env.step(action)
+
+                # Update history
+                inter_histories[orig_idx].append({"role": "assistant", "content": response})
+
+                if done:
+                    done_flags[orig_idx] = True
+                else:
+                    # Add observation as next user message
+                    inter_histories[orig_idx].append({"role": "user", "content": observation})
+
+        # Build output proto
+        output = InteractionDataProto()
+        output.no_tensor_batch["inter_histories"] = inter_histories
+        output.no_tensor_batch["envs"] = envs
+
+        return output

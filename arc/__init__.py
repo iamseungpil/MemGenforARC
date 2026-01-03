@@ -42,7 +42,9 @@ from arc.trainer import (
     ARCCodeGenerationTrainer,
     create_arc_trainer,
 )
-from arc.runner import ARCCodeGenerationRunner
+
+# Note: ARCCodeGenerationRunner is NOT imported here to avoid circular import
+# Import directly from arc.runner when needed: from arc.runner import ARCCodeGenerationRunner
 
 __all__ = [
     # Prompts
@@ -70,6 +72,4 @@ __all__ = [
     # Trainer
     "ARCCodeGenerationTrainer",
     "create_arc_trainer",
-    # Runner
-    "ARCCodeGenerationRunner",
 ]

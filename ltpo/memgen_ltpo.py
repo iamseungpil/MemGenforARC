@@ -97,14 +97,15 @@ class MemGenLTPOOptimizer(nn.Module):
         probs = torch.softmax(logits, dim=-1)
 
         # Compute confidence over latent positions
+        # Note: latent_end_idx is exclusive (Python slicing convention)
         confidence = 0.0
-        for idx in range(latent_start_idx, latent_end_idx + 1):
+        for idx in range(latent_start_idx, latent_end_idx):
             if idx < probs.shape[0]:
                 topk = torch.topk(probs[idx], k=self.top_k, largest=True)[0]
                 confidence -= torch.sum(torch.log(topk + 1e-10)) / self.top_k
 
-        num_tokens = latent_end_idx - latent_start_idx + 1
-        return confidence / num_tokens
+        num_tokens = latent_end_idx - latent_start_idx
+        return confidence / max(num_tokens, 1)  # Prevent division by zero
 
     def optimize(
         self,

@@ -104,91 +104,16 @@ class ARCEnv(StaticEnv):
                 timeout_seconds=execution_timeout
             )
 
+            # Binary reward: 1.0 only when ALL examples pass, 0.0 otherwise
+            # This encourages the model to find complete solutions rather than partial ones
             if accuracy == 1.0:
                 logger.info(f"[{task_id}][{idx}] Perfect accuracy! reward=1.0")
-            elif accuracy > 0:
+                rewards.append(1.0)
+            else:
                 passed = results.get('passed_examples', 0)
                 total = results.get('total_examples', 0)
-                logger.debug(f"[{task_id}][{idx}] Partial accuracy: {passed}/{total} = {accuracy:.3f}")
-
-            rewards.append(accuracy)
-
-        return rewards
-
-
-class ARCCodeEnv(StaticEnv):
-    """
-    ARC Code Generation Environment with execution-based reward.
-
-    This is the primary environment for code generation training.
-    Reward = accuracy on training examples (0.0 to 1.0).
-    """
-    ENV_CARD = "STATIC"
-
-    def __init__(self, config):
-        super().__init__(config)
-        self.execution_timeout = config.get("execution_timeout", 5)
-        self.task_config = None
-
-    def set_task(self, task_config: Dict) -> None:
-        """Set the task configuration."""
-        self.task_config = task_config
-
-    @classmethod
-    def compute_reward(
-        cls,
-        prompts: list[str],
-        completions: list[str],
-        train_examples_list: list = None,
-        **kwargs
-    ) -> list[float]:
-        """
-        Compute reward based on code execution accuracy.
-
-        Args:
-            prompts: Input prompts
-            completions: Model outputs containing Python code
-            train_examples_list: List of training examples per sample
-
-        Returns:
-            List of accuracy scores (0.0 to 1.0)
-        """
-        rewards = []
-        execution_timeout = kwargs.get("execution_timeout", 5)
-
-        for idx, completion in enumerate(completions):
-            # Get training examples
-            if train_examples_list and idx < len(train_examples_list):
-                train_examples = train_examples_list[idx]
-            else:
-                train_examples = kwargs.get("train_examples", [])
-
-            # Parse JSON if needed
-            if isinstance(train_examples, str):
-                try:
-                    train_examples = json.loads(train_examples)
-                except (json.JSONDecodeError, TypeError):
-                    rewards.append(0.0)
-                    continue
-
-            if not train_examples:
+                logger.debug(f"[{task_id}][{idx}] Partial accuracy: {passed}/{total} = {accuracy:.3f} -> reward=0.0")
                 rewards.append(0.0)
-                continue
-
-            # Parse code
-            code = parse_code_from_text(completion)
-            if code is None:
-                rewards.append(0.0)
-                continue
-
-            # Execute and compute accuracy
-            accuracy, _ = validate_code_on_examples(
-                code=code,
-                train_examples=train_examples,
-                timeout_seconds=execution_timeout
-            )
-
-            rewards.append(accuracy)
 
         return rewards
 
@@ -467,15 +392,16 @@ Try again with the correct format."""
         Compute reward for multi-turn completions.
 
         For DynamicEnv, this is called with the final completions after all turns.
+        Binary reward: 1.0 only when ALL examples pass, 0.0 otherwise.
         """
         # Get environments from kwargs
         envs: List['ARCDynamicEnv'] = kwargs.get("envs", [])
 
         if envs:
-            # Use best accuracy from each environment
-            return [env.best_accuracy for env in envs]
+            # Binary reward: 1.0 only when best_accuracy is 1.0 (all examples passed)
+            return [1.0 if env.best_accuracy == 1.0 else 0.0 for env in envs]
 
-        # Fallback to static reward computation
+        # Fallback to static reward computation (already uses binary reward)
         train_examples = kwargs.get("train_examples", [])
         return ARCEnv.compute_reward(
             prompts, completions,
