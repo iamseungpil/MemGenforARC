@@ -1,20 +1,25 @@
 """
-Utility Functions for ARC Two-Stage Training.
+Utility Functions for ARC Code Generation Training.
 
-Provides grid parsing, scoring, validation, and formatting utilities.
-Based on arc-lang-public/src/run.py and data/arc/env.py.
+Provides code parsing, execution, grid validation, and scoring utilities.
+Based on BARC eval_utils.py for safe code execution.
 """
 
 import json
 import logging
 import re
-from typing import Optional, List, Dict, Any
+import subprocess
+import tempfile
+import os
+from typing import Optional, List, Dict, Any, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Grid Similarity Scoring (from arc-lang-public/src/run.py:182-208)
+# Grid Similarity Scoring
 # =============================================================================
 
 def get_grid_similarity(
@@ -61,6 +66,23 @@ def get_grid_similarity(
     return matching_cells / total_cells
 
 
+def grids_equal(grid1: List[List[int]], grid2: List[List[int]]) -> bool:
+    """
+    Check if two grids are exactly equal.
+
+    Args:
+        grid1: First grid
+        grid2: Second grid
+
+    Returns:
+        True if grids are identical
+    """
+    try:
+        return np.array_equal(np.array(grid1), np.array(grid2))
+    except (ValueError, TypeError):
+        return False
+
+
 # =============================================================================
 # Grid Validation
 # =============================================================================
@@ -75,13 +97,20 @@ def validate_grid(grid: Any) -> Optional[List[List[int]]]:
     Returns:
         Validated grid with int values, or None if invalid
     """
-    if not grid or not isinstance(grid, list):
+    if grid is None:
         return None
 
-    if not all(isinstance(row, list) for row in grid):
+    if not isinstance(grid, (list, np.ndarray)):
         return None
+
+    # Convert numpy array to list
+    if isinstance(grid, np.ndarray):
+        grid = grid.tolist()
 
     if len(grid) == 0:
+        return None
+
+    if not all(isinstance(row, (list, np.ndarray)) for row in grid):
         return None
 
     # Check all rows have the same length
@@ -94,7 +123,7 @@ def validate_grid(grid: Any) -> Optional[List[List[int]]]:
             return None
         # Validate all elements are integers (or can be converted)
         for val in row:
-            if not isinstance(val, (int, float)):
+            if not isinstance(val, (int, float, np.integer, np.floating)):
                 return None
 
     # Convert all values to int
@@ -102,197 +131,418 @@ def validate_grid(grid: Any) -> Optional[List[List[int]]]:
 
 
 # =============================================================================
-# Grid Parsing from Text (FIXED: proper nested bracket handling)
+# Code Parsing from Text
 # =============================================================================
 
-def _find_balanced(text: str, open_char: str, close_char: str) -> List[str]:
+def parse_code_from_text(text: str) -> Optional[str]:
     """
-    Find all balanced bracket/brace pairs in text.
-
-    Handles nested structures and quoted strings properly.
-    This fixes the bug where non-greedy regex .*? would stop at the first
-    closing bracket, breaking nested array parsing like [[1,2],[3,4]].
-
-    Args:
-        text: Text to search
-        open_char: Opening character ('{' or '[')
-        close_char: Closing character ('}' or ']')
-
-    Returns:
-        List of balanced substrings, ordered by position in text
-    """
-    results = []
-    i = 0
-    n = len(text)
-
-    while i < n:
-        if text[i] == open_char:
-            depth = 1
-            start = i
-            j = i + 1
-            in_string = False
-
-            while j < n and depth > 0:
-                c = text[j]
-
-                # Handle string literals (skip contents to avoid false matches)
-                if c == '"':
-                    if not in_string:
-                        in_string = True
-                    elif j > 0 and text[j-1] != '\\':  # Not escaped quote
-                        in_string = False
-                elif not in_string:
-                    if c == open_char:
-                        depth += 1
-                    elif c == close_char:
-                        depth -= 1
-
-                j += 1
-
-            if depth == 0:
-                results.append(text[start:j])
-                i = j - 1
-        i += 1
-
-    return results
-
-
-def parse_grid_from_text(text: str) -> Optional[List[List[int]]]:
-    """
-    Parse a 2D grid from model output text.
+    Extract Python code from model output text.
 
     Handles various formats:
-    - JSON object with "grid" key: {"grid": [[1,2],[3,4]]}
-    - Bare JSON array: [[1,2],[3,4]]
-    - Markdown code blocks containing JSON
-
-    FIXED: Uses balanced bracket matching instead of non-greedy regex,
-    which was breaking on nested arrays like [[1,2],[3,4]].
+    - Markdown code blocks: ```python ... ```
+    - Bare code with def main(...)
 
     Args:
-        text: Model output text containing a grid
+        text: Model output text containing Python code
 
     Returns:
-        Validated grid with consistent row lengths, or None if invalid
+        Extracted Python code string, or None if not found
     """
     if not text:
         return None
 
     text = text.strip()
 
-    # Remove Qwen3 thinking tags if present (even when using /no_think, empty tags may appear)
-    think_pattern = re.compile(r'<think>.*?</think>', re.DOTALL)
-    text = think_pattern.sub('', text).strip()
+    # Method 1: Extract from markdown code block
+    # Match ```python ... ``` or ``` ... ```
+    code_block_pattern = re.compile(
+        r'```(?:python)?\s*\n?(.*?)```',
+        re.DOTALL
+    )
 
-    # Remove markdown code blocks if present
-    if text.startswith("```"):
-        lines = text.split("\n")
-        # Find the closing ```
-        end_idx = len(lines)
-        for i in range(1, len(lines)):
-            if lines[i].strip().startswith("```"):
-                end_idx = i
-                break
-        text = "\n".join(lines[1:end_idx])
-        text = text.strip()
+    matches = code_block_pattern.findall(text)
+    if matches:
+        # Find the match containing 'def main'
+        for match in matches:
+            if 'def main' in match:
+                return match.strip()
+        # If no 'def main', return the first match
+        return matches[0].strip()
 
-    # Method 1: Try direct JSON parse of entire text (cleanest case)
-    try:
-        data = json.loads(text)
-        if isinstance(data, dict) and "grid" in data:
-            validated = validate_grid(data["grid"])
-            if validated:
-                logger.debug("Parsed grid via direct JSON (dict with 'grid' key)")
-                return validated
-        elif isinstance(data, list):
-            validated = validate_grid(data)
-            if validated:
-                logger.debug("Parsed grid via direct JSON (bare array)")
-                return validated
-    except (json.JSONDecodeError, TypeError):
-        pass
+    # Method 2: Extract bare code starting with def main
+    def_pattern = re.compile(
+        r'(def\s+main\s*\([^)]*\)\s*:.+)',
+        re.DOTALL
+    )
 
-    # Method 2: Find balanced JSON objects containing "grid" key
-    for json_str in _find_balanced(text, '{', '}'):
-        try:
-            data = json.loads(json_str)
-            if isinstance(data, dict) and "grid" in data:
-                validated = validate_grid(data["grid"])
-                if validated:
-                    logger.debug(f"Parsed grid via balanced braces: {json_str[:50]}...")
-                    return validated
-        except (json.JSONDecodeError, TypeError):
-            continue
+    def_match = def_pattern.search(text)
+    if def_match:
+        return def_match.group(1).strip()
 
-    # Method 3: Find balanced JSON arrays (bare 2D arrays)
-    for json_str in _find_balanced(text, '[', ']'):
-        try:
-            data = json.loads(json_str)
-            # Only consider if it looks like a 2D array (list of lists)
-            if isinstance(data, list) and len(data) > 0 and isinstance(data[0], list):
-                validated = validate_grid(data)
-                if validated:
-                    logger.debug(f"Parsed grid via balanced brackets: {json_str[:50]}...")
-                    return validated
-        except (json.JSONDecodeError, TypeError):
-            continue
+    # Method 3: Try to extract any function definition
+    any_def_pattern = re.compile(
+        r'(def\s+\w+\s*\([^)]*\)\s*:.+)',
+        re.DOTALL
+    )
 
-    logger.warning(f"Failed to parse grid from text: {text[:100]}...")
+    any_match = any_def_pattern.search(text)
+    if any_match:
+        code = any_match.group(1).strip()
+        logger.warning(f"Found function but not 'main': {code[:50]}...")
+        return code
+
+    logger.warning(f"Failed to parse code from text: {text[:200]}...")
     return None
 
 
-def parse_instructions_from_text(text: str) -> Optional[str]:
-    """
-    Parse instructions from model output text.
+# =============================================================================
+# Code Execution (BARC-style safe execution)
+# =============================================================================
 
-    Handles various formats:
-    - JSON object with "instructions" key: {"instructions": "..."}
-    - Plain text instructions
+def create_executable_code(solution_code: str) -> str:
+    """
+    Create executable code with Color class and utility functions.
+
+    Based on BARC eval_utils.py.
 
     Args:
-        text: Model output text containing instructions
+        solution_code: The main() function code
 
     Returns:
-        Extracted instructions string, or None if not found
+        Complete executable Python code
     """
-    if not text:
-        return None
+    full_code = f"""
+import sys
+import numpy as np
+from typing import *
+import traceback
 
-    text = text.strip()
+# Color definitions
+class Color:
+    BLACK = 0
+    BLUE = 1
+    RED = 2
+    GREEN = 3
+    YELLOW = 4
+    GREY = 5
+    MAGENTA = 6
+    ORANGE = 7
+    SKY = 8
+    BROWN = 9
 
-    # Remove markdown code blocks if present
-    if text.startswith("```"):
-        lines = text.split("\n")
-        if lines[-1].startswith("```"):
-            text = "\n".join(lines[1:-1])
+# Basic utility functions
+def crop(grid, background=0):
+    grid = np.array(grid)
+    mask = grid != background
+    if not np.any(mask):
+        return np.array([[background]])
+    coords = np.where(mask)
+    min_row, max_row = coords[0].min(), coords[0].max()
+    min_col, max_col = coords[1].min(), coords[1].max()
+    return grid[min_row:max_row+1, min_col:max_col+1]
+
+def bounding_box(grid, background=0):
+    grid = np.array(grid)
+    mask = grid != background
+    if not np.any(mask):
+        return 0, 0, 1, 1
+    coords = np.where(mask)
+    min_row, max_row = coords[0].min(), coords[0].max()
+    min_col, max_col = coords[1].min(), coords[1].max()
+    return min_row, min_col, max_row - min_row + 1, max_col - min_col + 1
+
+def find_connected_components(grid, connectivity=4, monochromatic=True, background=0):
+    try:
+        from scipy import ndimage
+        grid = np.array(grid)
+        if monochromatic:
+            components = []
+            unique_colors = np.unique(grid)
+            for color in unique_colors:
+                if color == background:
+                    continue
+                mask = (grid == color)
+                if connectivity == 4:
+                    structure = np.array([[0,1,0],[1,1,1],[0,1,0]])
+                else:
+                    structure = np.ones((3,3))
+                labeled, _ = ndimage.label(mask, structure=structure)
+                for label_val in range(1, labeled.max() + 1):
+                    component = np.where(labeled == label_val, color, background)
+                    components.append(component)
+            return components
         else:
-            text = "\n".join(lines[1:])
-        text = text.strip()
+            mask = (grid != background)
+            if connectivity == 4:
+                structure = np.array([[0,1,0],[1,1,1],[0,1,0]])
+            else:
+                structure = np.ones((3,3))
+            labeled, _ = ndimage.label(mask, structure=structure)
+            components = []
+            for label_val in range(1, labeled.max() + 1):
+                component = np.where(labeled == label_val, grid, background)
+                components.append(component)
+            return components
+    except:
+        return []
 
-    # Try to find JSON object with "instructions" key
+def detect_objects(grid, colors=None, connectivity=4, monochromatic=True):
+    return find_connected_components(grid, connectivity, monochromatic)
+
+def object_colors(obj, background=0):
+    colors = np.unique(np.array(obj))
+    return [c for c in colors if c != background]
+
+def object_position(obj, background=0, anchor="top-left"):
+    obj = np.array(obj)
+    mask = obj != background
+    if not np.any(mask):
+        return 0, 0
+    coords = np.where(mask)
+    if anchor == "center":
+        return int(coords[0].mean()), int(coords[1].mean())
+    else:  # top-left
+        return coords[0].min(), coords[1].min()
+
+# User code starts here
+{solution_code}
+
+# Test execution wrapper
+def test_code(input_data):
     try:
-        json_match = re.search(
-            r'\{[^{}]*"instructions"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}',
-            text, re.DOTALL
+        input_grid = input_data
+        if hasattr(input_grid, 'tolist'):
+            input_grid = input_grid.tolist()
+        result = main(input_grid)
+        if isinstance(result, np.ndarray):
+            return result.tolist()
+        return result
+    except Exception as e:
+        return None
+"""
+    return full_code
+
+
+def execute_code_safely(
+    code: str,
+    input_data: List[List[int]],
+    timeout_seconds: int = 5,
+    max_memory_mb: int = 512
+) -> Tuple[bool, Any]:
+    """
+    Safely execute code in a subprocess with timeout and resource limits.
+
+    Security measures:
+    - Code and input data written to separate temp files (no shell injection)
+    - Resource limits via subprocess environment
+    - Proper cleanup with try/finally
+
+    Args:
+        code: Complete executable code
+        input_data: Input grid data
+        timeout_seconds: Timeout in seconds
+        max_memory_mb: Maximum memory limit in MB
+
+    Returns:
+        Tuple of (success, result_or_error)
+    """
+    code_file = None
+    input_file = None
+
+    try:
+        # Create temporary file for code
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.py', delete=False, prefix='arc_code_'
+        ) as f:
+            f.write(code)
+            code_file = f.name
+
+        # Create temporary file for input data (avoids JSON injection)
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.json', delete=False, prefix='arc_input_'
+        ) as f:
+            json.dump(input_data, f)
+            input_file = f.name
+
+        # Build wrapper script that loads files safely
+        wrapper_script = '''
+import json
+import sys
+import resource
+
+# Set resource limits
+MAX_MEMORY = {max_memory} * 1024 * 1024  # Convert MB to bytes
+try:
+    resource.setrlimit(resource.RLIMIT_AS, (MAX_MEMORY, MAX_MEMORY))
+    resource.setrlimit(resource.RLIMIT_CPU, ({timeout}, {timeout}))
+except (ValueError, resource.error) as e:
+    import sys
+    print(f"Warning: Resource limits not available: {{e}}. Relying on subprocess timeout only.", file=sys.stderr)
+
+# Load code from file
+with open(sys.argv[1], 'r') as f:
+    code_content = f.read()
+
+# Load input from file
+with open(sys.argv[2], 'r') as f:
+    input_data = json.load(f)
+
+# Execute code in isolated namespace
+exec(code_content, globals())
+
+# Run test_code function
+result = test_code(input_data)
+print(json.dumps(result))
+'''.format(max_memory=max_memory_mb, timeout=timeout_seconds)
+
+        try:
+            result = subprocess.run(
+                ['python', '-c', wrapper_script, code_file, input_file],
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds
+            )
+
+            if result.returncode == 0:
+                output = result.stdout.strip()
+                if output:
+                    try:
+                        parsed = json.loads(output)
+                        return True, parsed
+                    except json.JSONDecodeError:
+                        return False, f"Invalid JSON output: {output[:200]}"
+                else:
+                    return False, "No output produced"
+            else:
+                # Truncate error message to prevent large outputs
+                stderr = result.stderr[:500] if result.stderr else "Unknown error"
+                return False, f"Execution error: {stderr}"
+
+        except subprocess.TimeoutExpired:
+            return False, "Execution timeout"
+
+    except Exception as e:
+        return False, f"Execution exception: {str(e)[:200]}"
+    finally:
+        # Cleanup temp files
+        if code_file and os.path.exists(code_file):
+            try:
+                os.unlink(code_file)
+            except OSError:
+                pass
+        if input_file and os.path.exists(input_file):
+            try:
+                os.unlink(input_file)
+            except OSError:
+                pass
+
+
+def validate_code_on_examples(
+    code: str,
+    train_examples: List[Dict],
+    timeout_seconds: int = 5
+) -> Tuple[float, Dict]:
+    """
+    Validate code on training examples and compute accuracy.
+
+    Args:
+        code: Python code with main() function
+        train_examples: List of {input, output} dicts
+        timeout_seconds: Timeout per example
+
+    Returns:
+        Tuple of (accuracy, validation_results)
+    """
+    executable_code = create_executable_code(code)
+
+    results = {
+        'total_examples': len(train_examples),
+        'passed_examples': 0,
+        'failed_examples': [],
+        'execution_errors': [],
+        'example_results': []
+    }
+
+    for i, example in enumerate(train_examples):
+        success, result = execute_code_safely(
+            executable_code,
+            example['input'],
+            timeout_seconds
         )
-        if json_match:
-            data = json.loads(json_match.group())
-            if "instructions" in data:
-                return data["instructions"]
-    except (json.JSONDecodeError, TypeError):
-        pass
 
-    # Try direct JSON parse
-    try:
-        data = json.loads(text)
-        if isinstance(data, dict) and "instructions" in data:
-            return data["instructions"]
-    except (json.JSONDecodeError, TypeError):
-        pass
+        if success and result is not None:
+            validated_result = validate_grid(result)
+            if validated_result is not None:
+                if grids_equal(validated_result, example['output']):
+                    results['passed_examples'] += 1
+                    results['example_results'].append({
+                        'idx': i,
+                        'success': True,
+                        'correct': True
+                    })
+                else:
+                    results['failed_examples'].append({
+                        'idx': i,
+                        'expected': example['output'],
+                        'actual': validated_result
+                    })
+                    results['example_results'].append({
+                        'idx': i,
+                        'success': True,
+                        'correct': False
+                    })
+            else:
+                results['failed_examples'].append({
+                    'idx': i,
+                    'error': 'Invalid grid format',
+                    'actual': result
+                })
+                results['example_results'].append({
+                    'idx': i,
+                    'success': False,
+                    'correct': False
+                })
+        else:
+            error_msg = result if isinstance(result, str) else 'Unknown error'
+            results['execution_errors'].append({
+                'idx': i,
+                'error': error_msg
+            })
+            results['example_results'].append({
+                'idx': i,
+                'success': False,
+                'correct': False,
+                'error': error_msg
+            })
 
-    # Return the text as-is if no JSON found (might be plain instructions)
-    if len(text) > 20:  # Minimum instruction length
-        return text
+    # Compute accuracy
+    accuracy = results['passed_examples'] / results['total_examples'] if results['total_examples'] > 0 else 0.0
+    results['accuracy'] = accuracy
+
+    return accuracy, results
+
+
+def execute_code_on_input(
+    code: str,
+    input_grid: List[List[int]],
+    timeout_seconds: int = 5
+) -> Optional[List[List[int]]]:
+    """
+    Execute code on a single input and return the output grid.
+
+    Args:
+        code: Python code with main() function
+        input_grid: Input grid
+        timeout_seconds: Timeout
+
+    Returns:
+        Output grid or None if execution failed
+    """
+    executable_code = create_executable_code(code)
+    success, result = execute_code_safely(executable_code, input_grid, timeout_seconds)
+
+    if success and result is not None:
+        return validate_grid(result)
 
     return None
 
@@ -335,7 +585,7 @@ def format_examples(train_examples: List[Dict]) -> str:
 
 
 # =============================================================================
-# Grid Diff Generation (from arc-lang-public/src/run.py:211-274)
+# Grid Diff Generation
 # =============================================================================
 
 def generate_grid_diff(
@@ -344,9 +594,6 @@ def generate_grid_diff(
 ) -> str:
     """
     Generate a cell-by-cell diff notation between expected and actual grids.
-
-    Format: ASCII grid with "|" separators where each cell shows
-    "actual->expected" or "=value" for matches.
 
     Args:
         expected_grid: Ground truth grid
@@ -368,157 +615,191 @@ def generate_grid_diff(
     if len(expected_grid[0]) != len(actual_grid[0]):
         return f"Error: Grid dimension mismatch (cols: {len(expected_grid[0])} vs {len(actual_grid[0])})"
 
-    # Calculate max width needed for proper alignment
-    max_width = 0
-    for expected_row, actual_row in zip(expected_grid, actual_grid):
-        for expected_val, actual_val in zip(expected_row, actual_row):
-            if expected_val == actual_val:
-                cell_width = len(f"={expected_val}")
-            else:
-                cell_width = len(f"{actual_val}->{expected_val}")
-            max_width = max(max_width, cell_width)
-
-    # Add padding
-    max_width += 2
-
-    diff_lines = []
-
     # Count mismatches
     mismatch_count = 0
     total_cells = len(expected_grid) * len(expected_grid[0])
+    diff_lines = []
 
-    # Add top border
-    num_cols = len(expected_grid[0])
-    border = "+" + "+".join(["-" * max_width for _ in range(num_cols)]) + "+"
-    diff_lines.append(border)
-
-    for row_idx, (expected_row, actual_row) in enumerate(zip(expected_grid, actual_grid)):
-        row_cells = []
+    for i, (expected_row, actual_row) in enumerate(zip(expected_grid, actual_grid)):
+        row_parts = []
         for expected_val, actual_val in zip(expected_row, actual_row):
             if expected_val == actual_val:
-                cell = f"={expected_val}"
+                row_parts.append(f"{expected_val}")
             else:
-                cell = f"{actual_val}->{expected_val}"
+                row_parts.append(f"[{actual_val}->{expected_val}]")
                 mismatch_count += 1
-            row_cells.append(cell.center(max_width))
+        diff_lines.append(" ".join(row_parts))
 
-        diff_lines.append("|" + "|".join(row_cells) + "|")
-
-        if row_idx < len(expected_grid) - 1:
-            diff_lines.append(border)
-
-    diff_lines.append(border)
-
-    # Add summary
     accuracy = (total_cells - mismatch_count) / total_cells * 100
-    summary = f"Accuracy: {accuracy:.1f}% ({total_cells - mismatch_count}/{total_cells} correct)"
+    header = f"Accuracy: {accuracy:.1f}% ({total_cells - mismatch_count}/{total_cells} correct)"
 
-    return summary + "\n" + "\n".join(diff_lines)
+    return f"{header}\n" + "\n".join(diff_lines)
 
 
 # =============================================================================
-# Instruction Scoring Utilities
+# Grid Parsing from Text (Legacy support)
 # =============================================================================
 
-def score_instruction_on_examples(
-    instructions: str,
-    train_examples: List[Dict],
-    grid_generator_func,
-    leave_one_out: bool = True
-) -> Dict[str, Any]:
+def _find_balanced(text: str, open_char: str, close_char: str) -> List[str]:
     """
-    Score instructions using leave-one-out validation on training examples.
+    Find all balanced bracket/brace pairs in text.
+    """
+    results = []
+    i = 0
+    n = len(text)
+
+    while i < n:
+        if text[i] == open_char:
+            depth = 1
+            start = i
+            j = i + 1
+            in_string = False
+
+            while j < n and depth > 0:
+                c = text[j]
+
+                if c == '"':
+                    if not in_string:
+                        in_string = True
+                    elif j > 0 and text[j-1] != '\\':
+                        in_string = False
+                elif not in_string:
+                    if c == open_char:
+                        depth += 1
+                    elif c == close_char:
+                        depth -= 1
+
+                j += 1
+
+            if depth == 0:
+                results.append(text[start:j])
+                i = j - 1
+        i += 1
+
+    return results
+
+
+def parse_grid_from_text(text: str) -> Optional[List[List[int]]]:
+    """
+    Parse a 2D grid from model output text.
+
+    Handles various formats:
+    - JSON object with "grid" key: {"grid": [[1,2],[3,4]]}
+    - Bare JSON array: [[1,2],[3,4]]
+    - Markdown code blocks containing JSON
 
     Args:
-        instructions: The transformation instructions
-        train_examples: List of training examples
-        grid_generator_func: Function that generates grid from (instructions, context, test_input)
-        leave_one_out: Whether to use leave-one-out scoring
+        text: Model output text containing a grid
 
     Returns:
-        Dict with 'score', 'example_scores', and 'attempts'
+        Validated grid with consistent row lengths, or None if invalid
     """
-    example_scores = []
-    attempts = []
+    if not text:
+        return None
 
-    if leave_one_out and len(train_examples) > 1:
-        for i in range(len(train_examples)):
-            # Use all except i-th as training, i-th as test
-            temp_test = train_examples[i]
-            temp_train = train_examples[:i] + train_examples[i+1:]
+    text = text.strip()
 
-            # Generate prediction
-            pred_grid = grid_generator_func(
-                instructions=instructions,
-                training_examples=temp_train,
-                test_input=temp_test["input"]
-            )
+    # Remove thinking tags if present
+    think_pattern = re.compile(r'<think>.*?</think>', re.DOTALL)
+    text = think_pattern.sub('', text).strip()
 
-            # Score
-            score = get_grid_similarity(temp_test["output"], pred_grid)
-            example_scores.append(score)
-            attempts.append(pred_grid)
-    else:
-        # Use all as context, test on first
-        if len(train_examples) > 0:
-            test_example = train_examples[0]
-            context = train_examples[1:] if len(train_examples) > 1 else train_examples
+    # Remove markdown code blocks if present
+    if text.startswith("```"):
+        lines = text.split("\n")
+        end_idx = len(lines)
+        for i in range(1, len(lines)):
+            if lines[i].strip().startswith("```"):
+                end_idx = i
+                break
+        text = "\n".join(lines[1:end_idx])
+        text = text.strip()
 
-            pred_grid = grid_generator_func(
-                instructions=instructions,
-                training_examples=context,
-                test_input=test_example["input"]
-            )
+    # Method 1: Try direct JSON parse
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict) and "grid" in data:
+            validated = validate_grid(data["grid"])
+            if validated:
+                return validated
+        elif isinstance(data, list):
+            validated = validate_grid(data)
+            if validated:
+                return validated
+    except (json.JSONDecodeError, TypeError):
+        pass
 
-            score = get_grid_similarity(test_example["output"], pred_grid)
-            example_scores.append(score)
-            attempts.append(pred_grid)
+    # Method 2: Find balanced JSON objects with "grid" key
+    for json_str in _find_balanced(text, '{', '}'):
+        try:
+            data = json.loads(json_str)
+            if isinstance(data, dict) and "grid" in data:
+                validated = validate_grid(data["grid"])
+                if validated:
+                    return validated
+        except (json.JSONDecodeError, TypeError):
+            continue
 
-    avg_score = sum(example_scores) / len(example_scores) if example_scores else 0.0
+    # Method 3: Find balanced JSON arrays
+    for json_str in _find_balanced(text, '[', ']'):
+        try:
+            data = json.loads(json_str)
+            if isinstance(data, list) and len(data) > 0 and isinstance(data[0], list):
+                validated = validate_grid(data)
+                if validated:
+                    return validated
+        except (json.JSONDecodeError, TypeError):
+            continue
 
-    return {
-        "score": avg_score,
-        "example_scores": example_scores,
-        "attempts": attempts,
-        "is_perfect": avg_score == 1.0
-    }
+    return None
 
 
-# =============================================================================
-# Batch Processing Utilities
-# =============================================================================
-
-def batch_parse_grids(texts: List[str]) -> List[Optional[List[List[int]]]]:
+def parse_instructions_from_text(text: str) -> Optional[str]:
     """
-    Parse grids from a batch of text outputs.
+    Parse instructions from model output text (legacy support).
 
     Args:
-        texts: List of model output texts
+        text: Model output text containing instructions
 
     Returns:
-        List of parsed grids (None for failed parses)
+        Extracted instructions string, or None if not found
     """
-    return [parse_grid_from_text(t) for t in texts]
+    if not text:
+        return None
 
+    text = text.strip()
 
-def batch_score_grids(
-    predictions: List[Optional[List[List[int]]]],
-    targets: List[List[List[int]]]
-) -> List[float]:
-    """
-    Score a batch of predicted grids against targets.
-
-    Args:
-        predictions: List of predicted grids (can contain None)
-        targets: List of ground truth grids
-
-    Returns:
-        List of similarity scores
-    """
-    scores = []
-    for pred, target in zip(predictions, targets):
-        if pred is None:
-            scores.append(0.0)
+    # Remove markdown code blocks if present
+    if text.startswith("```"):
+        lines = text.split("\n")
+        if lines[-1].startswith("```"):
+            text = "\n".join(lines[1:-1])
         else:
-            scores.append(get_grid_similarity(target, pred))
-    return scores
+            text = "\n".join(lines[1:])
+        text = text.strip()
+
+    # Try to find JSON object with "instructions" key
+    try:
+        json_match = re.search(
+            r'\{[^{}]*"instructions"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}',
+            text, re.DOTALL
+        )
+        if json_match:
+            data = json.loads(json_match.group())
+            if "instructions" in data:
+                return data["instructions"]
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # Try direct JSON parse
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict) and "instructions" in data:
+            return data["instructions"]
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # Return the text as-is if no JSON found
+    if len(text) > 20:
+        return text
+
+    return None

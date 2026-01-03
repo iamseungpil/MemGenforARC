@@ -1,166 +1,178 @@
 """
-Prompt Templates for ARC Two-Stage Training.
+Prompt Templates for ARC Code Generation Training.
 
-Adapted from arc-lang-public/src/main.py and src/run.py.
-These prompts follow the same structure as the reference implementation
-to ensure compatibility and consistent behavior.
+BARC-style approach: Model generates Python code that transforms input grids to output grids.
+The code is executed on training examples to compute reward.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List, Dict
 
 
 # =============================================================================
-# Stage 1: Instruction Generation Prompts
+# System Prompt for Code Generation
 # =============================================================================
 
-INTUITIVE_PROMPT = """
-You are participating in a puzzle solving competition. You are an expert at solving puzzles.
+SYSTEM_PROMPT_CODER = """You are an expert Python programmer solving ARC (Abstraction and Reasoning Corpus) puzzles.
 
-Find the common pattern that transforms each input grid into its corresponding output grid, based on the training examples below.
+Your task is to write a Python function `main(input_grid)` that transforms input grids to output grids.
+The function must work correctly for ALL training examples shown.
 
-Your task is to write clear instructions that describe this transformation pattern. These instructions must:
-- Apply consistently to ALL training examples (the same rule works for every input->output pair)
-- Be general enough to work on new test cases
-- Be intuitive and easy to understand
-- Describe the pattern without referencing specific example numbers or positions
+Available imports and utilities:
+- numpy as np
+- typing (List, Tuple, Dict, Any, Optional)
+- Color class with constants: BLACK=0, BLUE=1, RED=2, GREEN=3, YELLOW=4, GREY=5, MAGENTA=6, ORANGE=7, SKY=8, BROWN=9
 
-The transformation pattern should be simple and logical - these puzzles are designed to have elegant, intuitive solutions that humans can readily grasp.
+Available helper functions:
+- crop(grid, background=0): Crop grid to remove background padding
+- bounding_box(grid, background=0): Get (min_row, min_col, height, width) of non-background region
+- find_connected_components(grid, connectivity=4, monochromatic=True, background=0): Find connected regions
+- detect_objects(grid, colors=None, connectivity=4, monochromatic=True): Detect objects in grid
+- object_colors(obj, background=0): Get list of colors in an object
+- object_position(obj, background=0, anchor="top-left"): Get position of object
 
-Write your instructions as a clear, step-by-step process that someone could follow to transform any input grid into the correct output grid.
+Output format:
+```python
+def main(input_grid):
+    # Your implementation here
+    return output_grid
+```
 
-Here are the training examples and test input grids:
+IMPORTANT:
+- input_grid is a 2D list of integers (0-9)
+- output_grid must be a 2D list of integers (0-9)
+- Analyze ALL training examples to find the common pattern
+- Your code must work for ANY valid input following the same pattern
 """.strip()
 
 
 # =============================================================================
-# Stage 2: Grid Generation Prompts
+# Code Generation Prompt
 # =============================================================================
 
-FOLLOW_INSTRUCTIONS_PROMPT = """
-You are an expert puzzle solver in a competition.
+CODE_GENERATION_PROMPT = """Analyze the training examples below and write a Python function that transforms input grids to output grids.
 
-You will receive:
-1. Step-by-step instructions for transforming input grids into output grids
-2. Training examples showing these instructions applied correctly
-3. A test input grid to solve
+{examples}
 
-Your task: Apply the given instructions precisely to transform the test input grid into its output grid.
+Write a Python function `main(input_grid)` that implements the transformation pattern.
+The function should work correctly for ALL training examples above.
 
-The training examples demonstrate how the instructions work - use them to understand the pattern, then follow the exact same process for the test input.
-""".strip()
-
-
-# Perfect match indicator - used when instructions scored 100%
-PERFECT_PROMPT = """
-These instructions are a guide to help you get the correct output grid.
-If you think there is an error with the instructions that would cause you to get the wrong output grid, ignore that part of the instructions.
-What is most important is that you get the exact correct output grid given the general pattern you observe.
+```python
+def main(input_grid):
+    # Your implementation
+    return output_grid
+```
 """.strip()
 
 
 # =============================================================================
-# System Prompts for Different Roles
+# Prompt Configuration
 # =============================================================================
 
-SYSTEM_PROMPT_INSTRUCTOR = """You are an expert at analyzing abstract patterns in ARC (Abstraction and Reasoning Corpus) puzzles.
-Your role is to observe training examples and describe the transformation pattern as clear, step-by-step instructions.
-Output your instructions as JSON: {"instructions": "your step-by-step instructions here"}
-""".strip()
-
-
-SYSTEM_PROMPT_EXECUTOR = """You are an expert at executing transformation rules on ARC grids.
-Your role is to follow given instructions precisely and produce the correct output grid.
-
-CRITICAL: Output ONLY the JSON object. Do NOT include any explanation, reasoning, or thinking.
-Your response must start with { and end with }
-
-Format: {"grid": [[row1], [row2], ...]}
-""".strip()
+@dataclass
+class PromptConfig:
+    """Configuration for prompt generation."""
+    include_grid_dimensions: bool = True
+    show_color_legend: bool = False
+    max_examples: int = 10
 
 
 # =============================================================================
 # Prompt Builders
 # =============================================================================
 
-@dataclass
-class PromptConfig:
-    """Configuration for prompt generation."""
-    include_base64: bool = False
-    use_diffs: bool = True
-    show_attempts: bool = True
+def format_grid(grid: List[List[int]], name: str = "Grid") -> str:
+    """
+    Format a single grid for display.
+
+    Args:
+        grid: 2D list of integers
+        name: Label for the grid
+
+    Returns:
+        Formatted string representation
+    """
+    if not grid:
+        return f"{name}: (empty)"
+
+    rows = len(grid)
+    cols = len(grid[0]) if grid else 0
+
+    grid_str = "\n".join([" ".join(map(str, row)) for row in grid])
+    return f"{name} ({rows}x{cols}):\n{grid_str}"
 
 
-def build_instruction_prompt(
-    examples_text: str,
-    test_input_text: str,
+def format_example(example: Dict, idx: int) -> str:
+    """
+    Format a single training example.
+
+    Args:
+        example: Dict with 'input' and 'output' grids
+        idx: Example index (1-based)
+
+    Returns:
+        Formatted string showing input -> output
+    """
+    input_str = format_grid(example["input"], "Input")
+    output_str = format_grid(example["output"], "Output")
+
+    return f"Example {idx}:\n{input_str}\n\n{output_str}"
+
+
+def format_examples(train_examples: List[Dict]) -> str:
+    """
+    Format all training examples for prompt.
+
+    Args:
+        train_examples: List of {"input": grid, "output": grid} dicts
+
+    Returns:
+        Formatted string showing all examples
+    """
+    formatted = []
+    for i, ex in enumerate(train_examples, 1):
+        formatted.append(format_example(ex, i))
+    return "\n\n---\n\n".join(formatted)
+
+
+def build_code_generation_prompt(
+    train_examples: List[Dict],
     config: Optional[PromptConfig] = None
 ) -> str:
     """
-    Build a complete instruction generation prompt.
+    Build a complete code generation prompt.
 
     Args:
-        examples_text: Formatted training examples string
-        test_input_text: Formatted test input grid string
+        train_examples: Training examples showing input->output transformation
         config: Optional prompt configuration
 
     Returns:
-        Complete prompt for instruction generation
+        Complete prompt for code generation
     """
-    prompt = f"""{INTUITIVE_PROMPT}
+    examples_text = format_examples(train_examples)
 
---Training Examples--
-{examples_text}
---End of Training Examples--
+    prompt = CODE_GENERATION_PROMPT.format(examples=examples_text)
 
---Test Input--
-{test_input_text}
---End of Test Input--
-
-Now write your instructions describing the transformation pattern.
-Output as JSON: {{"instructions": "your step-by-step instructions here"}}
-"""
     return prompt
 
 
-def build_grid_generation_prompt(
-    instructions: str,
-    examples_text: str,
-    test_input_text: str,
-    is_perfect: bool = False,
+def build_code_generation_messages(
+    train_examples: List[Dict],
     config: Optional[PromptConfig] = None
-) -> str:
+) -> List[Dict[str, str]]:
     """
-    Build a complete grid generation prompt.
+    Build chat messages for code generation.
 
     Args:
-        instructions: The transformation instructions from Stage 1
-        examples_text: Formatted training examples string
-        test_input_text: Formatted test input grid string
-        is_perfect: Whether instructions scored 100% on training examples
+        train_examples: Training examples showing input->output transformation
         config: Optional prompt configuration
 
     Returns:
-        Complete prompt for grid generation
+        List of message dicts with 'role' and 'content'
     """
-    perfect_section = ""
-    if not is_perfect:
-        perfect_section = f"\n{PERFECT_PROMPT}\n"
+    user_prompt = build_code_generation_prompt(train_examples, config)
 
-    prompt = f"""{FOLLOW_INSTRUCTIONS_PROMPT}
-
-Instructions:
-{instructions}
-{perfect_section}
---Training Examples--
-{examples_text}
---End of Training Examples--
-
---Test Input Grid--
-{test_input_text}
---End of Test Input Grid--
-
-Apply the instructions to produce the output grid.
-Output ONLY JSON (no explanation): {{"grid": [[...]]}}
-"""
-    return prompt
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT_CODER},
+        {"role": "user", "content": user_prompt}
+    ]

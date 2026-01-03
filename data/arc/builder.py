@@ -1,7 +1,8 @@
 """
-ARC Dataset Builder for MemGen GRPO Training.
+ARC Dataset Builder for Code Generation Training.
 
-Loads ARC challenges and formats them for training with grid similarity reward.
+Loads ARC challenges and formats them for code generation training
+where models learn to write Python code that transforms input grids.
 """
 import json
 from pathlib import Path
@@ -9,44 +10,29 @@ from typing import Dict, List
 from datasets import Dataset, DatasetDict
 
 from data.base_builder import BaseBuilder
-from data.arc.env import ARCEnv, ARCDynamicEnv
+from data.arc.env import ARCEnv, ARCCodeEnv, ARCDynamicEnv
+
+# Import prompts from arc module
+from arc.prompts import (
+    build_code_generation_prompt,
+    SYSTEM_PROMPT_CODER,
+    format_examples,
+)
 
 
-# Prompt templates matching arc-lang format
-INSTRUCTION_PROMPT = """You are an expert puzzle solver. Find the pattern that transforms input grids to output grids.
+# Code generation prompt template
+CODE_GENERATION_PROMPT_TEMPLATE = """Analyze the training examples below and write a Python function that transforms input grids to output grids.
 
-Training Examples:
 {examples}
 
-Test Input:
-{test_input}
+Write a Python function `main(input_grid)` that implements the transformation pattern.
+The function should work correctly for ALL training examples above.
 
-Write step-by-step instructions describing the transformation pattern. Output as JSON:
-{{"instructions": "your step-by-step instructions here"}}"""
-
-GRID_GENERATION_PROMPT = """You are an expert puzzle solver. Apply the transformation pattern to generate the output grid.
-
-Instructions: {instructions}
-
-Training Examples:
-{examples}
-
-Test Input:
-{test_input}
-
-Generate the output grid. Output as JSON:
-{{"grid": [[...]]}}"""
-
-# Simplified prompt for direct grid generation (used for GRPO training)
-DIRECT_GRID_PROMPT = """You are an expert at solving ARC puzzles. Analyze the pattern in the training examples and generate the output grid for the test input.
-
-Training Examples:
-{examples}
-
-Test Input:
-{test_input}
-
-Output the grid as JSON: {{"grid": [[...]]}}"""
+```python
+def main(input_grid):
+    # Your implementation
+    return output_grid
+```"""
 
 
 def grid_to_string(grid: List[List[int]]) -> str:
@@ -54,33 +40,41 @@ def grid_to_string(grid: List[List[int]]) -> str:
     return "\n".join([" ".join(map(str, row)) for row in grid])
 
 
-def format_examples(train_examples: List[Dict]) -> str:
+def format_training_examples(train_examples: List[Dict]) -> str:
     """Format training examples for prompt."""
     formatted = []
     for i, ex in enumerate(train_examples, 1):
         input_grid = grid_to_string(ex["input"])
         output_grid = grid_to_string(ex["output"])
-        formatted.append(f"Example {i}:\nInput:\n{input_grid}\nOutput:\n{output_grid}")
-    return "\n\n".join(formatted)
+        rows_in = len(ex["input"])
+        cols_in = len(ex["input"][0]) if ex["input"] else 0
+        rows_out = len(ex["output"])
+        cols_out = len(ex["output"][0]) if ex["output"] else 0
+        formatted.append(
+            f"Example {i}:\n"
+            f"Input ({rows_in}x{cols_in}):\n{input_grid}\n\n"
+            f"Output ({rows_out}x{cols_out}):\n{output_grid}"
+        )
+    return "\n\n---\n\n".join(formatted)
 
 
 class ARCBuilder(BaseBuilder):
-    """Builder for ARC dataset."""
+    """Builder for ARC dataset with code generation support."""
 
     # Default paths - can be overridden in config
     DEFAULT_DATA_PATH = "/home/ubuntu/arc-lang-public/data/arc-prize-2024"
 
     def __init__(self, cfg: dict = None):
         super().__init__(cfg)
-        # Store full config for access to top-level params (max_turns, num_seeds, data_path)
+        # Store full config for access to top-level params
         self.full_config = cfg if cfg else {}
 
     def get_env_cls(self):
         """
         Return the appropriate environment class based on configuration.
 
-        Uses ARCDynamicEnv for multi-turn training (when max_turns > 1 or num_seeds > 1),
-        otherwise uses ARCEnv for single-turn training.
+        Uses ARCDynamicEnv for multi-turn training,
+        otherwise uses ARCEnv (or ARCCodeEnv) for single-turn training.
         """
         max_turns = self.full_config.get("max_turns", 1)
         num_seeds = self.full_config.get("num_seeds", 1)
@@ -106,85 +100,37 @@ class ARCBuilder(BaseBuilder):
 
         return challenges, solutions
 
-    def _create_training_examples(
+    def _create_code_generation_examples(
         self,
         challenges: Dict,
         solutions: Dict,
-        use_leave_one_out: bool = True
     ) -> List[Dict]:
         """
-        Create training examples from ARC data.
+        Create code generation training examples from ARC data.
 
-        For each task, we create examples using leave-one-out:
-        - Use N-1 training examples as context
-        - Predict the Nth training example's output
-        This allows us to compute rewards during training.
+        Each example contains:
+        - prompt: Code generation prompt with training examples
+        - train_examples: JSON string of training examples for reward computation
+        - task_id: Task identifier
         """
         examples = []
 
         for task_id, task in challenges.items():
             train_examples = task["train"]
 
-            if use_leave_one_out and len(train_examples) > 1:
-                # Leave-one-out: for each training example, use others as context
-                for i, target_example in enumerate(train_examples):
-                    context_examples = train_examples[:i] + train_examples[i+1:]
+            if len(train_examples) < 2:
+                continue
 
-                    prompt = DIRECT_GRID_PROMPT.format(
-                        examples=format_examples(context_examples),
-                        test_input=grid_to_string(target_example["input"])
-                    )
+            # Format prompt
+            examples_text = format_training_examples(train_examples)
+            prompt = CODE_GENERATION_PROMPT_TEMPLATE.format(examples=examples_text)
 
-                    examples.append({
-                        "prompt": prompt,
-                        "completion": json.dumps({"grid": target_example["output"]}),
-                        "solution": json.dumps(target_example["output"]),
-                        "task_id": task_id,
-                        "example_idx": i,
-                    })
-            else:
-                # Use all training examples as context, predict first example
-                if len(train_examples) >= 2:
-                    target = train_examples[0]
-                    context = train_examples[1:]
-
-                    prompt = DIRECT_GRID_PROMPT.format(
-                        examples=format_examples(context),
-                        test_input=grid_to_string(target["input"])
-                    )
-
-                    examples.append({
-                        "prompt": prompt,
-                        "completion": json.dumps({"grid": target["output"]}),
-                        "solution": json.dumps(target["output"]),
-                        "task_id": task_id,
-                        "example_idx": 0,
-                    })
-
-        return examples
-
-    def _create_test_examples(self, challenges: Dict, solutions: Dict) -> List[Dict]:
-        """Create test examples using actual test grids."""
-        examples = []
-
-        for task_id, task in challenges.items():
-            train_examples = task["train"]
-            test_inputs = task["test"]
-            task_solutions = solutions.get(task_id, [])
-
-            for i, (test_input, solution) in enumerate(zip(test_inputs, task_solutions)):
-                prompt = DIRECT_GRID_PROMPT.format(
-                    examples=format_examples(train_examples),
-                    test_input=grid_to_string(test_input["input"])
-                )
-
-                examples.append({
-                    "prompt": prompt,
-                    "completion": json.dumps({"grid": solution}),
-                    "solution": json.dumps(solution),
-                    "task_id": task_id,
-                    "test_idx": i,
-                })
+            examples.append({
+                "prompt": prompt,
+                "train_examples": json.dumps(train_examples),
+                "task_id": task_id,
+                "num_examples": len(train_examples),
+            })
 
         return examples
 
@@ -192,65 +138,64 @@ class ARCBuilder(BaseBuilder):
         self,
         challenges: Dict,
         solutions: Dict,
-        use_leave_one_out: bool = True
     ) -> List[Dict]:
         """
         Create examples for multi-turn training (ARCDynamicEnv).
 
-        Returns task configs with train_examples, test_input, and target_grid
-        that ARCDynamicEnv.set_env() expects.
+        Returns task configs with train_examples for code generation.
         """
         examples = []
 
         for task_id, task in challenges.items():
             train_examples = task["train"]
+            test_inputs = task.get("test", [])
+            task_solutions = solutions.get(task_id, [])
 
-            if use_leave_one_out and len(train_examples) > 1:
-                # Leave-one-out: for each training example, use others as context
-                for i, target_example in enumerate(train_examples):
-                    context_examples = train_examples[:i] + train_examples[i+1:]
+            if len(train_examples) < 2:
+                continue
 
-                    examples.append({
-                        "train_examples": context_examples,
-                        "test_input": target_example["input"],
-                        "target_grid": target_example["output"],
-                        "task_id": f"{task_id}_loo{i}",
-                        "example_idx": i,
-                    })
-            else:
-                # Use all training examples as context, predict first example
-                if len(train_examples) >= 2:
-                    target = train_examples[0]
-                    context = train_examples[1:]
+            # Create one example per task
+            example = {
+                "train_examples": train_examples,
+                "task_id": task_id,
+                "num_examples": len(train_examples),
+            }
 
-                    examples.append({
-                        "train_examples": context,
-                        "test_input": target["input"],
-                        "target_grid": target["output"],
-                        "task_id": task_id,
-                        "example_idx": 0,
-                    })
+            # Add test info if available
+            if test_inputs and task_solutions:
+                example["test_input"] = test_inputs[0]["input"]
+                example["target_grid"] = task_solutions[0]
+
+            examples.append(example)
 
         return examples
 
-    def _create_multiturn_test_examples(
+    def _create_test_examples(
         self,
         challenges: Dict,
         solutions: Dict
     ) -> List[Dict]:
-        """Create test examples for multi-turn evaluation."""
+        """Create test examples for evaluation."""
         examples = []
 
         for task_id, task in challenges.items():
             train_examples = task["train"]
-            test_inputs = task["test"]
+            test_inputs = task.get("test", [])
             task_solutions = solutions.get(task_id, [])
 
+            if len(train_examples) < 2:
+                continue
+
             for i, (test_input, solution) in enumerate(zip(test_inputs, task_solutions)):
+                # Format prompt with training examples
+                examples_text = format_training_examples(train_examples)
+                prompt = CODE_GENERATION_PROMPT_TEMPLATE.format(examples=examples_text)
+
                 examples.append({
-                    "train_examples": train_examples,
-                    "test_input": test_input["input"],
-                    "target_grid": solution,
+                    "prompt": prompt,
+                    "train_examples": json.dumps(train_examples),
+                    "test_input": json.dumps(test_input["input"]),
+                    "target_grid": json.dumps(solution),
                     "task_id": f"{task_id}_test{i}",
                     "test_idx": i,
                 })
@@ -258,26 +203,22 @@ class ARCBuilder(BaseBuilder):
         return examples
 
     def _build_datasets(self) -> DatasetDict:
-        """Build train/valid/test datasets."""
+        """Build train/valid/test datasets for code generation."""
         challenges, solutions = self._load_arc_data()
 
-        # Check if multi-turn mode (using full_config for top-level params)
+        # Check if multi-turn mode
         max_turns = self.full_config.get("max_turns", 1)
         num_seeds = self.full_config.get("num_seeds", 1)
         use_multiturn = max_turns > 1 or num_seeds > 1
 
         if use_multiturn:
             # Create multi-turn examples for ARCDynamicEnv
-            all_train_examples = self._create_multiturn_examples(
-                challenges, solutions, use_leave_one_out=True
-            )
-            test_examples = self._create_multiturn_test_examples(challenges, solutions)
+            all_train_examples = self._create_multiturn_examples(challenges, solutions)
         else:
-            # Create single-turn examples for ARCEnv
-            all_train_examples = self._create_training_examples(
-                challenges, solutions, use_leave_one_out=True
-            )
-            test_examples = self._create_test_examples(challenges, solutions)
+            # Create single-turn examples for code generation
+            all_train_examples = self._create_code_generation_examples(challenges, solutions)
+
+        test_examples = self._create_test_examples(challenges, solutions)
 
         # Split into train/valid
         val_ratio = self.config.get("val_ratio", 0.1)
@@ -296,97 +237,46 @@ class ARCBuilder(BaseBuilder):
         valid_dataset = Dataset.from_list(valid_examples)
         test_dataset = Dataset.from_list(test_examples)
 
+        print(f"[ARCBuilder] Created datasets: train={len(train_examples)}, valid={len(valid_examples)}, test={len(test_examples)}")
+
         return DatasetDict({
             "train": train_dataset,
             "valid": valid_dataset,
             "test": test_dataset,
         })
 
-    def _load_instruction_sft_data(self) -> List[Dict]:
-        """
-        Load pre-generated instruction SFT data in messages format.
-
-        This data contains high-quality instructions for ARC puzzle solving,
-        used for pre-training the Weaver to generate instructions.
-
-        Priority order:
-        1. sft_soar2cot.json - Training set data, 7185 examples, score=1.0 (GRPO compatible)
-        2. sft_instructions_high_quality.json - Evaluation set, score >= 0.9
-        3. sft_instructions_messages.json - Evaluation set, messages format
-        4. sft_instructions.json - Legacy format
-
-        Data format:
-        {
-            "messages": [
-                {"role": "user", "content": "<prompt>"},
-                {"role": "assistant", "content": "<completion>"}
-            ],
-            "task_id": "...",
-            "score": 1.0
-        }
-        """
-        # Priority: soar2cot (training set, perfect score) > high quality > messages > legacy
-        sft_path_soar2cot = Path(__file__).parent / "sft_soar2cot.json"
-        sft_path_high_quality = Path(__file__).parent / "sft_instructions_high_quality.json"
-        sft_path_messages = Path(__file__).parent / "sft_instructions_messages.json"
-        sft_path_legacy = Path(__file__).parent / "sft_instructions.json"
-
-        if sft_path_soar2cot.exists():
-            sft_path = sft_path_soar2cot
-            print(f"[ARCBuilder] Loading soar2cot SFT data: 7185 examples, 232 training tasks, score=1.0")
-        elif sft_path_high_quality.exists():
-            sft_path = sft_path_high_quality
-            print(f"[ARCBuilder] Loading high quality SFT data (evaluation set)")
-        elif sft_path_messages.exists():
-            sft_path = sft_path_messages
-        elif sft_path_legacy.exists():
-            sft_path = sft_path_legacy
-        else:
-            raise FileNotFoundError(
-                f"Instruction SFT data not found. "
-                f"Expected at {sft_path_soar2cot} or {sft_path_high_quality}. "
-                "Run the instruction generation script first."
-            )
-
-        with open(sft_path) as f:
-            data = json.load(f)
-
-        print(f"[ARCBuilder] Loaded {len(data)} instruction examples from {sft_path.name}")
-        return data
-
     def _build_sft_datasets(self) -> DatasetDict:
         """
-        Build SFT datasets for instruction generation.
+        Build SFT datasets for code generation.
 
-        Uses pre-generated instruction data from evaluation set.
+        Can load pre-generated code solutions if available.
         """
-        # Check if we should use instruction SFT data
-        use_instruction_sft = self.full_config.get("use_instruction_sft", False)
+        # Check for pre-generated code SFT data
+        sft_code_path = Path(__file__).parent / "sft_code_solutions.json"
 
-        if use_instruction_sft:
-            # Load instruction SFT data
-            all_examples = self._load_instruction_sft_data()
+        if sft_code_path.exists():
+            # Load pre-generated code solutions
+            with open(sft_code_path) as f:
+                data = json.load(f)
 
-            # Split into train/valid (get val_ratio from sft config or default)
+            print(f"[ARCBuilder] Loaded {len(data)} code solution examples from {sft_code_path.name}")
+
+            # Split into train/valid
             sft_config = self.full_config.get("sft", {})
             val_ratio = sft_config.get("val_ratio", 0.1) if sft_config else 0.1
             if self.config:
                 val_ratio = self.config.get("val_ratio", val_ratio)
-            val_size = int(len(all_examples) * val_ratio)
+            val_size = int(len(data) * val_ratio)
 
-            # Shuffle deterministically
             import random
             random.seed(42)
-            random.shuffle(all_examples)
+            random.shuffle(data)
 
-            train_examples = all_examples[val_size:]
-            valid_examples = all_examples[:val_size]
+            train_examples = data[val_size:]
+            valid_examples = data[:val_size]
 
-            # Build datasets
             train_dataset = Dataset.from_list(train_examples)
             valid_dataset = Dataset.from_list(valid_examples)
-
-            # Test set is empty for instruction SFT (we evaluate on training set GRPO)
             test_dataset = Dataset.from_list([])
 
             return DatasetDict({
@@ -395,7 +285,7 @@ class ARCBuilder(BaseBuilder):
                 "test": test_dataset,
             })
         else:
-            # Default: use grid generation data
+            # Default: use code generation data
             return self._build_datasets()
 
     def _build_rl_datasets(self) -> DatasetDict:
@@ -403,9 +293,9 @@ class ARCBuilder(BaseBuilder):
 
     @classmethod
     def _preprocess(cls, example: Dict) -> Dict:
-        """Preprocess is handled in _create_training_examples."""
+        """Preprocess is handled in _create_* methods."""
         return example
 
     @classmethod
     def _keep_keys(cls) -> List[str]:
-        return ["prompt", "completion", "solution", "task_id"]
+        return ["prompt", "train_examples", "task_id", "test_input", "target_grid"]

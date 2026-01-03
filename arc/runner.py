@@ -1,7 +1,7 @@
 """
-ARC Two-Stage Training Runner.
+ARC Code Generation Training Runner (BARC-style).
 
-Orchestrates the two-stage training pipeline:
+Orchestrates the code generation training pipeline:
 1. Loads configuration
 2. Initializes model and datasets
 3. Creates trainer
@@ -9,7 +9,7 @@ Orchestrates the two-stage training pipeline:
 5. Evaluates and saves results
 
 Usage:
-    python -m arc.runner --cfg-path configs/arc_twostage.yaml
+    python -m arc.runner --cfg-path configs/arc_codegen.yaml
 """
 
 import argparse
@@ -40,22 +40,22 @@ from memgen.utils import (
     log_trainable_params,
 )
 
-from arc.interaction import ARCTwoStageInteractionManager, ARCTwoStageConfig
-from arc.trainer import ARCTwoStageTrainer, create_arc_trainer
+from arc.interaction import ARCCodeGenerationManager, ARCCodeGenerationConfig
+from arc.trainer import ARCCodeGenerationTrainer, create_arc_trainer
 
 logger = logging.getLogger(__name__)
 
 
-class ARCTwoStageRunner:
+class ARCCodeGenerationRunner:
     """
-    Runner for ARC two-stage training.
+    Runner for ARC code generation training (BARC-style).
 
     Handles the complete training pipeline:
     - Configuration loading and validation
     - Model initialization with MemGen architecture
     - Dataset preparation with leave-one-out splits
-    - Two-stage GRPO training
-    - Evaluation with grid similarity metrics
+    - GRPO training for code generation
+    - Evaluation with code execution accuracy metrics
     """
 
     def __init__(
@@ -98,30 +98,29 @@ class ARCTwoStageRunner:
         self.train_dataset = self._filter_dataset(self.train_dataset)
         self.valid_dataset = self._filter_dataset(self.valid_dataset)
 
-        # Two-stage configuration (arc-lang-public style: memory only for instruction refinement)
+        # Code generation configuration (BARC-style: generate Python code)
         arc_config = config.get("arc", {})
-        self.two_stage_config = ARCTwoStageConfig(
-            instruction_candidates=arc_config.get("instruction_candidates", 5),
-            leave_one_out_scoring=arc_config.get("leave_one_out_scoring", True),
-            max_instruction_length=arc_config.get("max_instruction_length", 1024),
-            max_grid_length=arc_config.get("max_grid_length", 512),
-            instruction_temperature=arc_config.get("instruction_temperature", 0.8),
-            grid_temperature=arc_config.get("grid_temperature", 0.3),
+        self.code_gen_config = ARCCodeGenerationConfig(
+            num_candidates=arc_config.get("num_candidates", 5),
+            max_code_length=arc_config.get("max_code_length", 2048),
+            temperature=arc_config.get("temperature", 0.8),
+            execution_timeout=arc_config.get("execution_timeout", 5),
+            top_p=arc_config.get("top_p", 0.95),
         )
 
         # Interaction manager
-        self.interaction_manager = ARCTwoStageInteractionManager(
+        self.interaction_manager = ARCCodeGenerationManager(
             tokenizer=self.processing_class,
             actor_rollout_wg=self.model,
             config=self.interaction_config,
-            two_stage_config=self.two_stage_config,
+            code_gen_config=self.code_gen_config,
         )
 
-        logger.info(f"ARCTwoStageRunner initialized")
+        logger.info(f"ARCCodeGenerationRunner initialized")
         logger.info(f"  Train samples: {len(self.train_dataset)}")
         logger.info(f"  Valid samples: {len(self.valid_dataset)}")
         logger.info(f"  Test samples: {len(self.test_dataset)}")
-        logger.info(f"  Instruction candidates: {self.two_stage_config.instruction_candidates}")
+        logger.info(f"  Code candidates: {self.code_gen_config.num_candidates}")
 
     def _parse_configs(self, configs: Dict):
         """Parse run configuration."""
@@ -182,18 +181,18 @@ class ARCTwoStageRunner:
 
         return dataset.filter(filter_func)
 
-    def _create_trainer(self) -> ARCTwoStageTrainer:
-        """Create the two-stage trainer."""
-        trainer = ARCTwoStageTrainer(
+    def _create_trainer(self) -> ARCCodeGenerationTrainer:
+        """Create the code generation trainer."""
+        trainer = ARCCodeGenerationTrainer(
             model=self.model,
-            reward_funcs=[ARCTwoStageTrainer.compute_arc_reward],
+            reward_funcs=[ARCCodeGenerationTrainer.compute_arc_reward],
             args=self.grpo_training_args,
             train_dataset=self.train_dataset,
             eval_dataset=self.valid_dataset,
             processing_class=self.processing_class,
             env_class=self.env_cls,
             env_main_config=self.config.get("dataset", {}),
-            two_stage_config=self.two_stage_config,
+            code_gen_config=self.code_gen_config,
         )
         return trainer
 
@@ -203,7 +202,7 @@ class ARCTwoStageRunner:
             logger.info("Training disabled, skipping")
             return
 
-        logger.info("Starting two-stage GRPO training")
+        logger.info("Starting code generation GRPO training")
 
         # Fix trigger, open weaver
         self.model.fix_component("trigger")
@@ -295,41 +294,37 @@ class ARCTwoStageRunner:
                 gen_batch.no_tensor_batch["init_prompts"] = init_prompts
                 gen_batch.no_tensor_batch["envs"] = envs
 
-                # Run two-stage generation
+                # Run code generation
                 self.interaction_manager.actor_rollout_wg = unwrapped_model
                 outputs = self.interaction_manager.run_agent_loop(gen_batch)
 
-                # Extract results
+                # Extract results (CodeGenerationResult)
                 results = outputs.no_tensor_batch.get("results", [])
                 for result in results:
                     all_results.append({
                         "task_id": result.task_id,
-                        "best_score": result.best_score,
-                        "final_reward": result.final_reward,
-                        "instructions": result.best_instructions,
-                        "grid": result.final_grid,
+                        "best_accuracy": result.best_accuracy,
+                        "best_code": result.best_code,
+                        "num_candidates": len(result.all_candidates),
                     })
                     total_count += 1
-                    if result.final_reward == 1.0:
+                    if result.best_accuracy == 1.0:
                         perfect_count += 1
 
         # Compute metrics
-        avg_reward = sum(r["final_reward"] for r in all_results) / len(all_results) if all_results else 0.0
-        avg_instruction_score = sum(r["best_score"] for r in all_results) / len(all_results) if all_results else 0.0
+        avg_accuracy = sum(r["best_accuracy"] for r in all_results) / len(all_results) if all_results else 0.0
 
         metrics = {
             "total_samples": total_count,
             "perfect_count": perfect_count,
             "perfect_ratio": perfect_count / total_count if total_count > 0 else 0.0,
-            "avg_final_reward": avg_reward,
-            "avg_instruction_score": avg_instruction_score,
+            "avg_accuracy": avg_accuracy,
         }
 
         logger.info(f"Evaluation results:")
         logger.info(f"  Total: {total_count}")
         logger.info(f"  Perfect: {perfect_count} ({metrics['perfect_ratio']:.2%})")
-        logger.info(f"  Avg reward: {avg_reward:.4f}")
-        logger.info(f"  Avg instruction score: {avg_instruction_score:.4f}")
+        logger.info(f"  Avg accuracy: {avg_accuracy:.4f}")
 
         # Save results
         import json
@@ -348,7 +343,7 @@ class ARCTwoStageRunner:
 
 def main():
     """Main entry point for training."""
-    parser = argparse.ArgumentParser(description="ARC Two-Stage Training")
+    parser = argparse.ArgumentParser(description="ARC Code Generation Training")
     parser.add_argument("--cfg-path", type=str, required=True, help="Path to config file")
     parser.add_argument("--options", nargs="+", default=[], help="Config overrides")
     args = parser.parse_args()
@@ -380,7 +375,7 @@ def main():
     torch.manual_seed(seed)
 
     # Create working directory
-    working_dir = config.get("run", {}).get("output_dir", "./outputs/arc_twostage")
+    working_dir = config.get("run", {}).get("output_dir", "./outputs/arc_codegen")
     os.makedirs(working_dir, exist_ok=True)
 
     # Initialize model
@@ -392,7 +387,7 @@ def main():
     data_builder = ARCBuilder(config.get("dataset", {}))
 
     # Create runner
-    runner = ARCTwoStageRunner(
+    runner = ARCCodeGenerationRunner(
         model=model,
         data_builder=data_builder,
         config=config,

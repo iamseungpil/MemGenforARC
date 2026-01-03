@@ -1,18 +1,18 @@
 """
-ARC Two-Stage GRPO Trainer (arc-lang-public style).
+ARC Code Generation GRPO Trainer (BARC-style).
 
-Trains the Weaver to generate better instructions for ARC tasks.
+Trains the Weaver to generate better Python code for ARC tasks.
 
 Training Flow:
-- Stage 1: Generate instructions (Weaver augmentation applied - THIS IS WHAT WE TRAIN)
-- Stage 2: Generate grids (pure text, no Weaver - used for reward calculation only)
-- Reward: Grid similarity on final output
+- Generate code: Weaver augmentation applied (THIS IS WHAT WE TRAIN)
+- Execute code: Validate on training examples (used for reward calculation)
+- Reward: Accuracy on training examples
 
-Key Architecture (arc-lang-public style):
-- Weaver is trained via GRPO on instruction generation
-- Memory flows only between instruction refinements (not to grid generation)
-- Grid generation uses pure text prompts (no memory injection)
-- Reward signal from grid accuracy drives instruction quality improvement
+Key Architecture (BARC-style):
+- Weaver is trained via GRPO on code generation
+- Memory flows between code generation attempts
+- Code is executed on training examples for validation
+- Reward signal from code accuracy drives generation quality improvement
 
 Training Target:
 - Weaver parameters (LoRA adapters, query latents, projection layers)
@@ -44,10 +44,10 @@ from interactions.base_interaction import InteractionDataProto
 from data.base_env import DynamicEnv
 
 from arc.interaction import (
-    ARCTwoStageInteractionManager,
-    ARCTwoStageConfig,
-    ARCTwoStageSeedPoolManager,
-    TwoStageResult,
+    ARCCodeGenerationManager,
+    ARCCodeGenerationConfig,
+    ARCCodeGenerationPoolManager,
+    CodeGenerationResult,
 )
 from arc.utils import get_grid_similarity, parse_grid_from_text
 
@@ -58,24 +58,24 @@ logger = logging.getLogger(__name__)
 RewardFunc = Union[str, PreTrainedModel, Callable[[list, list], list[float]]]
 
 
-class ARCTwoStageTrainer(WeaverGRPOTrainer):
+class ARCCodeGenerationTrainer(WeaverGRPOTrainer):
     """
-    GRPO Trainer specialized for ARC two-stage Weaver training.
+    GRPO Trainer specialized for ARC code generation Weaver training.
 
-    Trains the Weaver to generate better instructions for ARC tasks.
-    The Weaver is trained via GRPO on instruction generation, and the
-    reward signal comes from final grid accuracy.
+    Trains the Weaver to generate better Python code for ARC tasks.
+    The Weaver is trained via GRPO on code generation, and the
+    reward signal comes from code execution accuracy.
 
-    Training Architecture (arc-lang-public style):
-    - Instruction generation: Weaver augmentation applied (THIS IS TRAINED)
-    - Grid generation: Pure text prompts (no Weaver, used for reward only)
-    - Memory: Flows only between instruction refinements
+    Training Architecture (BARC-style):
+    - Code generation: Weaver augmentation applied (THIS IS TRAINED)
+    - Code execution: Validates generated code on training examples
+    - Memory: Flows between code generation attempts
 
     Key Features:
-    - N instruction candidates with leave-one-out scoring
-    - 7 refinement turns with memory flow between instructions
-    - Grid accuracy as reward signal for instruction quality
-    - Weaver gradient flows through instruction generation forward pass
+    - N code candidates for GRPO training
+    - Code execution on training examples for validation
+    - Accuracy-based reward computation
+    - Weaver gradient flows through code generation forward pass
     """
 
     def __init__(
@@ -94,14 +94,14 @@ class ARCTwoStageTrainer(WeaverGRPOTrainer):
         env_main_config=None,
         generation_manager=None,
         seed_pool_manager=None,
-        two_stage_config: Optional[ARCTwoStageConfig] = None,
+        code_gen_config: Optional[ARCCodeGenerationConfig] = None,
     ):
         """
-        Initialize the ARC two-stage trainer.
+        Initialize the ARC code generation trainer.
 
         Args:
             model: MemGenModel instance
-            reward_funcs: Reward functions (grid similarity will be added)
+            reward_funcs: Reward functions (code accuracy will be added)
             args: GRPO training arguments
             train_dataset: Training dataset
             eval_dataset: Evaluation dataset
@@ -110,14 +110,14 @@ class ARCTwoStageTrainer(WeaverGRPOTrainer):
             env_main_config: Environment configuration
             generation_manager: Override generation manager (optional)
             seed_pool_manager: Override seed pool manager (optional)
-            two_stage_config: Two-stage specific configuration
+            code_gen_config: Code generation specific configuration
         """
-        # Store two-stage config before parent init
-        self.two_stage_config = two_stage_config or ARCTwoStageConfig()
+        # Store code gen config before parent init
+        self.code_gen_config = code_gen_config or ARCCodeGenerationConfig()
 
-        # Create two-stage interaction manager BEFORE parent init if not provided
+        # Create code generation interaction manager BEFORE parent init if not provided
         # Parent class requires generation_manager to be non-None
-        if generation_manager is None or not isinstance(generation_manager, ARCTwoStageInteractionManager):
+        if generation_manager is None or not isinstance(generation_manager, ARCCodeGenerationManager):
             from interactions.base_interaction import InteractionConfig
 
             # Get values from args for interaction config
@@ -137,22 +137,22 @@ class ARCTwoStageTrainer(WeaverGRPOTrainer):
                 batch_size=batch_size,
             )
 
-            generation_manager = ARCTwoStageInteractionManager(
+            generation_manager = ARCCodeGenerationManager(
                 tokenizer=processing_class,
                 actor_rollout_wg=model,
                 config=interaction_config,
-                two_stage_config=self.two_stage_config,
+                code_gen_config=self.code_gen_config,
             )
 
-            seed_pool_manager = ARCTwoStageSeedPoolManager(
+            seed_pool_manager = ARCCodeGenerationPoolManager(
                 interaction_manager=generation_manager,
-                num_candidates=self.two_stage_config.instruction_candidates,
-                selection_strategy="best_final"
+                num_candidates=self.code_gen_config.num_candidates,
+                selection_strategy="best_accuracy"
             )
 
         # Store references for use in _generate_and_score_completions
-        self.two_stage_manager = generation_manager
-        self.two_stage_seed_manager = seed_pool_manager
+        self.code_gen_manager = generation_manager
+        self.code_gen_pool_manager = seed_pool_manager
 
         # Initialize parent class with the manager
         super().__init__(
@@ -173,8 +173,8 @@ class ARCTwoStageTrainer(WeaverGRPOTrainer):
         )
 
         logger.info(
-            f"ARCTwoStageTrainer initialized: "
-            f"candidates={self.two_stage_config.instruction_candidates}"
+            f"ARCCodeGenerationTrainer initialized: "
+            f"candidates={self.code_gen_config.num_candidates}"
         )
 
         # Track if static_graph is already set
@@ -370,9 +370,9 @@ class ARCTwoStageTrainer(WeaverGRPOTrainer):
         inputs: List[Dict[str, Union[torch.Tensor, Any]]]
     ) -> Tuple[List[List[Dict]], List]:
         """
-        Build multi-turn environments for two-stage training.
+        Build multi-turn environments for code generation training.
 
-        Sets up environments with task configurations for the two-stage pipeline.
+        Sets up environments with task configurations for the code generation pipeline.
 
         Args:
             inputs: Batch of input samples
@@ -388,7 +388,7 @@ class ARCTwoStageTrainer(WeaverGRPOTrainer):
             env: DynamicEnv = self.env_class(self.env_main_config)
             system_prompt, init_user_prompt = env.set_env(task_config)
 
-            # Store task config in env for two-stage access
+            # Store task config in env for code generation access
             env.task_config = task_config
 
             system_message = {"role": "system", "content": system_prompt}
@@ -404,13 +404,12 @@ class ARCTwoStageTrainer(WeaverGRPOTrainer):
         inputs: List[Dict[str, Union[torch.Tensor, Any]]]
     ) -> Dict[str, Union[torch.Tensor, Any]]:
         """
-        Generate completions using two-stage pipeline and score them.
+        Generate completions using code generation pipeline and score them.
 
-        Overrides parent method to use the two-stage generation flow:
-        1. Generate instruction candidates
-        2. Score using leave-one-out
-        3. Refine based on failures
-        4. Generate final grids
+        Overrides parent method to use the code generation flow:
+        1. Generate code candidates
+        2. Execute on training examples
+        3. Compute accuracy as reward
 
         Args:
             inputs: Batch of input samples
@@ -433,7 +432,7 @@ class ARCTwoStageTrainer(WeaverGRPOTrainer):
         for example, env in zip(inputs, envs):
             example["envs"] = env
 
-        # Generate using two-stage pipeline
+        # Generate using code generation pipeline
         with unwrap_model_for_generation(
             self.model_wrapped, self.accelerator,
             gather_deepspeed3_params=self.args.ds3_gather_for_generation
@@ -444,20 +443,20 @@ class ARCTwoStageTrainer(WeaverGRPOTrainer):
                 else nullcontext()
             ):
                 # Update manager's model reference
-                self.two_stage_manager.actor_rollout_wg = unwrapped_model
+                self.code_gen_manager.actor_rollout_wg = unwrapped_model
 
-                # Run two-stage generation with seed pooling
-                final_output, seed_info = self.two_stage_seed_manager.run_seed_pool(gen_batch)
+                # Run code generation with candidate pooling
+                final_output, seed_info = self.code_gen_pool_manager.run_seed_pool(gen_batch)
 
-                # Log seed selection info
+                # Log candidate selection info
                 if seed_info:
                     avg_best_score = sum(
-                        s["final_reward"] for s in seed_info
+                        s["best_accuracy"] for s in seed_info
                     ) / len(seed_info)
-                    self._metrics[mode]["two_stage/avg_best_score"].append(avg_best_score)
+                    self._metrics[mode]["code_gen/avg_best_accuracy"].append(avg_best_score)
 
         # Extract results and candidate info
-        results: List[TwoStageResult] = final_output.no_tensor_batch.get("results", [])
+        results: List[CodeGenerationResult] = final_output.no_tensor_batch.get("results", [])
 
         # Get candidate scores from _build_output (one per candidate, not per task)
         candidate_scores = final_output.no_tensor_batch.get("candidate_scores", [])
@@ -496,16 +495,16 @@ class ARCTwoStageTrainer(WeaverGRPOTrainer):
             )
 
         # Log metrics
-        self._metrics[mode]["two_stage/final_reward_mean"].append(rewards.mean().item())
-        self._metrics[mode]["two_stage/final_reward_max"].append(rewards.max().item())
-        self._metrics[mode]["two_stage/perfect_ratio"].append(
+        self._metrics[mode]["code_gen/accuracy_mean"].append(rewards.mean().item())
+        self._metrics[mode]["code_gen/accuracy_max"].append(rewards.max().item())
+        self._metrics[mode]["code_gen/perfect_ratio"].append(
             (rewards == 1.0).float().mean().item()
         )
 
-        # Compute instruction quality metrics
-        instruction_scores = [r.best_score for r in results]
-        self._metrics[mode]["two_stage/instruction_score_mean"].append(
-            sum(instruction_scores) / len(instruction_scores) if instruction_scores else 0.0
+        # Compute code accuracy metrics
+        accuracy_scores = [r.best_accuracy for r in results]
+        self._metrics[mode]["code_gen/best_accuracy_mean"].append(
+            sum(accuracy_scores) / len(accuracy_scores) if accuracy_scores else 0.0
         )
 
         # Construct labels for loss computation
@@ -565,6 +564,9 @@ class ARCTwoStageTrainer(WeaverGRPOTrainer):
         # Instead of num_generations=2, we use num_candidates (typically 5)
         # This allows GRPO to compute advantages across instruction candidates
         group_size = num_candidates if num_candidates > 0 else self.num_generations
+        if group_size <= 0:
+            logger.error(f"Invalid group_size={group_size}, num_candidates={num_candidates}, num_generations={self.num_generations}")
+            raise ValueError(f"group_size must be positive, got {group_size}")
         mean_grouped_rewards = rewards.view(-1, group_size).mean(dim=1)
         std_grouped_rewards = rewards.view(-1, group_size).std(dim=1)
         is_std_zero = torch.isclose(std_grouped_rewards, torch.zeros_like(std_grouped_rewards))
@@ -650,10 +652,10 @@ def create_arc_trainer(
     tokenizer: PreTrainedTokenizerBase,
     env_class,
     env_config: Dict,
-    two_stage_config: Optional[ARCTwoStageConfig] = None,
-) -> ARCTwoStageTrainer:
+    code_gen_config: Optional[ARCCodeGenerationConfig] = None,
+) -> ARCCodeGenerationTrainer:
     """
-    Factory function to create an ARCTwoStageTrainer.
+    Factory function to create an ARCCodeGenerationTrainer.
 
     Args:
         model: MemGenModel instance
@@ -663,21 +665,21 @@ def create_arc_trainer(
         tokenizer: Tokenizer
         env_class: Environment class (ARCDynamicEnv)
         env_config: Environment configuration dictionary
-        two_stage_config: Optional two-stage configuration
+        code_gen_config: Optional code generation configuration
 
     Returns:
-        Configured ARCTwoStageTrainer instance
+        Configured ARCCodeGenerationTrainer instance
     """
-    trainer = ARCTwoStageTrainer(
+    trainer = ARCCodeGenerationTrainer(
         model=model,
-        reward_funcs=[ARCTwoStageTrainer.compute_arc_reward],
+        reward_funcs=[ARCCodeGenerationTrainer.compute_arc_reward],
         args=args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         processing_class=tokenizer,
         env_class=env_class,
         env_main_config=env_config,
-        two_stage_config=two_stage_config,
+        code_gen_config=code_gen_config,
     )
 
     return trainer
