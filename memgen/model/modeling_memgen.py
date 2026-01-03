@@ -1,6 +1,10 @@
 import logging
-from typing import Union, Optional
+from typing import Union, Optional, TYPE_CHECKING
 from contextlib import contextmanager
+
+# Forward-compatible import for LTPO optimizer (avoid circular imports)
+if TYPE_CHECKING:
+    from ltpo import MemGenLTPOOptimizer
 
 import random
 import torch
@@ -553,6 +557,8 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         return_augmentation_mask: bool = False,
         prev_memory_embeds: Optional[torch.Tensor] = None,
         return_memory_embeds: bool = False,
+        ltpo_optimizer: Optional["MemGenLTPOOptimizer"] = None,
+        ltpo_verbose: bool = False,
         **kwargs
     ) -> Union[torch.LongTensor, tuple[torch.LongTensor, torch.LongTensor], tuple[torch.LongTensor, torch.Tensor]]:
         """
@@ -573,6 +579,11 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                 Injected at embedding level only (input_ids stays unchanged).
             return_memory_embeds: If True, capture and return memory from this generation.
                 Memory is captured from prompt augmentation (i=0) only.
+            ltpo_optimizer: Optional LTPO optimizer for test-time latent optimization.
+                When provided, weaver-generated latents are optimized using LTPO before
+                being injected into the reasoner. This improves reasoning quality without
+                additional training.
+            ltpo_verbose: If True, print LTPO optimization progress.
 
         Returns:
             - If neither return flag: generated token IDs
@@ -691,7 +702,41 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                         weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
                     )
 
+                # Convert weaver hidden states to reasoner space
                 latent_inputs_embeds = self.weaver_to_reasoner(weaver_hidden_states)
+
+                # === LTPO Optimization ===
+                # When trigger decides to augment (augment_decision == 1), optimize
+                # latent embeddings using LTPO before injection into reasoner.
+                # LTPO operates in reasoner space for confidence computation.
+                if ltpo_optimizer is not None:
+                    # Build full embeddings for LTPO confidence computation
+                    # latent_inputs_embeds will be at the end of candidate_inputs_embeds
+                    temp_full_embeds = torch.cat([candidate_inputs_embeds, latent_inputs_embeds], dim=1)
+                    temp_full_mask = torch.cat([candidate_attention_mask, attn_mask], dim=1)
+
+                    # Determine latent positions
+                    latent_len = latent_inputs_embeds.size(1)
+                    seq_len = temp_full_embeds.size(1)
+                    latent_start_idx = seq_len - latent_len
+                    latent_end_idx = seq_len
+
+                    # Optimize latent embeddings in reasoner space
+                    optimized_latents, best_reward, best_step = ltpo_optimizer.optimize(
+                        latents_hidden_states=latent_inputs_embeds,
+                        inputs_embeds=temp_full_embeds,
+                        attention_mask=temp_full_mask,
+                        latent_start_idx=latent_start_idx,
+                        latent_end_idx=latent_end_idx,
+                        verbose=ltpo_verbose,
+                    )
+
+                    if ltpo_verbose:
+                        logging.info(f"[LTPO] Step {i}: best_reward={best_reward:.4f}, best_step={best_step}")
+
+                    # Use optimized latent embeddings (already in reasoner space)
+                    latent_inputs_embeds = optimized_latents
+                # === End LTPO Optimization ===
                 # Handle nan/inf in latent embeddings to prevent numerical instability
                 if torch.isnan(latent_inputs_embeds).any() or torch.isinf(latent_inputs_embeds).any():
                     latent_inputs_embeds = torch.nan_to_num(latent_inputs_embeds, nan=0.0, posinf=5.0, neginf=-5.0)
