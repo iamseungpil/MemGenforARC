@@ -30,9 +30,11 @@ class DynamicEnv(BaseEnv):
         ...
     
     @abstractmethod
-    def step(self, action: str) -> Tuple[str, bool]:
+    def step(self, action: str) -> Tuple[str, float, bool]:
+        """Execute action and return (observation, reward, done)."""
         ...
-    
+
     @abstractmethod
-    def feedback(self) -> Tuple[float, bool]:
+    def feedback(self) -> float:
+        """Return the current reward."""
         ...

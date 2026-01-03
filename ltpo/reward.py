@@ -1,6 +1,12 @@
 import re
+import logging
 
-from termcolor import colored
+logger = logging.getLogger(__name__)
+
+# Compatibility wrapper for termcolor (not required for MemGen integration)
+def colored(text, color=None, *args, **kwargs):
+    """Simple colored text wrapper - returns text without color when termcolor is not available."""
+    return text
 
 
 VERA_ANSWER_SYMBOL = "THE SCORE IS:"

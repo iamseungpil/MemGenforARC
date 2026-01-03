@@ -1,7 +1,10 @@
 import torch
+import logging
 
-from fastNLP import logger
-from reward import RewardModel
+# Use standard logging instead of fastNLP
+logger = logging.getLogger(__name__)
+
+from .reward import RewardModel
 
 
 def build_inputs(
