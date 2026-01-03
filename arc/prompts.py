@@ -60,50 +60,6 @@ What is most important is that you get the exact correct output grid given the g
 
 
 # =============================================================================
-# Revision Prompts (for refinement turns)
-# =============================================================================
-
-REVISION_PROMPT = """
-Your previous instructions were applied to the training input grids, but they did not produce the correct output grids.
-
-Below you'll see what outputs were generated when following your instructions. Compare these incorrect outputs with the correct outputs to identify where your instructions went wrong.
-
-Based on this feedback, provide updated instructions that correctly describe the transformation pattern. Your revised instructions must:
-- Fix the specific errors you observe
-- Still work correctly for ALL training examples
-- Remain clear, intuitive, and general
-
-Analyze the differences between the incorrect outputs and the correct outputs to understand the true pattern, then write improved instructions.
-""".strip()
-
-
-# =============================================================================
-# Synthesis/Pooling Prompts (for combining multiple attempts)
-# =============================================================================
-
-SYNTHESIS_PROMPT = """
-Multiple expert puzzle solvers have attempted to describe the transformation pattern for these grids. Each attempt captured some aspects correctly but failed in other ways.
-
-Below you'll find:
-- Each set of proposed instructions
-- The outputs produced when following those instructions
-- How those outputs differ from the correct answers
-
-Your task is to analyze why each approach partially failed and synthesize a complete, correct set of instructions.
-
-By examining multiple flawed attempts, you can:
-- Identify what each approach got right
-- Understand what each approach missed
-- Recognize common misconceptions about the pattern
-- Build comprehensive instructions that avoid all these pitfalls
-
-Study the patterns of success and failure across all attempts, then write instructions that correctly describe the complete transformation rule that works for ALL training examples.
-
-Your final instructions should be clear, intuitive, and capture the true underlying pattern.
-""".strip()
-
-
-# =============================================================================
 # System Prompts for Different Roles
 # =============================================================================
 
@@ -120,12 +76,6 @@ CRITICAL: Output ONLY the JSON object. Do NOT include any explanation, reasoning
 Your response must start with { and end with }
 
 Format: {"grid": [[row1], [row2], ...]}
-""".strip()
-
-
-SYSTEM_PROMPT_REVISER = """You are an expert at debugging and improving transformation rules.
-Your role is to analyze what went wrong with previous instructions and create improved versions.
-Output your revised instructions as JSON: {"reasoning": "why old instructions failed", "revised_instructions": "improved step-by-step instructions"}
 """.strip()
 
 
@@ -212,78 +162,5 @@ Instructions:
 
 Apply the instructions to produce the output grid.
 Output ONLY JSON (no explanation): {{"grid": [[...]]}}
-"""
-    return prompt
-
-
-def build_revision_prompt(
-    original_instructions: str,
-    examples_text: str,
-    attempts_text: str,
-    config: Optional[PromptConfig] = None
-) -> str:
-    """
-    Build a revision prompt for improving failed instructions.
-
-    Args:
-        original_instructions: The instructions that need improvement
-        examples_text: Formatted training examples with outputs
-        attempts_text: Formatted attempted outputs showing errors
-        config: Optional prompt configuration
-
-    Returns:
-        Complete prompt for instruction revision
-    """
-    prompt = f"""{INTUITIVE_PROMPT}
-
---Training Examples--
-{examples_text}
---End of Training Examples--
-
-Your previous instructions were:
-{original_instructions}
-
-{REVISION_PROMPT}
-
---Your Attempts vs Correct Outputs--
-{attempts_text}
---End of Attempts--
-
-Provide revised instructions that fix the errors.
-Output as JSON: {{"reasoning": "what went wrong", "revised_instructions": "improved step-by-step instructions"}}
-"""
-    return prompt
-
-
-def build_synthesis_prompt(
-    examples_text: str,
-    all_attempts_text: str,
-    config: Optional[PromptConfig] = None
-) -> str:
-    """
-    Build a synthesis prompt for pooling multiple attempts.
-
-    Args:
-        examples_text: Formatted training examples
-        all_attempts_text: Formatted text showing all instruction attempts and their results
-        config: Optional prompt configuration
-
-    Returns:
-        Complete prompt for instruction synthesis
-    """
-    prompt = f"""{INTUITIVE_PROMPT}
-
---Training Examples--
-{examples_text}
---End of Training Examples--
-
-{SYNTHESIS_PROMPT}
-
---Previous Attempts--
-{all_attempts_text}
---End of Previous Attempts--
-
-Synthesize the best aspects of all attempts into improved instructions.
-Output as JSON: {{"reasoning": "analysis of attempts", "revised_instructions": "synthesized step-by-step instructions"}}
 """
     return prompt

@@ -16,8 +16,6 @@ Key Components:
 from arc.prompts import (
     INTUITIVE_PROMPT,
     FOLLOW_INSTRUCTIONS_PROMPT,
-    REVISION_PROMPT,
-    SYNTHESIS_PROMPT,
 )
 from arc.utils import (
     get_grid_similarity,
@@ -36,8 +34,6 @@ __all__ = [
     # Prompts
     "INTUITIVE_PROMPT",
     "FOLLOW_INSTRUCTIONS_PROMPT",
-    "REVISION_PROMPT",
-    "SYNTHESIS_PROMPT",
     # Utils
     "get_grid_similarity",
     "parse_grid_from_text",

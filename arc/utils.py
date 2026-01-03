@@ -297,68 +297,6 @@ def parse_instructions_from_text(text: str) -> Optional[str]:
     return None
 
 
-def parse_revised_instructions_from_text(text: str) -> Optional[Dict[str, str]]:
-    """
-    Parse revised instructions with reasoning from model output.
-
-    Expected format: {"reasoning": "...", "revised_instructions": "..."}
-
-    FIXED: Uses balanced bracket matching for robustness.
-
-    Args:
-        text: Model output text
-
-    Returns:
-        Dict with 'reasoning' and 'revised_instructions' keys, or None
-    """
-    if not text:
-        return None
-
-    text = text.strip()
-
-    # Remove markdown code blocks if present
-    if text.startswith("```"):
-        lines = text.split("\n")
-        end_idx = len(lines)
-        for i in range(1, len(lines)):
-            if lines[i].strip().startswith("```"):
-                end_idx = i
-                break
-        text = "\n".join(lines[1:end_idx])
-        text = text.strip()
-
-    # Method 1: Try direct JSON parse
-    try:
-        data = json.loads(text)
-        if isinstance(data, dict):
-            result = {}
-            if "reasoning" in data:
-                result["reasoning"] = data["reasoning"]
-            if "revised_instructions" in data:
-                result["revised_instructions"] = data["revised_instructions"]
-            if result:
-                return result
-    except (json.JSONDecodeError, TypeError):
-        pass
-
-    # Method 2: Find balanced JSON objects and try each
-    for json_str in _find_balanced(text, '{', '}'):
-        try:
-            data = json.loads(json_str)
-            if isinstance(data, dict):
-                result = {}
-                if "reasoning" in data:
-                    result["reasoning"] = data["reasoning"]
-                if "revised_instructions" in data:
-                    result["revised_instructions"] = data["revised_instructions"]
-                if result:
-                    return result
-        except (json.JSONDecodeError, TypeError):
-            continue
-
-    return None
-
-
 # =============================================================================
 # Grid Formatting
 # =============================================================================
@@ -394,55 +332,6 @@ def format_examples(train_examples: List[Dict]) -> str:
         output_grid = grid_to_string(ex["output"])
         formatted.append(f"Example {i}:\nInput:\n{input_grid}\nOutput:\n{output_grid}")
     return "\n\n".join(formatted)
-
-
-def format_example_with_attempt(
-    example: Dict,
-    attempt_grid: Optional[List[List[int]]],
-    example_number: int,
-    include_diff: bool = True
-) -> str:
-    """
-    Format a single training example with an attempt and diff.
-
-    Args:
-        example: {"input": grid, "output": grid} dict
-        attempt_grid: Predicted output grid (or None)
-        example_number: 1-indexed example number
-        include_diff: Whether to include diff notation
-
-    Returns:
-        Formatted string showing example and attempt
-    """
-    input_text = grid_to_string(example["input"])
-    output_text = grid_to_string(example["output"])
-
-    result = f"""Example {example_number}:
-Input:
-{input_text}
-Expected Output:
-{output_text}"""
-
-    if attempt_grid is not None:
-        attempt_text = grid_to_string(attempt_grid)
-
-        if attempt_grid == example["output"]:
-            result += f"""
-Your Attempt (CORRECT):
-{attempt_text}"""
-        else:
-            result += f"""
-Your Attempt (INCORRECT):
-{attempt_text}"""
-
-            if include_diff:
-                diff = generate_grid_diff(example["output"], attempt_grid)
-                result += f"""
-
-Difference (actual->expected):
-{diff}"""
-
-    return result
 
 
 # =============================================================================
