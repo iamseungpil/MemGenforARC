@@ -20,10 +20,6 @@ from interactions.base_interaction import (
 )
 from interactions.singleturn_interaction import SingleTurnInteractionManager
 from interactions.multiturn_interaction import MultiTurnInteractionManager
-from interactions.arc_multiturn_interaction import (
-    ARCMultiTurnInteractionManager,
-    ARCSeedPoolManager
-)
 
 from memgen.model.modeling_memgen import MemGenModel
 
@@ -86,37 +82,16 @@ class MemGenRunner:
         self.trigger_valid_dataset = self._filter_dataset(self.trigger_valid_dataset)
         
         # initialize generation manager
-        # Check for ARC multi-turn/multi-seed mode
-        dataset_name = config.get("dataset", {}).get("name", "")
-        num_seeds = self.interaction_config_dict.get("num_seeds", 1)
-
         if self.env_cls.ENV_CARD == "STATIC":
             self.inter_cls = SingleTurnInteractionManager
             self.generation_manager: InteractionManager = self.inter_cls(
                 self.processing_class, self.model, self.interaction_config
             )
-            self.seed_pool_manager = None
         elif self.env_cls.ENV_CARD == "DYNAMIC":
-            # Use ARC-specific manager for arc dataset with multi-seed
-            if dataset_name == "arc" and num_seeds > 1:
-                self.inter_cls = ARCMultiTurnInteractionManager
-                self.generation_manager: InteractionManager = self.inter_cls(
-                    self.processing_class, self.model, self.interaction_config,
-                    num_seeds=num_seeds
-                )
-                # Create seed pool manager for GRPO training
-                selection_strategy = self.interaction_config_dict.get("selection_strategy", "best_final")
-                self.seed_pool_manager = ARCSeedPoolManager(
-                    self.generation_manager,
-                    num_seeds=num_seeds,
-                    selection_strategy=selection_strategy
-                )
-            else:
-                self.inter_cls = MultiTurnInteractionManager
-                self.generation_manager: InteractionManager = self.inter_cls(
-                    self.processing_class, self.model, self.interaction_config
-                )
-                self.seed_pool_manager = None
+            self.inter_cls = MultiTurnInteractionManager
+            self.generation_manager: InteractionManager = self.inter_cls(
+                self.processing_class, self.model, self.interaction_config
+            )
         else:
             raise ValueError("Unsupported environment type.")
     
@@ -188,8 +163,6 @@ class MemGenRunner:
                 env_class=self.env_cls,
                 env_main_config=self.config.get("dataset"),
                 generation_manager=self.generation_manager,
-                # --- add seed pool manager for ARC multi-seed training ---
-                seed_pool_manager=self.seed_pool_manager
             )
         else:
             raise ValueError("Unsupported weaver training method.")

@@ -49,7 +49,6 @@ if is_wandb_available():
 from interactions.base_interaction import (
     InteractionManager, InteractionDataProto
 )
-from interactions.arc_multiturn_interaction import ARCSeedPoolManager
 from data.base_env import StaticEnv, DynamicEnv
 
 from .utils import (
@@ -78,7 +77,6 @@ class WeaverGRPOTrainer(GRPOTrainer):
         env_class = None,   # env main class
         env_main_config = None,  # configs to initialize an env object
         generation_manager: InteractionManager = None,  # manage the interaction between agent and env
-        seed_pool_manager: Optional[ARCSeedPoolManager] = None  # manage 5 seeds × 7 turns for ARC
     ):
         super().__init__(
             model,
@@ -110,7 +108,6 @@ class WeaverGRPOTrainer(GRPOTrainer):
         self.env_class = env_class
         self.env_main_config = env_main_config
         self.generation_manager = generation_manager
-        self.seed_pool_manager = seed_pool_manager
 
         # TRL compatibility: Set attributes that may not be set by parent __init__
         # This handles version differences in TRL where some attributes are expected
@@ -506,19 +503,7 @@ class WeaverGRPOTrainer(GRPOTrainer):
                 ):
                     # Use GenerationManager to coordinate the interaction between the agent and the environment
                     self.generation_manager.actor_rollout_wg = unwrapped_model
-
-                    # Use seed pool manager for ARC multi-seed training (5 seeds × 7 turns)
-                    if self.seed_pool_manager is not None:
-                        # Update the manager's reference to the unwrapped model
-                        self.seed_pool_manager.interaction_manager.actor_rollout_wg = unwrapped_model
-                        # Run 5 seeds per task and select best trajectory
-                        final_gen_batch_output, seed_info = self.seed_pool_manager.run_seed_pool(gen_batch=gen_batch)
-                        # Log seed selection info
-                        if seed_info:
-                            avg_best_score = sum(s["seed_scores"][s["selected_seed"]]["score"] for s in seed_info) / len(seed_info)
-                            self._metrics["train"]["seed_pool/avg_best_score"].append(avg_best_score)
-                    else:
-                        final_gen_batch_output = self.generation_manager.run_agent_loop(gen_batch=gen_batch)
+                    final_gen_batch_output = self.generation_manager.run_agent_loop(gen_batch=gen_batch)
         
         # parse outputs
         prompts = final_gen_batch_output.batch["prompts"].to(device)  # prompt ids
