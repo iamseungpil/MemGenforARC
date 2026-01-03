@@ -8,7 +8,6 @@
 #
 # Key Features:
 # - 3 instruction candidates per task (reduced for speed)
-# - 3 refinement turns (reduced for speed)
 # - Single-example scoring (LOO disabled for ~4x speedup)
 # - Memory persistence from instruction to grid generation
 # - Grid similarity as the sole reward signal
@@ -16,8 +15,7 @@
 # Speed Optimization Notes:
 # - LOO disabled: 1 grid gen per candidate vs N (where N = num train examples)
 # - Candidates reduced: 3 vs 5 (1.7x speedup)
-# - Turns reduced: 3 vs 7 (2x speedup)
-# - Total estimated speedup: ~15x
+# - Total estimated speedup: ~7x
 #
 # =============================================================================
 
@@ -72,14 +70,6 @@ arc:
   # Number of instruction candidates per task
   # Reduced from 5 to 3 for faster training while maintaining GRPO diversity
   instruction_candidates: 3
-
-  # Number of refinement turns (max)
-  # Reduced from 7 to 3 - most improvements happen in early turns
-  refinement_turns: 3
-
-  # Early stopping threshold: stop refinement if best score >= this value
-  # Set to 2.0 to disable (force all turns to run for memory training)
-  early_stop_threshold: 2.0
 
   # Whether to use leave-one-out scoring for instruction validation
   # DISABLED for speed: uses single-example scoring instead (~4x faster)
@@ -231,12 +221,10 @@ run:
 #
 # For higher quality (slower, original settings):
 #   --options arc.instruction_candidates 5 \
-#             arc.refinement_turns 7 \
 #             arc.leave_one_out_scoring true \
 #             run.weaver.grpo.num_generations 5 \
 #             run.weaver.grpo.generation_batch_size 20 \
 #             run.weaver.grpo.gradient_accumulation_steps 5
 #
 # For even faster training (minimal quality):
-#   --options arc.instruction_candidates 2 \
-#             arc.refinement_turns 2
+#   --options arc.instruction_candidates 2
