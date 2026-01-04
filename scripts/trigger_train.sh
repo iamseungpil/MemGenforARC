@@ -49,7 +49,7 @@ python -m accelerate.commands.launch \
     model.weaver.inference_latents_len ${INFERENCE_LATENTS_LEN} \
     model.trigger.model_name ${TRIGGER_MODEL} \
     model.trigger.active True \
-    datasets.mode ${DATASET_MODE} \
+    dataset.mode ${DATASET_MODE} \
     run.mode train \
     run.train_weaver False \
     run.train_trigger True \
