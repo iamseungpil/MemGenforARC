@@ -5,15 +5,21 @@
 # Train the Trigger module using GRPO to learn when to insert latent memory.
 # Requires a trained Weaver model from Step 1.
 #
-# Expected Output: /data/memgen/train/gsm8k/<model_name>/trigger_grpo/
+# Expected Output: /data/memgen/train/gsm8k/<model_name>/<timestamp>/trigger/
 # ============================================================================
 
 set -e  # Exit on error
 
+# Source common utilities for checkpoint discovery
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
 # Environment setup
+export WANDB_ENTITY="gistdslab"
+export WANDB_PROJECT="memgen_ltpo"
 export DEBUG_MODE=true
 export LOG_PATH="./logs/03_trigger_pretrain.log"
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=0,1  # Use 2 GPUs (A100 40GB x2)
 export MAIN_PROCESS_PORT=29507
 export NCCL_DEBUG=INFO
 export NCCL_IB_DISABLE=1
@@ -25,10 +31,14 @@ mkdir -p logs
 # ============================================================================
 # Model Configuration
 # ============================================================================
-MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct"
+MODEL_NAME="Qwen/Qwen3-8B"
 DATASET_NAME="gsm8k"
 DATASET_MODE="grpo"
 TRAIN_METHOD="grpo"  # Trigger only supports GRPO
+
+# Wandb run name
+MODEL_SHORT=$(echo ${MODEL_NAME} | sed 's|.*/||')
+export WANDB_RUN_NAME="trigger_${TRAIN_METHOD}_${MODEL_SHORT}_$(date +%Y%m%d)"
 
 # Augmentation configs (must match weaver training)
 MAX_PROMPT_AUG_NUM=1
@@ -37,13 +47,23 @@ PROMPT_LATENTS_LEN=8
 INFERENCE_LATENTS_LEN=8
 
 # ============================================================================
-# IMPORTANT: Set the path to your trained weaver model
+# Auto-discover weaver checkpoint from previous training
 # ============================================================================
-# This must be the checkpoint from Step 1 (01_weaver_pretrain.sh)
-# Example:
-# LOAD_WEAVER_PATH="/data/memgen/train/gsm8k/Qwen2.5-1.5B-Instruct/pn=1_pl=8_in=5_il=8_20250107_120000/weaver/weaver_lora"
-# ============================================================================
-LOAD_WEAVER_PATH=null  # <-- UPDATE THIS with trained weaver path
+MODEL_NAME_SAFE=$(get_model_name_safe "${MODEL_NAME}")
+LOAD_WEAVER_PATH=$(find_latest_weaver_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
+
+echo "============================================"
+echo "Checkpoint Discovery"
+echo "============================================"
+print_checkpoint_info "Weaver" "${LOAD_WEAVER_PATH}"
+
+if [ -z "$LOAD_WEAVER_PATH" ]; then
+    echo ""
+    echo "ERROR: Weaver checkpoint is required for trigger training!"
+    echo "Please run 01_weaver_pretrain.sh first."
+    exit 1
+fi
+echo "============================================"
 
 # GRPO Training hyperparameters
 BATCH_SIZE=8
@@ -54,6 +74,7 @@ GRADIENT_ACCUMULATION_STEPS=4
 # ============================================================================
 # Execute Training
 # ============================================================================
+echo ""
 echo "============================================"
 echo "Step 3: Trigger GRPO Training"
 echo "============================================"
@@ -63,20 +84,14 @@ echo "Method: ${TRAIN_METHOD}"
 echo "Weaver checkpoint: ${LOAD_WEAVER_PATH}"
 echo "============================================"
 
-if [ "$LOAD_WEAVER_PATH" = "null" ]; then
-    echo "ERROR: LOAD_WEAVER_PATH is null!"
-    echo "You must first run 01_weaver_pretrain.sh and set the checkpoint path."
-    exit 1
-fi
-
 python -m accelerate.commands.launch \
     --config_file=configs/zero2.yaml \
-    --num_processes=1 \
+    --num_processes=2 \
     main.py \
     --cfg-path configs/latent_memory/${DATASET_NAME}.yaml \
     --options \
     model.model_name ${MODEL_NAME} \
-    model.load_model_path ${LOAD_WEAVER_PATH} \
+    model.load_weaver_path ${LOAD_WEAVER_PATH} \
     model.max_prompt_aug_num ${MAX_PROMPT_AUG_NUM} \
     model.max_inference_aug_num ${MAX_INFERENCE_AUG_NUM} \
     model.weaver.model_name ${MODEL_NAME} \

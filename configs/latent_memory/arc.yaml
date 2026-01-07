@@ -5,6 +5,8 @@ model:
   # Base LLM - Qwen3-14B for better reasoning
   model_name: Qwen/Qwen3-14B
   load_model_path: null
+  load_weaver_path: null   # path to weaver LoRA checkpoint (e.g., .../weaver/weaver_lora)
+  load_trigger_path: null  # path to trigger LoRA checkpoint (e.g., .../trigger/trigger_lora)
 
   # Augmentation settings
   max_prompt_aug_num: 1      # Single augmentation at prompt end
@@ -96,7 +98,7 @@ run:
       load_best_model_at_end: false  # Cannot use with save_strategy: "no"
       bf16: true
       report_to:
-        - tensorboard
+        - wandb
 
     # GRPO configs (main training with grid_similarity reward)
     grpo:
@@ -129,7 +131,7 @@ run:
       load_best_model_at_end: true
       bf16: true
       report_to:
-        - tensorboard
+        - wandb
 
   # Trigger training configs (not used for ARC)
   trigger:
@@ -163,7 +165,7 @@ run:
       load_best_model_at_end: true
       bf16: true
       report_to:
-        - tensorboard
+        - wandb
 
   # Evaluation interaction config
   interaction:

@@ -58,8 +58,8 @@ def build_working_dir(config: Config) -> str:
     else:
         model_name = full_model_name  # Use as-is for local paths
 
-    # Use /data folder for all outputs (checkpoints, logs, etc.)
-    parent_dir = os.path.join("/data/memgen", mode, dataset_name, model_name)
+    # Use ~/data folder for all outputs (checkpoints, logs, etc.)
+    parent_dir = os.path.join(os.path.expanduser("~/data/memgen"), mode, dataset_name, model_name)
 
     # name: <prompt_aug_num>_<prompt_latents_len>_<inference_aug_num>_<inference_latents_len>_<timestamp>
     max_prompt_aug_num = config.model_cfg.max_prompt_aug_num

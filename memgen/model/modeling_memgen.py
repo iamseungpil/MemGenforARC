@@ -45,6 +45,7 @@ from memgen.utils import (
 
 class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin):
     config_class = MemGenConfig
+    supports_gradient_checkpointing = True
 
     def __init__(
         self, 
@@ -109,7 +110,19 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         # NOTE: Do NOT override chat_template here.
         # Use the model's built-in chat template (e.g., GPT-OSS Harmony format).
         # The old SmolLM3 template was incompatible with GPT-OSS.
-    
+
+    def _set_gradient_checkpointing(self, enable: bool = True, gradient_checkpointing_func=None):
+        """Enable/disable gradient checkpointing for internal models.
+
+        This is required for DeepSpeed ZeRO compatibility when using shared parameters.
+        Delegates to the reasoner (base LLM) which already supports gradient checkpointing.
+        """
+        if enable:
+            self.reasoner.gradient_checkpointing_enable(
+                gradient_checkpointing_kwargs={"use_reentrant": False}
+            )
+        else:
+            self.reasoner.gradient_checkpointing_disable()
 
     @property
     def device(self):
@@ -930,6 +943,7 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         
         load_model_path = config_dict.get("load_model_path", None)
         load_weaver_path = config_dict.get("load_weaver_path", None)
+        load_trigger_path = config_dict.get("load_trigger_path", None)
 
         if not load_model_path:
             model = cls(
@@ -952,6 +966,10 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         # Load pre-trained weaver adapter if specified
         if load_weaver_path:
             model._load_pretrained_weaver(load_weaver_path)
+
+        # Load pre-trained trigger adapter if specified
+        if load_trigger_path:
+            model._load_pretrained_trigger(load_trigger_path)
 
         return model
 
@@ -1003,3 +1021,40 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         self.weaver.prompt_query_latents.data = proj_data['prompt_query_latents'].to(self.weaver.prompt_query_latents.device)
         self.weaver.inference_query_latents.data = proj_data['inference_query_latents'].to(self.weaver.inference_query_latents.device)
         logging.info(f"Loaded projections and query_latents from {proj_path}")
+
+    def _load_pretrained_trigger(self, trigger_path: str):
+        """
+        Load pre-trained trigger adapter weights from a checkpoint.
+
+        Args:
+            trigger_path: Path to the trigger adapter checkpoint directory
+                         (should contain adapter_model.bin)
+        """
+        from pathlib import Path
+
+        adapter_path = Path(trigger_path) / "adapter_model.bin"
+        if not adapter_path.exists():
+            raise FileNotFoundError(f"Trigger adapter not found: {adapter_path}")
+
+        logging.info(f"Loading pre-trained trigger from: {trigger_path}")
+
+        # Load the pre-trained weights
+        pretrained_weights = torch.load(str(adapter_path), map_location='cpu')
+
+        # Get current trigger state dict
+        trigger_state = self.trigger.model.state_dict()
+
+        # Map pretrained weights to trigger state dict
+        loaded_count = 0
+        for key, value in pretrained_weights.items():
+            if key in trigger_state:
+                if trigger_state[key].shape == value.shape:
+                    trigger_state[key] = value.to(trigger_state[key].dtype)
+                    loaded_count += 1
+                else:
+                    logging.warning(f"Shape mismatch for {key}: expected {trigger_state[key].shape}, got {value.shape}")
+
+        # Load the updated state dict
+        self.trigger.model.load_state_dict(trigger_state, strict=True)
+
+        logging.info(f"Loaded {loaded_count} trigger adapter weights from checkpoint")

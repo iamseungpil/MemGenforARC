@@ -7,8 +7,10 @@ import shutil
 from typing import Optional, Callable, Dict, List
 
 from safetensors import safe_open
+import torch
 import torch.nn as nn
-from torch.utils.tensorboard import SummaryWriter
+import torch.distributed as dist
+import wandb
 
 
 # ===== chat template =====
@@ -87,7 +89,6 @@ def log_trainable_params(model: nn.Module):
 class StaticEvalRecorder:
     compute_metrics: List[Callable[[str, str, str], float]] = field(default_factory=list)
     log_file: Optional[str] = None
-    writer: Optional[object] = None
 
     # Internal storage
     metric_sums: Dict[str, float] = field(init=False)
@@ -150,11 +151,10 @@ class StaticEvalRecorder:
                 with open(self.log_file, 'a') as f:
                     f.write(json.dumps(record, ensure_ascii=False) + '\n')
             
-            # Update TensorBoard metrics (if writer is available)
-            if self.writer:
-                mean_metrics = self.get_mean_metrics()  # get average metrics across all data so far
-                for name, value in mean_metrics.items():
-                    self.writer.add_scalar(name, value, global_step=self.metric_counts[name])
+            # Update wandb metrics (only on main process)
+            if int(os.environ.get("LOCAL_RANK", 0)) == 0:
+                mean_metrics = self.get_mean_metrics()
+                wandb.log(mean_metrics, step=self.metric_counts[list(self.metric_counts.keys())[0]])
 
 
     def get_mean_metrics(self) -> Dict[str, float]:
@@ -164,6 +164,16 @@ class StaticEvalRecorder:
         }
 
     def finalize(self):
+        # Aggregate metrics across all GPUs
+        if dist.is_initialized():
+            for name in self.metric_sums:
+                sum_tensor = torch.tensor(self.metric_sums[name], device="cuda")
+                count_tensor = torch.tensor(self.metric_counts[name], device="cuda")
+                dist.all_reduce(sum_tensor, op=dist.ReduceOp.SUM)
+                dist.all_reduce(count_tensor, op=dist.ReduceOp.SUM)
+                self.metric_sums[name] = sum_tensor.item()
+                self.metric_counts[name] = int(count_tensor.item())
+
         mean_metrics = self.get_mean_metrics()
         final_record = {
             'summary_metrics': mean_metrics
@@ -173,16 +183,13 @@ class StaticEvalRecorder:
             with open(self.log_file, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(final_record, ensure_ascii=False) + '\n')
 
-        if self.writer:
-            mean_metrics = self.get_mean_metrics()
-            for name, value in mean_metrics.items():
-                self.writer.add_scalar(name + "_final", value, global_step=self.metric_counts[name])
+        if int(os.environ.get("LOCAL_RANK", 0)) == 0:
+            wandb.log({f"{name}_final": value for name, value in mean_metrics.items()})
 
 
 @dataclass
 class DynamicEvalRecorder:
     log_file: Optional[str] = None  # path to the txt log file
-    writer: object = field(default=None)  # TensorBoard SummaryWriter
 
     def __post_init__(self):
         if self.log_file is None:
@@ -201,12 +208,7 @@ class DynamicEvalRecorder:
             f.write("DynamicEvalRecorder Log\n\n")
 
     def record_batch(self, conversations: List[str], rewards: List[float]):
-        """Record a batch of conversations and their associated rewards.
-
-        Args:
-            conversations (List[str]): List of conversation texts.
-            rewards (List[float]): List of reward values corresponding to conversations.
-        """
+        """Record a batch of conversations and their associated rewards."""
         if len(conversations) != len(rewards):
             raise ValueError("conversations and rewards must have the same length")
 
@@ -224,16 +226,24 @@ class DynamicEvalRecorder:
         # Compute running average reward
         avg_reward = self._total_reward / self._count if self._count > 0 else 0.0
 
-        # Write running average to TensorBoard
-        if self.writer is not None:
-            self.writer.add_scalar("reward/avg", avg_reward, self._count)
+        # Log to wandb (only on main process)
+        if int(os.environ.get("LOCAL_RANK", 0)) == 0:
+            wandb.log({"reward/avg": avg_reward}, step=self._count)
 
         # Log summary info
         self.logger.info(f"Recorded {len(conversations)} items, avg_reward={avg_reward:.4f}")
 
     def finalize(self):
-        """Finalize evaluation: write final average reward to both log file and TensorBoard."""
-        # Compute final average reward
+        """Finalize evaluation: write final average reward to log file and wandb."""
+        # Aggregate across all GPUs
+        if dist.is_initialized():
+            reward_tensor = torch.tensor(self._total_reward, device="cuda")
+            count_tensor = torch.tensor(self._count, device="cuda")
+            dist.all_reduce(reward_tensor, op=dist.ReduceOp.SUM)
+            dist.all_reduce(count_tensor, op=dist.ReduceOp.SUM)
+            self._total_reward = reward_tensor.item()
+            self._count = int(count_tensor.item())
+
         avg_reward = self._total_reward / self._count if self._count > 0 else 0.0
 
         # Append final result to log file
@@ -242,16 +252,31 @@ class DynamicEvalRecorder:
             f.write("=" * 40 + "\n")
             f.write(f"Average Reward: {avg_reward:.4f}\n")
 
-        # Write final result to TensorBoard
-        if self.writer:
-            self.writer.add_scalar("ave_reward_final", avg_reward, global_step=self._count)
+        # Log final result to wandb (only on main process)
+        if int(os.environ.get("LOCAL_RANK", 0)) == 0:
+            wandb.log({"avg_reward_final": avg_reward})
 
 
 # --- helper functions ---
-def create_tensorboard(save_dir: str):
-    log_dir = os.path.join(save_dir, "runs")
-    writer = SummaryWriter(log_dir=log_dir)
-    return writer
+def init_wandb(save_dir: str, project: str = None, name: str = None):
+    """Initialize wandb run (only on main process)."""
+    # Only initialize on main process (rank 0)
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    if local_rank != 0:
+        return None
+
+    project = project or os.environ.get("WANDB_PROJECT", "memgen")
+    entity = os.environ.get("WANDB_ENTITY", None)
+    run_name = name or os.environ.get("WANDB_RUN_NAME") or os.path.basename(save_dir)
+
+    wandb.init(
+        project=project,
+        entity=entity,
+        name=run_name,
+        dir=save_dir,
+        resume="allow"
+    )
+    return wandb.run
 
 def remove_trainer_checkpoints(trainer_output_dir):
     ckpt_paths = glob.glob(os.path.join(trainer_output_dir, "checkpoint-*"))

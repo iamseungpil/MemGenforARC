@@ -13,10 +13,16 @@
 
 set -e  # Exit on error
 
+# Source common utilities for checkpoint discovery
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
 # Environment setup
+export WANDB_ENTITY="gistdslab"
+export WANDB_PROJECT="memgen_ltpo"
 export DEBUG_MODE=true
 export LOG_PATH="./logs/05_ltpo_eval.log"
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=0,1  # Use 2 GPUs (A100 40GB x2)
 export MAIN_PROCESS_PORT=29507
 export NCCL_DEBUG=INFO
 export NCCL_IB_DISABLE=1
@@ -28,8 +34,12 @@ mkdir -p logs
 # ============================================================================
 # Model Configuration
 # ============================================================================
-MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct"
+MODEL_NAME="Qwen/Qwen3-8B"
 DATASET_NAME="gsm8k"
+
+# Wandb run name
+MODEL_SHORT=$(echo ${MODEL_NAME} | sed 's|.*/||')
+export WANDB_RUN_NAME="ltpo_eval_${MODEL_SHORT}_$(date +%Y%m%d)"
 
 # Augmentation configs (must match training)
 MAX_PROMPT_AUG_NUM=1
@@ -38,18 +48,36 @@ PROMPT_LATENTS_LEN=8
 INFERENCE_LATENTS_LEN=8
 
 # ============================================================================
-# IMPORTANT: Set the path to your trained model
+# Auto-discover checkpoints from previous training
 # ============================================================================
-# Use the checkpoint from Step 3 (after trigger training) or Step 1 (weaver only)
-# Example (weaver only):
-# LOAD_MODEL_PATH="/data/memgen/train/gsm8k/Qwen2.5-1.5B-Instruct/pn=1_pl=8_in=5_il=8_20250107_120000/weaver/weaver_lora"
-# Example (trigger trained):
-# LOAD_MODEL_PATH="/data/memgen/train/gsm8k/Qwen2.5-1.5B-Instruct/pn=1_pl=8_in=5_il=8_20250107_120000/trigger/trigger_lora"
-# ============================================================================
-LOAD_MODEL_PATH=null  # <-- UPDATE THIS with your best checkpoint
+MODEL_NAME_SAFE=$(get_model_name_safe "${MODEL_NAME}")
+LOAD_WEAVER_PATH=$(find_latest_weaver_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
+LOAD_TRIGGER_PATH=$(find_latest_trigger_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
 
-# Trigger setting (use True if trigger was trained)
-TRIGGER_ACTIVE=True
+echo "============================================"
+echo "Checkpoint Discovery"
+echo "============================================"
+print_checkpoint_info "Weaver" "${LOAD_WEAVER_PATH}"
+print_checkpoint_info "Trigger" "${LOAD_TRIGGER_PATH}"
+
+# Determine trigger active status based on checkpoint availability
+if [ -n "$LOAD_TRIGGER_PATH" ]; then
+    TRIGGER_ACTIVE=True
+    echo ""
+    echo "INFO: Trigger checkpoint found. Using trained trigger."
+else
+    TRIGGER_ACTIVE=False
+    echo ""
+    echo "INFO: No trigger checkpoint found. Running with trigger disabled."
+fi
+
+# Weaver checkpoint is optional for LTPO (can run on base model)
+if [ -z "$LOAD_WEAVER_PATH" ]; then
+    echo ""
+    echo "WARNING: No weaver checkpoint found. Running LTPO on base model."
+    echo "For best results, run 01_weaver_pretrain.sh first."
+fi
+echo "============================================"
 
 # ============================================================================
 # LTPO Configuration
@@ -80,12 +108,15 @@ TEMPERATURE=0.0
 # ============================================================================
 # Execute LTPO Evaluation
 # ============================================================================
+echo ""
 echo "============================================"
 echo "Step 5: LTPO Test-Time Optimization"
 echo "============================================"
 echo "Model: ${MODEL_NAME}"
 echo "Dataset: ${DATASET_NAME}"
-echo "Checkpoint: ${LOAD_MODEL_PATH}"
+echo "Weaver Checkpoint: ${LOAD_WEAVER_PATH:-null}"
+echo "Trigger Checkpoint: ${LOAD_TRIGGER_PATH:-null}"
+echo "Trigger Active: ${TRIGGER_ACTIVE}"
 echo "============================================"
 echo "LTPO Configuration:"
 echo "  - Learning rate: ${LTPO_LR}"
@@ -94,27 +125,14 @@ echo "  - Max steps: ${LTPO_MAX_STEPS}"
 echo "  - Top-k: ${LTPO_TOP_K}"
 echo "============================================"
 
-if [ "$LOAD_MODEL_PATH" = "null" ]; then
-    echo "WARNING: LOAD_MODEL_PATH is null. Running LTPO on base model."
-    echo "For best results, use a trained checkpoint."
-    echo ""
-else
-    # Auto-detect if checkpoint is weaver-only (no trigger training)
-    # If path contains "weaver_sft" but not "trigger_grpo", disable trigger
-    if [[ "$LOAD_MODEL_PATH" == *"weaver_sft"* ]] && [[ "$LOAD_MODEL_PATH" != *"trigger_grpo"* ]]; then
-        echo "INFO: Detected weaver-only checkpoint. Setting TRIGGER_ACTIVE=False"
-        TRIGGER_ACTIVE=False
-    fi
-fi
-
-python -m accelerate.commands.launch \
+# Build the command with conditional checkpoint loading
+CMD="python -m accelerate.commands.launch \
     --config_file=configs/zero2.yaml \
-    --num_processes=1 \
+    --num_processes=2 \
     main.py \
     --cfg-path configs/latent_memory/${DATASET_NAME}.yaml \
     --options \
     model.model_name ${MODEL_NAME} \
-    model.load_model_path ${LOAD_MODEL_PATH} \
     model.max_prompt_aug_num ${MAX_PROMPT_AUG_NUM} \
     model.max_inference_aug_num ${MAX_INFERENCE_AUG_NUM} \
     model.weaver.model_name ${MODEL_NAME} \
@@ -135,7 +153,20 @@ python -m accelerate.commands.launch \
     run.interaction.batch_size ${BATCH_SIZE} \
     run.interaction.do_sample False \
     run.interaction.temperature ${TEMPERATURE} \
-    run.interaction.max_response_length 1024
+    run.interaction.max_response_length 1024"
+
+# Add weaver path if available
+if [ -n "$LOAD_WEAVER_PATH" ]; then
+    CMD="${CMD} model.load_weaver_path ${LOAD_WEAVER_PATH}"
+fi
+
+# Add trigger path if available
+if [ -n "$LOAD_TRIGGER_PATH" ]; then
+    CMD="${CMD} model.load_trigger_path ${LOAD_TRIGGER_PATH}"
+fi
+
+# Execute
+eval ${CMD}
 
 echo ""
 echo "============================================"

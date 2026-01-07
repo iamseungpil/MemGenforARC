@@ -1,8 +1,10 @@
-model: 
+model:
   # base llm
   model_name: Qwen/Qwen2.5-1.5B-Instruct
   load_model_path: null
-  
+  load_weaver_path: null   # path to weaver LoRA checkpoint (e.g., .../weaver/weaver_lora)
+  load_trigger_path: null  # path to trigger LoRA checkpoint (e.g., .../trigger/trigger_lora)
+
   # max prompt/inference augmentation num
   max_prompt_aug_num: 8  # single turn
   max_inference_aug_num: 0
@@ -85,9 +87,9 @@ run:
       remove_unused_columns: False
       load_best_model_at_end: True
       bf16: True
-      report_to:  
-        - tensorboard
-      
+      report_to:
+        - wandb
+
     # grpo configs
     grpo:
       num_train_epochs: 1
@@ -120,8 +122,8 @@ run:
       remove_unused_columns: False
       load_best_model_at_end: True
       bf16: True
-      report_to:  
-        - tensorboard
+      report_to:
+        - wandb
 
   # trigger training configs
   trigger:
@@ -157,9 +159,9 @@ run:
       remove_unused_columns: False
       load_best_model_at_end: True
       bf16: True
-      report_to:  
-        - tensorboard
-  
+      report_to:
+        - wandb
+
   # generation config for GRPO training and evaluation
   generation:
     max_turns: 5

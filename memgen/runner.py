@@ -42,10 +42,11 @@ def _lazy_import_grpo():
 from memgen.utils import (
     StaticEvalRecorder,
     DynamicEvalRecorder,
-    create_tensorboard,
+    init_wandb,
     remove_trainer_checkpoints,
     log_trainable_params,
 )
+import wandb
 
 class MemGenRunner:
 
@@ -252,11 +253,57 @@ class MemGenRunner:
         # train trigger
         trigger_trainer = self._create_trigger_trainer()
         trigger_trainer.train()
-        trigger_trainer.save_model()     # save the best model
 
-        # remove checkpoints and save weaver
+        # Save trigger LoRA weights
         output_dir = trigger_trainer.args.output_dir
+        os.makedirs(output_dir, exist_ok=True)
+
+        try:
+            # Save trigger LoRA adapter
+            trigger_lora_path = os.path.join(output_dir, "trigger_lora")
+            if hasattr(self.model.trigger.model, 'save_pretrained'):
+                self.model.trigger.model.save_pretrained(trigger_lora_path, safe_serialization=False)
+                logging.info(f"Saved trigger LoRA to {trigger_lora_path}")
+        except Exception as e:
+            logging.warning(f"Failed to save trigger separately: {e}")
+            # Fallback: use trainer's save_model
+            trigger_trainer.save_model()
+
+        # Also save weaver (required for Phase 4, 5 to load both components)
+        self._save_weaver_checkpoint(output_dir)
+
+        # remove checkpoints
         remove_trainer_checkpoints(output_dir)
+
+    def _save_weaver_checkpoint(self, output_dir: str):
+        """
+        Save weaver LoRA weights and projection layers to output_dir.
+
+        This is called both after weaver training and after trigger training,
+        so that the trigger checkpoint directory also contains the weaver weights
+        needed for evaluation.
+
+        Args:
+            output_dir: Directory to save weaver checkpoint
+        """
+        try:
+            # Save weaver LoRA adapter
+            weaver_lora_path = os.path.join(output_dir, "weaver_lora")
+            if hasattr(self.model.weaver.model, 'save_pretrained'):
+                self.model.weaver.model.save_pretrained(weaver_lora_path, safe_serialization=False)
+                logging.info(f"Saved weaver LoRA to {weaver_lora_path}")
+
+            # Save projection layers and query latents
+            proj_path = os.path.join(output_dir, "projections.pt")
+            torch.save({
+                'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
+                'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
+                'prompt_query_latents': self.model.weaver.prompt_query_latents,
+                'inference_query_latents': self.model.weaver.inference_query_latents,
+            }, proj_path)
+            logging.info(f"Saved projections to {proj_path}")
+        except Exception as e:
+            logging.warning(f"Failed to save weaver checkpoint: {e}")
 
     
     # ===== train weaver/trigger =====
@@ -286,17 +333,17 @@ class MemGenRunner:
         return evaluate_func()
     
     def _static_evaluate(self):
-        
+
         accelerator = Accelerator()
-        writer = create_tensorboard(save_dir=self.working_dir)
-        
+        init_wandb(save_dir=self.working_dir)
+
         batch_size = self.interaction_config.batch_size
         output_dir = self.interaction_config.output_dir
 
         # prepare dataset and dataloader
         test_dataloader = accelerator.prepare(DataLoader(
-            dataset=self.test_dataset, 
-            batch_size=batch_size, 
+            dataset=self.test_dataset,
+            batch_size=batch_size,
             shuffle=False,
             collate_fn=lambda batch: batch  # use the identity function
         ))
@@ -304,12 +351,12 @@ class MemGenRunner:
         # prepare model
         model_wrapped = accelerator.prepare_model(model=self.model, evaluation_mode=True)
         model_wrapped.eval()
-        
+
         # construct eval recorder
         test_funcs = [self.env_cls.compute_reward]
         save_file = os.path.join(output_dir, "answer.json")
-        recorder = StaticEvalRecorder(compute_metrics=test_funcs, writer=writer, log_file=save_file)
-        
+        recorder = StaticEvalRecorder(compute_metrics=test_funcs, log_file=save_file)
+
         # batch generation
         for test_batch in tqdm(test_dataloader):
             with unwrap_model_for_generation(
@@ -329,13 +376,14 @@ class MemGenRunner:
                 # generation manager
                 self.generation_manager.actor_rollout_wg = unwrapped_model
                 gen_output = self.generation_manager.run_agent_loop(gen_batch)
-            
+
                 completion_ids = gen_output.batch["responses"]
                 completions = self.processing_class.batch_decode(completion_ids, skip_special_tokens=True)
 
             recorder.record_batch(completions, test_batch)
         recorder.finalize()
-        writer.close()
+        if accelerator.is_main_process:
+            wandb.finish()
 
 
     def _dynamic_evaluate(self):
@@ -372,9 +420,9 @@ class MemGenRunner:
         output_dir = self.interaction_config.output_dir
 
         accelerator = Accelerator()
-        writer = create_tensorboard(save_dir=self.working_dir) 
+        init_wandb(save_dir=self.working_dir)
         save_file = os.path.join(output_dir, "conversations.txt")
-        recorder = DynamicEvalRecorder(writer=writer, log_file=save_file)
+        recorder = DynamicEvalRecorder(log_file=save_file)
 
         batch_size = self.interaction_config.batch_size
         
@@ -416,10 +464,11 @@ class MemGenRunner:
                 rewards.append(reward)
 
             recorder.record_batch(inter_context, rewards)
-        
+
         recorder.finalize()
-        writer.close()
-    
+        if accelerator.is_main_process:
+            wandb.finish()
+
     def _parse_configs(self, configs):
         
         self.train_weaver = configs.get("train_weaver", True)
@@ -547,7 +596,7 @@ class MemGenRunner:
             ltpo_verbose: Whether to print LTPO optimization progress
         """
         accelerator = Accelerator()
-        writer = create_tensorboard(save_dir=self.working_dir)
+        init_wandb(save_dir=self.working_dir)
 
         batch_size = self.interaction_config.batch_size
         output_dir = self.interaction_config.output_dir
@@ -567,7 +616,7 @@ class MemGenRunner:
         # construct eval recorder
         test_funcs = [self.env_cls.compute_reward]
         save_file = os.path.join(output_dir, "answer_ltpo.json")
-        recorder = StaticEvalRecorder(compute_metrics=test_funcs, writer=writer, log_file=save_file)
+        recorder = StaticEvalRecorder(compute_metrics=test_funcs, log_file=save_file)
 
         # batch generation with LTPO
         for test_batch in tqdm(test_dataloader):
@@ -598,7 +647,8 @@ class MemGenRunner:
 
             recorder.record_batch(completions, test_batch)
         recorder.finalize()
-        writer.close()
+        if accelerator.is_main_process:
+            wandb.finish()
 
     def _dynamic_evaluate_with_ltpo(self, ltpo_optimizer, ltpo_verbose: bool = False):
         """
@@ -640,9 +690,9 @@ class MemGenRunner:
         output_dir = self.interaction_config.output_dir
 
         accelerator = Accelerator()
-        writer = create_tensorboard(save_dir=self.working_dir)
+        init_wandb(save_dir=self.working_dir)
         save_file = os.path.join(output_dir, "conversations_ltpo.txt")
-        recorder = DynamicEvalRecorder(writer=writer, log_file=save_file)
+        recorder = DynamicEvalRecorder(log_file=save_file)
 
         batch_size = self.interaction_config.batch_size
 
@@ -689,7 +739,8 @@ class MemGenRunner:
             recorder.record_batch(inter_context, rewards)
 
         recorder.finalize()
-        writer.close()
+        if accelerator.is_main_process:
+            wandb.finish()
 
     def _run_agent_loop_with_ltpo(
         self,

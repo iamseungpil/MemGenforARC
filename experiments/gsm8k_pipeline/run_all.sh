@@ -9,18 +9,25 @@
 #   4. Trigger evaluation
 #   5. LTPO test-time optimization + evaluation
 #
-# The script automatically finds checkpoint paths between stages.
+# The script automatically finds checkpoint paths between stages using
+# common.sh utilities.
 # ============================================================================
 
 set -e  # Exit on error
 
+# Source common utilities for checkpoint discovery
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="/home/ubuntu/MemGenforARC"
-OUTPUT_ROOT="/data/memgen"
+source "${SCRIPT_DIR}/common.sh"
+
+# Wandb configuration
+export WANDB_ENTITY="gistdslab"
+export WANDB_PROJECT="memgen_ltpo"
+
+PROJECT_ROOT=~/MemGenforARC
 
 # Model configuration
-MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct"
-MODEL_NAME_SAFE=$(echo ${MODEL_NAME} | tr '/' '_')
+MODEL_NAME="Qwen/Qwen3-8B"
+MODEL_NAME_SAFE=$(get_model_name_safe "${MODEL_NAME}")
 DATASET_NAME="gsm8k"
 
 cd ${PROJECT_ROOT}
@@ -41,21 +48,11 @@ echo ""
 echo "[Step 1/5] Running Weaver SFT Pretraining..."
 bash ${SCRIPT_DIR}/01_weaver_pretrain.sh 2>&1 | tee ${SCRIPT_DIR}/logs/01_weaver_pretrain_full.log
 
-# Find the latest weaver checkpoint (sort by modification time, newest first)
-WEAVER_CHECKPOINT_DIR="${OUTPUT_ROOT}/train/${DATASET_NAME}/${MODEL_NAME_SAFE}/weaver_sft"
-if [ ! -d "$WEAVER_CHECKPOINT_DIR" ]; then
-    echo "ERROR: Weaver checkpoint directory not found: ${WEAVER_CHECKPOINT_DIR}"
-    exit 1
-fi
-
-# Find the most recent checkpoint by sorting checkpoint directories by step number
-WEAVER_CHECKPOINT=$(find ${WEAVER_CHECKPOINT_DIR} -name "model.safetensors" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+# Find the weaver checkpoint using common.sh utility
+WEAVER_CHECKPOINT=$(find_latest_weaver_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
 if [ -z "$WEAVER_CHECKPOINT" ]; then
-    # Fallback: try without printf (macOS compatibility)
-    WEAVER_CHECKPOINT=$(find ${WEAVER_CHECKPOINT_DIR} -name "model.safetensors" -type f | head -1)
-fi
-if [ -z "$WEAVER_CHECKPOINT" ]; then
-    echo "ERROR: No model.safetensors found in ${WEAVER_CHECKPOINT_DIR}"
+    echo "ERROR: Weaver checkpoint not found after training!"
+    echo "Expected location: ${OUTPUT_ROOT}/train/${DATASET_NAME}/${MODEL_NAME_SAFE}/pn=*/weaver/weaver_lora"
     exit 1
 fi
 
@@ -66,14 +63,11 @@ echo ""
 # Step 2: Evaluate Weaver
 # ============================================================================
 echo "[Step 2/5] Evaluating Weaver..."
-export LOAD_MODEL_PATH="${WEAVER_CHECKPOINT}"
-# WARNING: sed -i modifies script files permanently. This is intentional to
-# allow re-running individual scripts with the correct checkpoint paths.
-sed -i "s|^LOAD_MODEL_PATH=.*|LOAD_MODEL_PATH=\"${WEAVER_CHECKPOINT}\"|" ${SCRIPT_DIR}/02_eval_weaver.sh
+# No need to modify script - 02_eval_weaver.sh uses auto-discovery
 bash ${SCRIPT_DIR}/02_eval_weaver.sh 2>&1 | tee ${SCRIPT_DIR}/logs/02_eval_weaver_full.log
 
 # Backup weaver eval results (will be overwritten by trigger eval)
-WEAVER_EVAL_DIR=$(find ${OUTPUT_ROOT}/evaluate/${DATASET_NAME} -type d -name "*pn=*" | sort | tail -1)
+WEAVER_EVAL_DIR=$(find ${OUTPUT_ROOT}/evaluate/${DATASET_NAME} -type d -name "*pn=*" 2>/dev/null | sort | tail -1)
 if [ -n "$WEAVER_EVAL_DIR" ] && [ -f "${WEAVER_EVAL_DIR}/evaluate/answer.json" ]; then
     cp "${WEAVER_EVAL_DIR}/evaluate/answer.json" "${WEAVER_EVAL_DIR}/evaluate/answer_weaver.json"
     echo "Backed up weaver eval results to: ${WEAVER_EVAL_DIR}/evaluate/answer_weaver.json"
@@ -84,24 +78,14 @@ echo ""
 # Step 3: Trigger GRPO Training
 # ============================================================================
 echo "[Step 3/5] Running Trigger GRPO Training..."
-sed -i "s|^LOAD_WEAVER_PATH=.*|LOAD_WEAVER_PATH=\"${WEAVER_CHECKPOINT}\"|" ${SCRIPT_DIR}/03_trigger_pretrain.sh
+# No need to modify script - 03_trigger_pretrain.sh uses auto-discovery
 bash ${SCRIPT_DIR}/03_trigger_pretrain.sh 2>&1 | tee ${SCRIPT_DIR}/logs/03_trigger_pretrain_full.log
 
-# Find the latest trigger checkpoint (sort by modification time, newest first)
-TRIGGER_CHECKPOINT_DIR="${OUTPUT_ROOT}/train/${DATASET_NAME}/${MODEL_NAME_SAFE}/trigger_grpo"
-if [ ! -d "$TRIGGER_CHECKPOINT_DIR" ]; then
-    echo "ERROR: Trigger checkpoint directory not found: ${TRIGGER_CHECKPOINT_DIR}"
-    exit 1
-fi
-
-# Find the most recent checkpoint by sorting checkpoint directories by step number
-TRIGGER_CHECKPOINT=$(find ${TRIGGER_CHECKPOINT_DIR} -name "model.safetensors" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+# Find the trigger checkpoint using common.sh utility
+TRIGGER_CHECKPOINT=$(find_latest_trigger_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
 if [ -z "$TRIGGER_CHECKPOINT" ]; then
-    # Fallback: try without printf (macOS compatibility)
-    TRIGGER_CHECKPOINT=$(find ${TRIGGER_CHECKPOINT_DIR} -name "model.safetensors" -type f | head -1)
-fi
-if [ -z "$TRIGGER_CHECKPOINT" ]; then
-    echo "ERROR: No model.safetensors found in ${TRIGGER_CHECKPOINT_DIR}"
+    echo "ERROR: Trigger checkpoint not found after training!"
+    echo "Expected location: ${OUTPUT_ROOT}/train/${DATASET_NAME}/${MODEL_NAME_SAFE}/pn=*/trigger/trigger_lora"
     exit 1
 fi
 
@@ -112,7 +96,7 @@ echo ""
 # Step 4: Evaluate Trigger
 # ============================================================================
 echo "[Step 4/5] Evaluating Trigger..."
-sed -i "s|^LOAD_MODEL_PATH=.*|LOAD_MODEL_PATH=\"${TRIGGER_CHECKPOINT}\"|" ${SCRIPT_DIR}/04_eval_trigger.sh
+# No need to modify script - 04_eval_trigger.sh uses auto-discovery
 bash ${SCRIPT_DIR}/04_eval_trigger.sh 2>&1 | tee ${SCRIPT_DIR}/logs/04_eval_trigger_full.log
 echo ""
 
@@ -120,20 +104,24 @@ echo ""
 # Step 5: LTPO Test-Time Optimization + Evaluation
 # ============================================================================
 echo "[Step 5/5] Running LTPO Evaluation..."
-sed -i "s|^LOAD_MODEL_PATH=.*|LOAD_MODEL_PATH=\"${TRIGGER_CHECKPOINT}\"|" ${SCRIPT_DIR}/05_ltpo_eval.sh
+# No need to modify script - 05_ltpo_eval.sh uses auto-discovery
 bash ${SCRIPT_DIR}/05_ltpo_eval.sh 2>&1 | tee ${SCRIPT_DIR}/logs/05_ltpo_eval_full.log
 echo ""
 
 # ============================================================================
 # Summary
 # ============================================================================
+# Re-discover checkpoints for final summary
+WEAVER_CHECKPOINT=$(find_latest_weaver_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
+TRIGGER_CHECKPOINT=$(find_latest_trigger_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
+
 echo "============================================"
 echo "Pipeline Completed Successfully!"
 echo "============================================"
 echo ""
 echo "Checkpoints:"
-echo "  - Weaver: ${WEAVER_CHECKPOINT}"
-echo "  - Trigger: ${TRIGGER_CHECKPOINT}"
+echo "  - Weaver: ${WEAVER_CHECKPOINT:-NOT FOUND}"
+echo "  - Trigger: ${TRIGGER_CHECKPOINT:-NOT FOUND}"
 echo ""
 echo "Evaluation Results:"
 EVAL_BASE="${OUTPUT_ROOT}/evaluate/${DATASET_NAME}"

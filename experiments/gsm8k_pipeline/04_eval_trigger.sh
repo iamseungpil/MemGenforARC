@@ -4,16 +4,23 @@
 # ============================================================================
 # Evaluate the trained Trigger model on GSM8K test set.
 # This measures the quality of memory insertion timing decisions.
+# Requires both Weaver and Trigger checkpoints from previous steps.
 #
 # Expected Output: /data/memgen/evaluate/gsm8k/<model_name>/evaluate/answer.json
 # ============================================================================
 
 set -e  # Exit on error
 
+# Source common utilities for checkpoint discovery
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
 # Environment setup
+export WANDB_ENTITY="gistdslab"
+export WANDB_PROJECT="memgen_ltpo"
 export DEBUG_MODE=true
 export LOG_PATH="./logs/04_eval_trigger.log"
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=0,1  # Use 2 GPUs (A100 40GB x2)
 export MAIN_PROCESS_PORT=29507
 export NCCL_DEBUG=INFO
 export NCCL_IB_DISABLE=1
@@ -25,8 +32,12 @@ mkdir -p logs
 # ============================================================================
 # Model Configuration
 # ============================================================================
-MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct"
+MODEL_NAME="Qwen/Qwen3-8B"
 DATASET_NAME="gsm8k"
+
+# Wandb run name
+MODEL_SHORT=$(echo ${MODEL_NAME} | sed 's|.*/||')
+export WANDB_RUN_NAME="eval_trigger_${MODEL_SHORT}_$(date +%Y%m%d)"
 
 # Augmentation configs (must match training)
 MAX_PROMPT_AUG_NUM=1
@@ -35,15 +46,39 @@ PROMPT_LATENTS_LEN=8
 INFERENCE_LATENTS_LEN=8
 
 # ============================================================================
-# IMPORTANT: Set the path to your trained model (after trigger training)
+# Auto-discover checkpoints from previous training
 # ============================================================================
-# After running 03_trigger_pretrain.sh, find the checkpoint path:
-# /data/memgen/train/gsm8k/<model_name>/<timestamp>/trigger/trigger_lora/
-#
-# Example:
-# LOAD_MODEL_PATH="/data/memgen/train/gsm8k/Qwen2.5-1.5B-Instruct/pn=1_pl=8_in=5_il=8_20250107_120000/trigger/trigger_lora"
-# ============================================================================
-LOAD_MODEL_PATH=null  # <-- UPDATE THIS after trigger training
+MODEL_NAME_SAFE=$(get_model_name_safe "${MODEL_NAME}")
+LOAD_WEAVER_PATH=$(find_latest_weaver_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
+LOAD_TRIGGER_PATH=$(find_latest_trigger_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
+
+echo "============================================"
+echo "Checkpoint Discovery"
+echo "============================================"
+print_checkpoint_info "Weaver" "${LOAD_WEAVER_PATH}"
+print_checkpoint_info "Trigger" "${LOAD_TRIGGER_PATH}"
+
+# Validate checkpoints
+MISSING_CHECKPOINTS=false
+if [ -z "$LOAD_WEAVER_PATH" ]; then
+    echo ""
+    echo "ERROR: Weaver checkpoint not found!"
+    MISSING_CHECKPOINTS=true
+fi
+if [ -z "$LOAD_TRIGGER_PATH" ]; then
+    echo ""
+    echo "ERROR: Trigger checkpoint not found!"
+    MISSING_CHECKPOINTS=true
+fi
+
+if [ "$MISSING_CHECKPOINTS" = true ]; then
+    echo ""
+    echo "Please run the following steps first:"
+    echo "  1. 01_weaver_pretrain.sh (Weaver training)"
+    echo "  2. 03_trigger_pretrain.sh (Trigger training)"
+    exit 1
+fi
+echo "============================================"
 
 # Evaluation configs
 BATCH_SIZE=4
@@ -53,29 +88,26 @@ TRIGGER_ACTIVE=True  # Now using trained trigger
 # ============================================================================
 # Execute Evaluation
 # ============================================================================
+echo ""
 echo "============================================"
 echo "Step 4: Evaluate Trigger"
 echo "============================================"
 echo "Model: ${MODEL_NAME}"
 echo "Dataset: ${DATASET_NAME}"
-echo "Checkpoint: ${LOAD_MODEL_PATH}"
+echo "Weaver Checkpoint: ${LOAD_WEAVER_PATH}"
+echo "Trigger Checkpoint: ${LOAD_TRIGGER_PATH}"
 echo "Trigger Active: ${TRIGGER_ACTIVE}"
 echo "============================================"
 
-if [ "$LOAD_MODEL_PATH" = "null" ]; then
-    echo "WARNING: LOAD_MODEL_PATH is null. Evaluating without trained trigger."
-    echo "To evaluate trained model, update LOAD_MODEL_PATH in this script."
-    echo ""
-fi
-
 python -m accelerate.commands.launch \
     --config_file=configs/zero2.yaml \
-    --num_processes=1 \
+    --num_processes=2 \
     main.py \
     --cfg-path configs/latent_memory/${DATASET_NAME}.yaml \
     --options \
     model.model_name ${MODEL_NAME} \
-    model.load_model_path ${LOAD_MODEL_PATH} \
+    model.load_weaver_path ${LOAD_WEAVER_PATH} \
+    model.load_trigger_path ${LOAD_TRIGGER_PATH} \
     model.max_prompt_aug_num ${MAX_PROMPT_AUG_NUM} \
     model.max_inference_aug_num ${MAX_INFERENCE_AUG_NUM} \
     model.weaver.model_name ${MODEL_NAME} \
