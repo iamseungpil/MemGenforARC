@@ -961,19 +961,18 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
 
         Args:
             weaver_path: Path to the weaver adapter checkpoint directory
-                         (should contain adapter_model.safetensors)
+                         (should contain adapter_model.bin)
         """
         from pathlib import Path
-        from safetensors.torch import load_file
 
-        adapter_path = Path(weaver_path) / "adapter_model.safetensors"
+        adapter_path = Path(weaver_path) / "adapter_model.bin"
         if not adapter_path.exists():
             raise FileNotFoundError(f"Weaver adapter not found: {adapter_path}")
 
         logging.info(f"Loading pre-trained weaver from: {weaver_path}")
 
         # Load the pre-trained weights
-        pretrained_weights = load_file(str(adapter_path))
+        pretrained_weights = torch.load(str(adapter_path), map_location='cpu')
 
         # Get current weaver state dict
         weaver_state = self.weaver.model.state_dict()
@@ -992,3 +991,15 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         self.weaver.model.load_state_dict(weaver_state, strict=True)
 
         logging.info(f"Loaded {loaded_count} weaver adapter weights from checkpoint")
+
+        # Load projections.pt (saved by runner.py)
+        proj_path = Path(weaver_path).parent / "projections.pt"
+        if not proj_path.exists():
+            raise FileNotFoundError(f"projections.pt not found: {proj_path}")
+
+        proj_data = torch.load(str(proj_path), map_location='cpu')
+        self.reasoner_to_weaver.load_state_dict(proj_data['reasoner_to_weaver'])
+        self.weaver_to_reasoner.load_state_dict(proj_data['weaver_to_reasoner'])
+        self.weaver.prompt_query_latents.data = proj_data['prompt_query_latents'].to(self.weaver.prompt_query_latents.device)
+        self.weaver.inference_query_latents.data = proj_data['inference_query_latents'].to(self.weaver.inference_query_latents.device)
+        logging.info(f"Loaded projections and query_latents from {proj_path}")

@@ -38,10 +38,10 @@ INFERENCE_LATENTS_LEN=8
 # IMPORTANT: Set the path to your trained weaver model
 # ============================================================================
 # After running 01_weaver_pretrain.sh, find the checkpoint path:
-# /data/memgen/train/gsm8k/<model_name>/weaver_sft/checkpoint-<step>/model.safetensors
+# /data/memgen/train/gsm8k/<model_name>/<timestamp>/weaver/weaver_lora/
 #
 # Example:
-# LOAD_MODEL_PATH="/data/memgen/train/gsm8k/Qwen_Qwen2.5-1.5B-Instruct/weaver_sft/checkpoint-1000/model.safetensors"
+# LOAD_MODEL_PATH="/data/memgen/train/gsm8k/Qwen2.5-1.5B-Instruct/pn=1_pl=8_in=5_il=8_20250107_120000/weaver/weaver_lora"
 # ============================================================================
 LOAD_MODEL_PATH=null  # <-- UPDATE THIS after training
 

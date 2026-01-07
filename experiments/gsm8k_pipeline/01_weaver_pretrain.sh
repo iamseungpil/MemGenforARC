@@ -5,7 +5,7 @@
 # Train the Weaver module to generate latent memory tokens using supervised
 # fine-tuning on GSM8K dataset.
 #
-# Expected Output: /data/memgen/train/gsm8k/<model_name>/weaver_sft/
+# Expected Output: /data/memgen/train/gsm8k/<model_name>/<timestamp>/weaver/
 # ============================================================================
 
 set -e  # Exit on error

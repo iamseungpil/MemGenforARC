@@ -38,10 +38,10 @@ INFERENCE_LATENTS_LEN=8
 # IMPORTANT: Set the path to your trained model (after trigger training)
 # ============================================================================
 # After running 03_trigger_pretrain.sh, find the checkpoint path:
-# /data/memgen/train/gsm8k/<model_name>/trigger_grpo/checkpoint-<step>/model.safetensors
+# /data/memgen/train/gsm8k/<model_name>/<timestamp>/trigger/trigger_lora/
 #
 # Example:
-# LOAD_MODEL_PATH="/data/memgen/train/gsm8k/Qwen_Qwen2.5-1.5B-Instruct/trigger_grpo/checkpoint-500/model.safetensors"
+# LOAD_MODEL_PATH="/data/memgen/train/gsm8k/Qwen2.5-1.5B-Instruct/pn=1_pl=8_in=5_il=8_20250107_120000/trigger/trigger_lora"
 # ============================================================================
 LOAD_MODEL_PATH=null  # <-- UPDATE THIS after trigger training
 

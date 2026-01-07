@@ -41,8 +41,10 @@ INFERENCE_LATENTS_LEN=8
 # IMPORTANT: Set the path to your trained model
 # ============================================================================
 # Use the checkpoint from Step 3 (after trigger training) or Step 1 (weaver only)
-# Example:
-# LOAD_MODEL_PATH="/data/memgen/train/gsm8k/Qwen_Qwen2.5-1.5B-Instruct/trigger_grpo/checkpoint-500/model.safetensors"
+# Example (weaver only):
+# LOAD_MODEL_PATH="/data/memgen/train/gsm8k/Qwen2.5-1.5B-Instruct/pn=1_pl=8_in=5_il=8_20250107_120000/weaver/weaver_lora"
+# Example (trigger trained):
+# LOAD_MODEL_PATH="/data/memgen/train/gsm8k/Qwen2.5-1.5B-Instruct/pn=1_pl=8_in=5_il=8_20250107_120000/trigger/trigger_lora"
 # ============================================================================
 LOAD_MODEL_PATH=null  # <-- UPDATE THIS with your best checkpoint
 
