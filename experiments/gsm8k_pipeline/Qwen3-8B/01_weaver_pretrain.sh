@@ -10,6 +10,10 @@
 
 set -e  # Exit on error
 
+# Source common utilities for checkpoint discovery
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../common.sh"
+
 # Environment setup
 export WANDB_ENTITY="gistdslab"
 export WANDB_PROJECT="memgen_ltpo"
@@ -98,6 +102,11 @@ python -m accelerate.commands.launch \
 echo ""
 echo "============================================"
 echo "Weaver SFT training completed!"
-echo "Check output at: /data/memgen/train/gsm8k/"
-echo "Next: Run 02_eval_weaver.sh to evaluate"
+echo "============================================"
+MODEL_NAME_SAFE=$(get_model_name_safe "${MODEL_NAME}")
+WEAVER_PATH=$(find_latest_weaver_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
+echo ""
+echo "export WEAVER_PATH=${WEAVER_PATH}"
+echo ""
+echo "Next: ./02_eval_weaver.sh \$WEAVER_PATH"
 echo "============================================"

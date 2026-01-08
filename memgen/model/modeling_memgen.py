@@ -85,11 +85,11 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         reasoner_hidden_size = self.config.hidden_size
         weaver_hidden_size = weaver_model.base_model.config.hidden_size
         self.reasoner_to_weaver = nn.Linear(
-            reasoner_hidden_size, weaver_hidden_size, dtype=torch.bfloat16
+            reasoner_hidden_size, weaver_hidden_size
         )
         # Map weaver hidden states to reasoner input embeddings
         self.weaver_to_reasoner = nn.Linear(
-            weaver_hidden_size, reasoner_hidden_size, dtype=torch.bfloat16
+            weaver_hidden_size, reasoner_hidden_size
         )
         
         self.delimiters: list[str] = [",", ".", "\n"]  # delimiters for detecting augmentation points
@@ -107,9 +107,10 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                 f"Tokenizer has no pad token. Using EOS token ({self.tokenizer.eos_token}) as pad token."
             )
 
-        # NOTE: Do NOT override chat_template here.
-        # Use the model's built-in chat template (e.g., GPT-OSS Harmony format).
-        # The old SmolLM3 template was incompatible with GPT-OSS.
+        # Normalize the tokenizer's chat template
+        # NOTE: GPT-OSS 등 다른 모델 사용 시 CONVERSATION_TEMPLATE 수정 필요
+        # _is_conversation(), _postprocess_assistant_labels()가 <|im_start|> 토큰에 의존함
+        self.tokenizer.chat_template = CONVERSATION_TEMPLATE
 
     def _set_gradient_checkpointing(self, enable: bool = True, gradient_checkpointing_func=None):
         """Enable/disable gradient checkpointing for internal models.
@@ -215,11 +216,6 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
 
             # Map weaver hidden states back to reasoner embeddings
             latent_inputs_embeds = self.weaver_to_reasoner(weaver_hidden_states)
-            # Handle nan/inf in latent embeddings to prevent numerical instability
-            # Embedding values are typically in range [-1, 1], so use conservative clamp
-            if torch.isnan(latent_inputs_embeds).any() or torch.isinf(latent_inputs_embeds).any():
-                latent_inputs_embeds = torch.nan_to_num(latent_inputs_embeds, nan=0.0, posinf=5.0, neginf=-5.0)
-            latent_inputs_embeds = torch.clamp(latent_inputs_embeds, min=-5.0, max=5.0)
 
             # Update accumulated embeddings and masks with the newly augmented segment
             current_inputs_embeds = torch.cat([current_inputs_embeds, latent_inputs_embeds], dim=1)
@@ -286,131 +282,6 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         logits = self._forward(input_ids, attention_mask, labels, **kwargs)
         # For Instruction SFT, labels remain the same as input
         return logits, labels
-
-    def _grpo_forward(
-        self,
-        input_ids: torch.Tensor,
-        attention_mask: torch.Tensor,
-        labels: torch.Tensor,
-        **kwargs
-    ) -> MemGenOutputWithPast:
-        """
-        Forward pass for GRPO training with Weaver augmentation.
-
-        This mode uses the Weaver to generate latent memory embeddings at the
-        prompt/completion boundary, then computes logits. Gradients flow through
-        the Weaver's LoRA parameters for training.
-
-        Args:
-            input_ids: Input token IDs (batch, seq_len)
-            attention_mask: Attention mask
-            labels: Labels for loss computation (prompt positions are -100)
-            **kwargs: Additional arguments (ignored)
-
-        Returns:
-            MemGenOutputWithPast with logits and loss
-        """
-        B, seq_len = input_ids.shape
-        device = input_ids.device
-        reasoner = self.reasoner
-        weaver = self.weaver
-
-        # Get embeddings from input_ids
-        inputs_embeds = reasoner.get_input_embeddings()(input_ids)
-        # Enable gradient tracking for gradient checkpointing to work properly
-        inputs_embeds = inputs_embeds.requires_grad_(True)
-
-        # Find prompt/completion boundary from labels
-        # Labels are -100 for prompt positions, valid for completion positions
-        if labels is not None:
-            # Find first non -100 position for each sample in batch
-            is_completion = (labels != -100)
-            # Get the first completion position (boundary)
-            completion_starts = is_completion.int().argmax(dim=1)  # (B,)
-            # Use the minimum as augmentation point (assumes similar prompt lengths)
-            aug_point = completion_starts.min().item()
-        else:
-            # If no labels, augment at end (shouldn't happen in GRPO)
-            aug_point = seq_len
-
-        # Skip augmentation if aug_point is 0 (all completion) or at end (all prompt)
-        if aug_point > 0 and aug_point < seq_len:
-            # Get prompt embeddings for Weaver
-            prompt_embeds = inputs_embeds[:, :aug_point]
-            prompt_mask = attention_mask[:, :aug_point]
-            prompt_position_ids = self._generate_position_ids(prompt_mask)
-
-            # Map reasoner embeddings to weaver space
-            weaver_inputs_embeds = self.reasoner_to_weaver(prompt_embeds)
-            # Handle nan/inf in input embeddings
-            if torch.isnan(weaver_inputs_embeds).any() or torch.isinf(weaver_inputs_embeds).any():
-                weaver_inputs_embeds = torch.nan_to_num(weaver_inputs_embeds, nan=0.0, posinf=5.0, neginf=-5.0)
-            weaver_inputs_embeds = torch.clamp(weaver_inputs_embeds, min=-5.0, max=5.0)
-
-            # Use Weaver to generate latent memory embeddings
-            weaver_hidden_states, aug_attn_mask, aug_pos_ids = weaver.augment_prompt(
-                weaver_inputs_embeds, prompt_mask, prompt_position_ids
-            )
-
-            # Map weaver outputs back to reasoner space
-            latent_embeds = self.weaver_to_reasoner(weaver_hidden_states)
-            # Handle nan/inf in latent embeddings to prevent numerical instability
-            if torch.isnan(latent_embeds).any() or torch.isinf(latent_embeds).any():
-                latent_embeds = torch.nan_to_num(latent_embeds, nan=0.0, posinf=5.0, neginf=-5.0)
-            latent_embeds = torch.clamp(latent_embeds, min=-5.0, max=5.0)
-
-            # Get completion embeddings
-            completion_embeds = inputs_embeds[:, aug_point:]
-            completion_mask = attention_mask[:, aug_point:]
-
-            # Concatenate: prompt + latent + completion
-            current_inputs_embeds = torch.cat([prompt_embeds, latent_embeds, completion_embeds], dim=1)
-            current_attention_mask = torch.cat([prompt_mask, aug_attn_mask, completion_mask], dim=1)
-            current_position_ids = self._generate_position_ids(current_attention_mask)
-
-            # Track latent positions for masking
-            latent_len = latent_embeds.size(1)
-            latent_start = aug_point
-            latent_end = aug_point + latent_len
-        else:
-            # No augmentation needed
-            current_inputs_embeds = inputs_embeds
-            current_attention_mask = attention_mask
-            current_position_ids = self._generate_position_ids(current_attention_mask)
-            latent_len = 0
-            latent_start = 0
-            latent_end = 0
-
-        # Forward through reasoner with augmented embeddings
-        outputs = reasoner(
-            inputs_embeds=current_inputs_embeds,
-            attention_mask=current_attention_mask,
-            position_ids=current_position_ids,
-            use_cache=False
-        )
-        full_logits = outputs.logits
-
-        # Remove latent positions from logits to match original sequence length
-        if latent_len > 0:
-            # Split and recombine without latent positions
-            pre_latent_logits = full_logits[:, :latent_start, :]
-            post_latent_logits = full_logits[:, latent_end:, :]
-            logits = torch.cat([pre_latent_logits, post_latent_logits], dim=1)
-        else:
-            logits = full_logits
-
-        # Compute loss if labels provided
-        loss = None
-        if labels is not None:
-            shift_logits = logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
-            loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-
-        # Return in expected format
-        result = MemGenOutputWithPast(loss=loss, logits=logits)
-        result.supervised_labels = labels
-        return result
 
     def _conversational_forward(
         self,
@@ -506,14 +377,6 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         **kwargs
     ) -> MemGenOutputWithPast:
         tokenizer = self.tokenizer
-
-        # Check if this is a GRPO forward call (skip conversation parsing, do simple forward)
-        is_grpo = kwargs.pop('is_grpo', False)
-
-        if is_grpo:
-            # GRPO mode: Skip conversation/instruction parsing, do simple reasoner forward
-            # This is used for computing log probabilities on already-generated sequences
-            return self._grpo_forward(input_ids, attention_mask, labels, **kwargs)
 
         # Ensure labels are provided, required for training the reasoning processor
         assert labels is not None, "Reasoning Processor requires input labels for training"
@@ -706,9 +569,6 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                         # Fill memory at correct batch indices (only augmented samples get memory)
                         # Non-augmented samples keep zero memory from pre-allocation
                         mem_embeds = self.weaver_to_reasoner(weaver_hidden_states).detach()
-                        if torch.isnan(mem_embeds).any() or torch.isinf(mem_embeds).any():
-                            mem_embeds = torch.nan_to_num(mem_embeds, nan=0.0, posinf=5.0, neginf=-5.0)
-                        mem_embeds = torch.clamp(mem_embeds, min=-5.0, max=5.0)
                         captured_memory_embeds[augment_indices] = mem_embeds
                 else:
                     weaver_hidden_states, attn_mask, _ = weaver.augment_inference(
@@ -750,11 +610,6 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                     # Use optimized latent embeddings (already in reasoner space)
                     latent_inputs_embeds = optimized_latents
                 # === End LTPO Optimization ===
-                # Handle nan/inf in latent embeddings to prevent numerical instability
-                if torch.isnan(latent_inputs_embeds).any() or torch.isinf(latent_inputs_embeds).any():
-                    latent_inputs_embeds = torch.nan_to_num(latent_inputs_embeds, nan=0.0, posinf=5.0, neginf=-5.0)
-                # Clamp to reasonable range matching embedding values (~[-1, 1])
-                latent_inputs_embeds = torch.clamp(latent_inputs_embeds, min=-5.0, max=5.0)
 
                 candidate_inputs_embeds = torch.cat([candidate_inputs_embeds, latent_inputs_embeds], dim=1)
                 candidate_attention_mask = torch.cat([candidate_attention_mask, attn_mask], dim=1)
@@ -983,7 +838,8 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         """
         from pathlib import Path
 
-        adapter_path = Path(weaver_path) / "adapter_model.bin"
+        # PEFT saves adapters in subdirectories when multiple adapters exist
+        adapter_path = Path(weaver_path) / "weaver" / "adapter_model.bin"
         if not adapter_path.exists():
             raise FileNotFoundError(f"Weaver adapter not found: {adapter_path}")
 
@@ -1032,7 +888,8 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         """
         from pathlib import Path
 
-        adapter_path = Path(trigger_path) / "adapter_model.bin"
+        # PEFT saves adapters in subdirectories when multiple adapters exist
+        adapter_path = Path(trigger_path) / "trigger" / "adapter_model.bin"
         if not adapter_path.exists():
             raise FileNotFoundError(f"Trigger adapter not found: {adapter_path}")
 

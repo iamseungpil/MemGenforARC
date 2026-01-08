@@ -1,0 +1,99 @@
+# Full Pipeline Configuration
+# ============================================================================
+# This configuration runs the complete MemGen pipeline with Weaver GRPO:
+#   1. Weaver SFT (warmup)
+#   2. Weaver GRPO (RL fine-tuning)
+#   3. Eval Weaver
+#   4. Trigger GRPO
+#   5. Eval Trigger
+#   6. LTPO Eval
+#
+# Usage: python run_pipeline.py --config configs/full_pipeline.yaml
+# ============================================================================
+
+experiment:
+  name: "full_pipeline_with_weaver_grpo"
+  description: "Complete MemGen pipeline with SFT warmup and GRPO fine-tuning"
+
+model:
+  name: "Qwen/Qwen3-8B"
+  dataset: "gsm8k"
+
+# Augmentation parameters (shared across all stages)
+augmentation:
+  max_prompt_aug_num: 1
+  max_inference_aug_num: 5
+  prompt_latents_len: 8
+  inference_latents_len: 8
+
+# Environment configuration
+environment:
+  cuda_devices: "0,1"
+  num_processes: 2
+  wandb_entity: "gistdslab"
+  wandb_project: "memgen_ltpo"
+
+# Pipeline stages
+stages:
+  # Stage 1: Weaver SFT Pretraining
+  - name: weaver_sft
+    enabled: true
+    script: "01_weaver_pretrain.sh"
+    method: sft
+    config:
+      num_train_epochs: 2
+      per_device_train_batch_size: 4
+      learning_rate: 1e-5
+
+  # Stage 2: Weaver GRPO Fine-tuning
+  - name: weaver_grpo
+    enabled: true
+    script: "02_weaver_grpo.sh"
+    method: grpo
+    depends_on: weaver_sft  # Load checkpoint from this stage
+    config:
+      num_train_epochs: 1
+      per_device_train_batch_size: 8
+      num_generations: 8
+      learning_rate: 1e-5
+
+  # Stage 3: Eval Weaver
+  - name: eval_weaver
+    enabled: true
+    script: "03_eval_weaver.sh"
+    mode: evaluate
+    depends_on: weaver_grpo
+
+  # Stage 4: Trigger GRPO Training
+  - name: trigger_grpo
+    enabled: true
+    script: "04_trigger_grpo.sh"
+    method: grpo
+    depends_on: weaver_grpo
+    config:
+      num_train_epochs: 1
+      per_device_train_batch_size: 8
+      num_generations: 8
+
+  # Stage 5: Eval Trigger
+  - name: eval_trigger
+    enabled: true
+    script: "05_eval_trigger.sh"
+    mode: evaluate
+    depends_on: trigger_grpo
+
+  # Stage 6: LTPO Evaluation
+  - name: ltpo_eval
+    enabled: true
+    script: "06_ltpo_eval.sh"
+    mode: evaluate_ltpo
+    depends_on: trigger_grpo
+    config:
+      lr: 0.03
+      sigma: 0.1
+      max_steps: 10
+
+# Output configuration
+output:
+  base_dir: "~/data/memgen"
+  logs_dir: "./logs"

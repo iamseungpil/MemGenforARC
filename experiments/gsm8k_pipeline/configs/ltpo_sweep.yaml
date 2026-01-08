@@ -1,0 +1,64 @@
+# LTPO Hyperparameter Sweep Configuration
+# ============================================================================
+# This configuration runs LTPO evaluation with grid search over hyperparameters.
+#
+# Usage: python run_pipeline.py --config configs/ltpo_sweep.yaml
+# ============================================================================
+
+experiment:
+  name: "ltpo_sweep"
+  description: "Grid search over LTPO hyperparameters"
+
+model:
+  name: "Qwen/Qwen3-8B"
+  dataset: "gsm8k"
+
+augmentation:
+  max_prompt_aug_num: 1
+  max_inference_aug_num: 5
+  prompt_latents_len: 8
+  inference_latents_len: 8
+
+environment:
+  cuda_devices: "0,1"
+  num_processes: 2
+  wandb_entity: "gistdslab"
+  wandb_project: "memgen_ltpo_sweep"
+
+stages:
+  - name: ltpo_sweep
+    enabled: true
+    script: "07_ltpo_sweep.sh"
+    mode: evaluate_ltpo
+    # Auto-discover latest trained checkpoint
+    checkpoint_source: auto
+
+# LTPO sweep configuration
+sweep:
+  enabled: true
+  parameters:
+    lr:
+      values: [0.01, 0.03, 0.1]
+    sigma:
+      values: [0.05, 0.1, 0.2]
+    max_steps:
+      values: [5, 10, 20]
+
+  # Fixed parameters (not swept)
+  fixed:
+    sigma_decay: 0.99
+    top_k: 10
+    use_auto_grad: true
+    verbose: false
+
+  # Optional: subset of grid for quick testing
+  quick_test:
+    enabled: false
+    lr: [0.03]
+    sigma: [0.1]
+    max_steps: [10]
+
+output:
+  base_dir: "~/data/memgen"
+  logs_dir: "./logs/ltpo_sweep"
+  results_file: "sweep_results.csv"

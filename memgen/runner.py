@@ -208,8 +208,8 @@ class MemGenRunner:
             torch.save({
                 'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
                 'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
-                'prompt_query_latents': self.model.weaver.prompt_query_latents,
-                'inference_query_latents': self.model.weaver.inference_query_latents,
+                'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
+                'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
             }, proj_path)
             logging.info(f"Saved projections to {proj_path}")
         except Exception as e:
@@ -298,8 +298,8 @@ class MemGenRunner:
             torch.save({
                 'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
                 'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
-                'prompt_query_latents': self.model.weaver.prompt_query_latents,
-                'inference_query_latents': self.model.weaver.inference_query_latents,
+                'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
+                'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
             }, proj_path)
             logging.info(f"Saved projections to {proj_path}")
         except Exception as e:

@@ -1,0 +1,53 @@
+# Weaver GRPO Only Configuration
+# ============================================================================
+# This configuration runs only Weaver GRPO training (assuming SFT is done):
+#   1. Weaver GRPO (from existing SFT checkpoint)
+#   2. Eval Weaver
+#
+# Usage: python run_pipeline.py --config configs/weaver_grpo_only.yaml
+# ============================================================================
+
+experiment:
+  name: "weaver_grpo_only"
+  description: "Train Weaver with GRPO from existing SFT checkpoint"
+
+model:
+  name: "Qwen/Qwen3-8B"
+  dataset: "gsm8k"
+
+augmentation:
+  max_prompt_aug_num: 1
+  max_inference_aug_num: 5
+  prompt_latents_len: 8
+  inference_latents_len: 8
+
+environment:
+  cuda_devices: "0,1"
+  num_processes: 2
+  wandb_entity: "gistdslab"
+  wandb_project: "memgen_ltpo"
+
+stages:
+  # Weaver GRPO Fine-tuning
+  - name: weaver_grpo
+    enabled: true
+    script: "02_weaver_grpo.sh"
+    method: grpo
+    # Auto-discover latest SFT checkpoint
+    checkpoint_source: auto
+    config:
+      num_train_epochs: 1
+      per_device_train_batch_size: 8
+      num_generations: 8
+      learning_rate: 1e-5
+
+  # Eval Weaver
+  - name: eval_weaver
+    enabled: true
+    script: "03_eval_weaver.sh"
+    mode: evaluate
+    depends_on: weaver_grpo
+
+output:
+  base_dir: "~/data/memgen"
+  logs_dir: "./logs"

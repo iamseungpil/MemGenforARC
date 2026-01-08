@@ -15,7 +15,7 @@ set -e  # Exit on error
 
 # Source common utilities for checkpoint discovery
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/common.sh"
+source "${SCRIPT_DIR}/../common.sh"
 
 # Environment setup
 export WANDB_ENTITY="gistdslab"
@@ -48,11 +48,20 @@ PROMPT_LATENTS_LEN=8
 INFERENCE_LATENTS_LEN=8
 
 # ============================================================================
-# Auto-discover checkpoints from previous training
+# Checkpoint paths: use arguments if provided, otherwise auto-discover
+# Usage: ./05_ltpo_eval.sh [weaver_path] [trigger_path]
 # ============================================================================
 MODEL_NAME_SAFE=$(get_model_name_safe "${MODEL_NAME}")
-LOAD_WEAVER_PATH=$(find_latest_weaver_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
-LOAD_TRIGGER_PATH=$(find_latest_trigger_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
+if [ -n "$1" ]; then
+    LOAD_WEAVER_PATH="$1"
+else
+    LOAD_WEAVER_PATH=$(find_latest_weaver_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
+fi
+if [ -n "$2" ]; then
+    LOAD_TRIGGER_PATH="$2"
+else
+    LOAD_TRIGGER_PATH=$(find_latest_trigger_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
+fi
 
 echo "============================================"
 echo "Checkpoint Discovery"

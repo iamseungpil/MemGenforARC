@@ -8,6 +8,67 @@ MemGen (Memory Generator) is a framework for self-evolving AI agents that genera
 - **Memory Weaver**: Synthesizes past experiences into compact latent sequences for reasoning augmentation
 - **Memory Trigger**: Decides when to recall and insert memory during generation
 
+## 🚨 개발 원칙 (2025-01-08)
+
+### Master Branch 보호 원칙
+1. **항상 master branch와 비교하며 작업**
+   - `git diff origin/master --stat`로 변경 범위 확인
+   - 불필요한 변경 최소화
+
+2. **master 코드 변경 최소화**
+   - 반드시 필요하거나 명시적 요청이 있는 경우에만 수정
+   - 기능 추가 시 기존 코드 수정보다 새 파일/함수 추가 선호
+
+3. **변경 전 확인 사항**
+   - 해당 변경이 정말 필요한가?
+   - 기존 기능에 영향을 주지 않는가?
+   - 더 작은 범위로 해결 가능한가?
+
+## 🔧 원본 MemGen 복원 작업 (2025-01-08)
+
+ltpo 브랜치에서 원본 master 대비 변경되었던 부분을 복원한 내역:
+
+### 1. `_grpo_forward` 메서드 삭제 (`modeling_memgen.py`)
+- **문제**: ltpo 브랜치에서 `_grpo_forward` 메서드가 새로 추가됨
+- **원인**: prompt augmentation만 수행하고, inference augmentation(`_select_augment_points_after_delimiter`)을 수행하지 않음
+- **결과**: GRPO 학습 시 latent memory가 prompt 끝에만 삽입되고, 생성 중간에 삽입되지 않음
+- **수정**: `_grpo_forward` 메서드 삭제, 원본처럼 `_forward` 사용
+
+### 2. `is_grpo` 플래그 삭제 (`modeling_memgen.py`, `weaver_grpo_trainer.py`)
+- **문제**: `forward()`에서 `is_grpo=True`면 `_grpo_forward` 호출하는 분기 추가됨
+- **원인**: trainer에서 `"is_grpo": True`를 전달하여 위의 불완전한 `_grpo_forward` 사용
+- **수정**: `is_grpo` 체크 로직 삭제, trainer에서 `"is_grpo": True` 전달 삭제
+
+### 3. `compute_loss` 메서드 주석처리 (`weaver_grpo_trainer.py`)
+- **문제**: `compute_loss` 메서드가 새로 오버라이드됨
+- **원인**: loss 계산 공식이 GRPO가 아닌 BNPO 방식 사용
+  - GRPO: `((per_token_loss * mask).sum(-1) / mask.sum(-1)).mean()` (샘플별 정규화 후 평균)
+  - BNPO (잘못됨): `(per_token_loss * mask).sum() / mask.sum()` (전체 정규화)
+- **수정**: `compute_loss` 메서드 전체 주석처리, 원본 `_compute_loss` 사용
+
+### 4. projection layer dtype 제거 (`modeling_memgen.py`)
+- **문제**: `reasoner_to_weaver`, `weaver_to_reasoner` Linear 레이어에 `dtype=torch.bfloat16` 추가됨
+- **원인**: 학습 가능 파라미터가 bfloat16으로 초기화되어 정밀도 저하
+- **원본**: dtype 미지정 (기본 float32)
+- **수정**: `dtype=torch.bfloat16` 제거
+
+### 5. query_latents dtype 제거 (`weaver.py`)
+- **문제**: `prompt_query_latents`, `inference_query_latents`에 `dtype=torch.bfloat16` 추가됨
+- **원인**: 학습 가능 파라미터가 bfloat16으로 초기화되어 정밀도 저하
+- **원본**: dtype 미지정 (기본 float32)
+- **수정**: `dtype=torch.bfloat16` 제거
+
+### 6. chat_template 오버라이드 복원 (`modeling_memgen.py`)
+- **문제**: `self.tokenizer.chat_template = CONVERSATION_TEMPLATE` 라인이 주석으로 대체됨
+- **원인**: multi-turn 대화 시 `_is_conversation()`, `_postprocess_assistant_labels()`가 `<|im_start|>` 토큰에 의존
+- **수정**: `self.tokenizer.chat_template = CONVERSATION_TEMPLATE` 복원
+- **주의**: GPT-OSS 등 다른 chat template 사용하는 모델은 `CONVERSATION_TEMPLATE` 수정 필요
+
+### 7. mixed_precision 복원 (`configs/zero2.yaml`)
+- **문제**: `mixed_precision: bf16`으로 변경됨
+- **원본**: `mixed_precision: 'no'` (full precision)
+- **수정**: `mixed_precision: 'no'`로 복원
+
 ## Common Commands
 
 ### Environment Setup
@@ -511,3 +572,124 @@ python -c "from memgen.runner import MemGenRunner; from data.arc.env import ARCE
 # LTPO 메서드 존재 확인
 python -c "from memgen.runner import MemGenRunner; assert hasattr(MemGenRunner, 'evaluate_with_ltpo'); print('OK')"
 ```
+
+---
+
+## 📚 관련 논문 핵심 요약 (2025-01-08)
+
+### LTPO (arXiv:2510.04182)
+**제목**: "Thinking on the Fly: Test-Time Reasoning Enhancement via Latent Thought Policy Optimization"
+
+- **목적**: Test-time에 latent thought 벡터를 최적화하여 추론 성능 향상
+- **핵심**:
+  - **Parameter-free**: 모델 가중치 업데이트 없음
+  - **Confidence-based intrinsic reward**: frozen LLM 출력 분포에서 계산
+  - **Noise (sigma)는 exploration용으로 test-time에만 추가**
+  - 외부 supervision이나 text generation 없이 최적화
+
+### MemGen (arXiv:2509.24704)
+**제목**: "MemGen: Weaving Generative Latent Memory for Self-Evolving Agents"
+
+- **목적**: Self-evolving agent를 위한 generative latent memory 프레임워크
+- **핵심 모듈**:
+  - **Memory Weaver**: 현재 상태 → latent token sequence 생성
+  - **Memory Trigger**: memory 호출 시점 결정
+- **차별점**: parametric/retrieval memory의 한계 극복, human-like cognitive ability
+
+---
+
+## ⚠️ Training과 LTPO의 명확한 구분 (2025-01-08)
+
+### Noise 적용 규칙
+
+| 모드 | Noise 적용 | 적용 위치 |
+|------|-----------|----------|
+| **SFT Training** | ❌ 없음 | - |
+| **GRPO Training** | ❌ 없음 | - |
+| **LTPO Eval** | ✅ 적용 | `ltpo/memgen_ltpo.py:157-163` |
+
+**핵심**: SFT/GRPO 학습에서는 noise 없음. LTPO test-time에서만 exploration을 위해 noise 추가.
+
+### Reward 사용 규칙
+
+| 모드 | Reward 타입 | 용도 |
+|------|-----------|------|
+| **SFT Training** | 없음 (supervised labels) | Cross-entropy loss |
+| **GRPO Training** | Binary (task accuracy) | Policy gradient |
+| **LTPO Eval** | Confidence (top-k prob) | Latent optimization |
+
+### 코드 흐름 확인
+
+```
+Training (SFT/GRPO):
+├── Noise: ❌ 없음
+├── Reward: Binary (1.0 or 0.0)
+└── 학습 대상: Weaver/Trigger LoRA parameters
+
+Test-Time (LTPO):
+├── Noise: ✅ sigma로 exploration
+├── Reward: Confidence-based (top-k token probability)
+└── 최적화 대상: Latent embeddings (모델 파라미터 X)
+```
+
+---
+
+## 🔬 GSM8K Pipeline 실험 가이드 (`experiments/gsm8k_pipeline/`)
+
+### 환경 설정
+```bash
+# 반드시 memgen conda 환경 사용
+conda activate memgen
+```
+
+### 체크포인트 자동 검색
+각 스크립트는 `common.sh`를 통해 최신 체크포인트를 자동으로 찾습니다:
+- `find_latest_weaver_checkpoint()`: 최신 weaver_lora 경로 반환
+- `find_latest_trigger_checkpoint()`: 최신 trigger_lora 경로 반환
+
+### 개별 실험 실행 순서
+```bash
+# 1. Weaver 학습 (SFT)
+bash experiments/gsm8k_pipeline/01_weaver_pretrain.sh
+
+# 2. Weaver 평가 (자동으로 최신 weaver 체크포인트 사용)
+bash experiments/gsm8k_pipeline/02_eval_weaver.sh
+
+# 3. Trigger 학습 (자동으로 최신 weaver 체크포인트 사용)
+bash experiments/gsm8k_pipeline/03_trigger_pretrain.sh
+
+# 4. Trigger 평가 (자동으로 최신 weaver + trigger 체크포인트 사용)
+bash experiments/gsm8k_pipeline/04_eval_trigger.sh
+
+# 5. LTPO 평가 (자동으로 최신 체크포인트 사용)
+bash experiments/gsm8k_pipeline/05_ltpo_eval.sh
+
+# 전체 파이프라인 자동 실행
+bash experiments/gsm8k_pipeline/run_all.sh
+```
+
+### 수동 경로 지정 (필요시)
+```bash
+# 방법 1: 커맨드라인 인자로 전달
+bash experiments/gsm8k_pipeline/02_eval_weaver.sh /path/to/weaver_lora
+bash experiments/gsm8k_pipeline/03_trigger_pretrain.sh /path/to/weaver_lora
+bash experiments/gsm8k_pipeline/04_eval_trigger.sh /path/to/weaver_lora /path/to/trigger_lora
+bash experiments/gsm8k_pipeline/05_ltpo_eval.sh /path/to/weaver_lora /path/to/trigger_lora
+
+# 방법 2: 스크립트 내 변수 직접 수정
+LOAD_WEAVER_PATH="/path/to/weaver_lora"
+LOAD_TRIGGER_PATH="/path/to/trigger_lora"
+```
+
+### 체크포인트 저장 위치
+- **학습**: `~/data/memgen/train/<dataset>/<model_name>/pn=*_pl=*_in=*_il=*_<timestamp>/`
+- **평가**: `~/data/memgen/evaluate/<dataset>/<model_name>/.../evaluate/answer.json`
+- **LTPO**: `~/data/memgen/evaluate_ltpo/<dataset>/<model_name>/.../evaluate/answer_ltpo.json`
+
+### 핵심 코드 경로 참조
+| 기능 | 파일 위치 |
+|------|----------|
+| LTPO optimizer | `ltpo/memgen_ltpo.py:110-213` |
+| Noise 적용 | `ltpo/memgen_ltpo.py:157-163` |
+| GRPO reward | `memgen/trainer/weaver_grpo_trainer.py:186-241` |
+| Binary reward | `data/arc/env.py:107-116` |

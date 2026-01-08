@@ -1,24 +1,24 @@
 #!/bin/bash
 # ============================================================================
-# Step 2: Evaluate Weaver
+# Step 3: Trigger GRPO Training
 # ============================================================================
-# Evaluate the trained Weaver model on GSM8K test set.
-# This measures the quality of latent memory generation.
+# Train the Trigger module using GRPO to learn when to insert latent memory.
+# Requires a trained Weaver model from Step 1.
 #
-# Expected Output: /data/memgen/evaluate/gsm8k/<model_name>/evaluate/answer.json
+# Expected Output: /data/memgen/train/gsm8k/<model_name>/<timestamp>/trigger/
 # ============================================================================
 
 set -e  # Exit on error
 
 # Source common utilities for checkpoint discovery
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/common.sh"
+source "${SCRIPT_DIR}/../common.sh"
 
 # Environment setup
 export WANDB_ENTITY="gistdslab"
 export WANDB_PROJECT="memgen_ltpo"
 export DEBUG_MODE=true
-export LOG_PATH="./logs/02_eval_weaver.log"
+export LOG_PATH="./logs/03_trigger_pretrain.log"
 export CUDA_VISIBLE_DEVICES=0,1  # Use 2 GPUs (A100 40GB x2)
 export MAIN_PROCESS_PORT=29507
 export NCCL_DEBUG=INFO
@@ -31,24 +31,31 @@ mkdir -p logs
 # ============================================================================
 # Model Configuration
 # ============================================================================
-MODEL_NAME="Qwen/Qwen3-8B"
+MODEL_NAME="HuggingFaceTB/SmolLM3-3B"
 DATASET_NAME="gsm8k"
+DATASET_MODE="grpo"
+TRAIN_METHOD="grpo"  # Trigger only supports GRPO
 
 # Wandb run name
 MODEL_SHORT=$(echo ${MODEL_NAME} | sed 's|.*/||')
-export WANDB_RUN_NAME="eval_weaver_${MODEL_SHORT}_$(date +%Y%m%d)"
+export WANDB_RUN_NAME="trigger_${TRAIN_METHOD}_${MODEL_SHORT}_$(date +%Y%m%d)"
 
-# Augmentation configs (must match training)
+# Augmentation configs (must match weaver training)
 MAX_PROMPT_AUG_NUM=1
 MAX_INFERENCE_AUG_NUM=5
 PROMPT_LATENTS_LEN=8
 INFERENCE_LATENTS_LEN=8
 
 # ============================================================================
-# Auto-discover weaver checkpoint from previous training
+# Checkpoint path: use argument if provided, otherwise auto-discover
+# Usage: ./03_trigger_pretrain.sh [weaver_path]
 # ============================================================================
 MODEL_NAME_SAFE=$(get_model_name_safe "${MODEL_NAME}")
-LOAD_WEAVER_PATH=$(find_latest_weaver_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
+if [ -n "$1" ]; then
+    LOAD_WEAVER_PATH="$1"
+else
+    LOAD_WEAVER_PATH=$(find_latest_weaver_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
+fi
 
 echo "============================================"
 echo "Checkpoint Discovery"
@@ -57,27 +64,29 @@ print_checkpoint_info "Weaver" "${LOAD_WEAVER_PATH}"
 
 if [ -z "$LOAD_WEAVER_PATH" ]; then
     echo ""
-    echo "WARNING: No weaver checkpoint found. Evaluating base model."
-    echo "To evaluate trained model, run 01_weaver_pretrain.sh first."
-    LOAD_WEAVER_PATH="null"
+    echo "ERROR: Weaver checkpoint is required for trigger training!"
+    echo "Please run 01_weaver_pretrain.sh first."
+    exit 1
 fi
 echo "============================================"
 
-# Evaluation configs
-BATCH_SIZE=4
-TEMPERATURE=0.0  # Greedy decoding for evaluation
-TRIGGER_ACTIVE=False  # Trigger not trained yet
+# GRPO Training hyperparameters
+BATCH_SIZE=8
+NUM_EPOCHS=1
+NUM_GENERATIONS=8
+GRADIENT_ACCUMULATION_STEPS=4
 
 # ============================================================================
-# Execute Evaluation
+# Execute Training
 # ============================================================================
 echo ""
 echo "============================================"
-echo "Step 2: Evaluate Weaver"
+echo "Step 3: Trigger GRPO Training"
 echo "============================================"
 echo "Model: ${MODEL_NAME}"
 echo "Dataset: ${DATASET_NAME}"
-echo "Weaver Checkpoint: ${LOAD_WEAVER_PATH}"
+echo "Method: ${TRAIN_METHOD}"
+echo "Weaver checkpoint: ${LOAD_WEAVER_PATH}"
 echo "============================================"
 
 python -m accelerate.commands.launch \
@@ -94,16 +103,29 @@ python -m accelerate.commands.launch \
     model.weaver.prompt_latents_len ${PROMPT_LATENTS_LEN} \
     model.weaver.inference_latents_len ${INFERENCE_LATENTS_LEN} \
     model.trigger.model_name ${MODEL_NAME} \
-    model.trigger.active ${TRIGGER_ACTIVE} \
-    run.mode evaluate \
-    run.interaction.batch_size ${BATCH_SIZE} \
-    run.interaction.do_sample False \
-    run.interaction.temperature ${TEMPERATURE} \
+    model.trigger.active True \
+    dataset.mode ${DATASET_MODE} \
+    run.mode train \
+    run.train_weaver False \
+    run.train_trigger True \
+    run.train_trigger_method ${TRAIN_METHOD} \
+    run.trigger.grpo.num_train_epochs ${NUM_EPOCHS} \
+    run.trigger.grpo.per_device_train_batch_size ${BATCH_SIZE} \
+    run.trigger.grpo.per_device_eval_batch_size ${BATCH_SIZE} \
+    run.trigger.grpo.num_generations ${NUM_GENERATIONS} \
+    run.trigger.grpo.gradient_accumulation_steps ${GRADIENT_ACCUMULATION_STEPS} \
+    run.interaction.do_sample True \
+    run.interaction.temperature 1.0 \
     run.interaction.max_response_length 1024
 
 echo ""
 echo "============================================"
-echo "Weaver evaluation completed!"
-echo "Check results at: /data/memgen/evaluate/gsm8k/"
-echo "Next: Run 03_trigger_pretrain.sh to train trigger"
+echo "Trigger GRPO training completed!"
+echo "============================================"
+TRIGGER_PATH=$(find_latest_trigger_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
+echo ""
+echo "export WEAVER_PATH=${LOAD_WEAVER_PATH}"
+echo "export TRIGGER_PATH=${TRIGGER_PATH}"
+echo ""
+echo "Next: ./04_eval_trigger.sh \$WEAVER_PATH \$TRIGGER_PATH"
 echo "============================================"

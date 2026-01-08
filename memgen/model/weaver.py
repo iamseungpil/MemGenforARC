@@ -21,13 +21,13 @@ class MemGenWeaver(nn.Module):
 
         # prompt augmentation
         self.prompt_query_latents = nn.Parameter(
-            torch.randn(prompt_latents_len, self.hidden_size, dtype=torch.bfloat16),
+            torch.randn(prompt_latents_len, self.hidden_size),
             requires_grad=True
         )
 
         # inference augmentation
         self.inference_query_latents = nn.Parameter(
-            torch.randn(inference_latents_len, self.hidden_size, dtype=torch.bfloat16),
+            torch.randn(inference_latents_len, self.hidden_size),
             requires_grad=True
         )
     

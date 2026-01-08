@@ -17,7 +17,7 @@ set -e  # Exit on error
 
 # Source common utilities for checkpoint discovery
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/common.sh"
+source "${SCRIPT_DIR}/../common.sh"
 
 # Wandb configuration
 export WANDB_ENTITY="gistdslab"
@@ -26,7 +26,7 @@ export WANDB_PROJECT="memgen_ltpo"
 PROJECT_ROOT=~/MemGenforARC
 
 # Model configuration
-MODEL_NAME="Qwen/Qwen3-8B"
+MODEL_NAME="HuggingFaceTB/SmolLM3-3B"
 MODEL_NAME_SAFE=$(get_model_name_safe "${MODEL_NAME}")
 DATASET_NAME="gsm8k"
 

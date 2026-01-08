@@ -260,7 +260,6 @@ class WeaverGRPOTrainer(GRPOTrainer):
                 "input_ids": input_ids_batch,
                 "attention_mask": attention_mask_batch,
                 "labels": labels,
-                "is_grpo": True,  # Tell MemGenModel to use GRPO forward (skip conversation parsing)
             }
 
             # Only add logits_to_keep if the model supports it
@@ -303,77 +302,12 @@ class WeaverGRPOTrainer(GRPOTrainer):
         masks = torch.cat(supervise_masks, dim=0)
         return logps, masks
 
-    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
-        """
-        Override compute_loss to handle our tuple-returning _get_per_token_logps.
-
-        This is adapted from TRL's GRPOTrainer.compute_loss to work with MemGen's
-        supervised masking approach where _get_per_token_logps returns (logps, masks).
-        """
-        if return_outputs:
-            raise ValueError("The GRPOTrainer does not support returning outputs")
-
-        # Compute the per-token log probabilities for the model
-        prompt_ids, prompt_mask = inputs["prompt_ids"], inputs["prompt_mask"]
-        completion_ids, completion_mask = inputs["completion_ids"], inputs["completion_mask"]
-        input_ids = torch.cat([prompt_ids, completion_ids], dim=1)
-        attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)
-        logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
-
-        # Our _get_per_token_logps returns (logps, masks) tuple
-        result = self._get_per_token_logps(model, input_ids, attention_mask, logits_to_keep)
-        if isinstance(result, tuple):
-            per_token_logps, supervise_mask = result
-        else:
-            per_token_logps = result
-            supervise_mask = None
-
-        # Compute the KL divergence between the model and the reference model
-        if self.beta != 0.0:
-            ref_per_token_logps = inputs["ref_per_token_logps"]
-            # Handle ref_per_token_logps which might also be a tuple from ref model
-            if isinstance(ref_per_token_logps, tuple):
-                ref_per_token_logps = ref_per_token_logps[0]
-            per_token_kl = (
-                torch.exp(ref_per_token_logps - per_token_logps) - (ref_per_token_logps - per_token_logps) - 1
-            )
-
-        # Compute the loss
-        advantages = inputs["advantages"]
-        # When using num_iterations == 1, old_per_token_logps == per_token_logps, so we can skip it's computation (see
-        # _generate_and_score_completions) and use per_token_logps.detach() instead.
-        old_per_token_logps = inputs["old_per_token_logps"]
-        if isinstance(old_per_token_logps, tuple):
-            old_per_token_logps = old_per_token_logps[0]
-        if self.num_iterations > 1:
-            pass  # old_per_token_logps is already from inputs
-        else:
-            old_per_token_logps = per_token_logps.detach()
-
-        coef_1 = torch.exp(per_token_logps - old_per_token_logps)
-        coef_2 = torch.clamp(coef_1, 1 - self.epsilon, 1 + self.epsilon)
-        per_token_loss1 = coef_1 * advantages.unsqueeze(1)
-        per_token_loss2 = coef_2 * advantages.unsqueeze(1)
-        per_token_loss = -torch.min(per_token_loss1, per_token_loss2)
-        if self.beta != 0.0:
-            per_token_loss = per_token_loss + self.beta * per_token_kl
-
-        # Use supervise_mask if available, otherwise fall back to completion_mask
-        mask = supervise_mask if supervise_mask is not None else completion_mask
-        loss = (per_token_loss * mask).sum() / mask.sum()
-
-        # Log the metrics
-        mode = "eval" if self.control.should_evaluate else "train"
-
-        if self.beta != 0.0:
-            mean_kl = ((per_token_kl * mask).sum(dim=1) / mask.sum(dim=1)).mean()
-            self._metrics[mode]["kl"].append(self.accelerator.gather_for_metrics(mean_kl).mean().item())
-
-        is_clipped = (per_token_loss1 < per_token_loss2).float()
-        clip_ratio = (is_clipped * mask).sum() / mask.sum()
-        self._metrics[mode]["clip_ratio"].append(self.accelerator.gather_for_metrics(clip_ratio).mean().item())
-
-        return loss
+    # NOTE: compute_loss commented out - master branch only has _compute_loss
+    # def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+    #     """
+    #     Override compute_loss to handle our tuple-returning _get_per_token_logps.
+    #     """
+    #     ... (see _compute_loss for correct GRPO loss implementation)
 
     # NOTE - currently we only deal with text input and leave multimodal as a feature work
     def _generate_and_score_completions(

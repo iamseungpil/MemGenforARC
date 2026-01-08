@@ -1,0 +1,5 @@
+MemGen_reproduce/
+BACKUP/
+trainer_output/
+wandb/
+__pycache__/
