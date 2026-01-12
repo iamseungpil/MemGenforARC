@@ -1,5 +1,6 @@
 import os
 import random
+import logging
 
 from accelerate import Accelerator
 from datasets import Dataset
@@ -27,6 +28,7 @@ from memgen.utils import (
     StaticEvalRecorder,
     DynamicEvalRecorder,
     create_tensorboard,
+    init_wandb,
     remove_trainer_checkpoints,
     log_trainable_params,
 )
@@ -160,13 +162,45 @@ class MemGenRunner:
         # train weaver
         weaver_trainer = self._create_weaver_trainer()
         weaver_trainer.train()
-        weaver_trainer.save_model()   # save the best model
-        
-        # remove checkpoints and save weaver
+
+        # Save weaver LoRA weights and projections
         output_dir = weaver_trainer.args.output_dir
+        os.makedirs(output_dir, exist_ok=True)
+        self._save_weaver_checkpoint(output_dir)
+
+        # remove checkpoints
         remove_trainer_checkpoints(output_dir)
-    
-    
+
+    def _save_weaver_checkpoint(self, output_dir: str):
+        """
+        Save weaver LoRA weights and projection layers to output_dir.
+
+        This is called both after weaver training and after trigger training,
+        so that the trigger checkpoint directory also contains the weaver weights
+        needed for evaluation.
+
+        Args:
+            output_dir: Directory to save weaver checkpoint
+        """
+        try:
+            # Save weaver LoRA adapter
+            weaver_lora_path = os.path.join(output_dir, "weaver_lora")
+            if hasattr(self.model.weaver.model, 'save_pretrained'):
+                self.model.weaver.model.save_pretrained(weaver_lora_path, safe_serialization=False)
+                logging.info(f"Saved weaver LoRA to {weaver_lora_path}")
+
+            # Save projection layers and query latents
+            proj_path = os.path.join(output_dir, "projections.pt")
+            torch.save({
+                'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
+                'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
+                'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
+                'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
+            }, proj_path)
+            logging.info(f"Saved projections to {proj_path}")
+        except Exception as e:
+            logging.warning(f"Failed to save weaver checkpoint: {e}")
+
     # ===== train trigger =====
     def _create_trigger_trainer(self):
         
@@ -194,10 +228,26 @@ class MemGenRunner:
         # train trigger
         trigger_trainer = self._create_trigger_trainer()
         trigger_trainer.train()
-        trigger_trainer.save_model()     # save the best model
 
-        # remove checkpoints and save weaver
+        # Save trigger LoRA weights
         output_dir = trigger_trainer.args.output_dir
+        os.makedirs(output_dir, exist_ok=True)
+
+        try:
+            # Save trigger LoRA adapter
+            trigger_lora_path = os.path.join(output_dir, "trigger_lora")
+            if hasattr(self.model.trigger.model, 'save_pretrained'):
+                self.model.trigger.model.save_pretrained(trigger_lora_path, safe_serialization=False)
+                logging.info(f"Saved trigger LoRA to {trigger_lora_path}")
+        except Exception as e:
+            logging.warning(f"Failed to save trigger separately: {e}")
+            # Fallback: use trainer's save_model
+            trigger_trainer.save_model()
+
+        # Also save weaver (required to load both components for evaluation)
+        self._save_weaver_checkpoint(output_dir)
+
+        # remove checkpoints
         remove_trainer_checkpoints(output_dir)
 
     
@@ -228,10 +278,11 @@ class MemGenRunner:
         return evaluate_func()
     
     def _static_evaluate(self):
-        
+
         accelerator = Accelerator()
         writer = create_tensorboard(save_dir=self.working_dir)
-        
+        init_wandb(save_dir=self.working_dir)
+
         batch_size = self.interaction_config.batch_size
         output_dir = self.interaction_config.output_dir
 
@@ -314,7 +365,8 @@ class MemGenRunner:
         output_dir = self.interaction_config.output_dir
 
         accelerator = Accelerator()
-        writer = create_tensorboard(save_dir=self.working_dir) 
+        writer = create_tensorboard(save_dir=self.working_dir)
+        init_wandb(save_dir=self.working_dir)
         save_file = os.path.join(output_dir, "conversations.txt")
         recorder = DynamicEvalRecorder(writer=writer, log_file=save_file)
 

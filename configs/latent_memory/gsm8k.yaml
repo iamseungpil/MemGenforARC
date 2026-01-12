@@ -85,9 +85,9 @@ run:
       remove_unused_columns: False
       load_best_model_at_end: True
       bf16: True
-      report_to:  
-        - tensorboard
-      
+      report_to:
+        - wandb
+
     # grpo configs
     grpo:
       num_train_epochs: 1
@@ -120,8 +120,8 @@ run:
       remove_unused_columns: False
       load_best_model_at_end: True
       bf16: True
-      report_to:  
-        - tensorboard
+      report_to:
+        - wandb
 
   # trigger training configs
   trigger:
@@ -157,9 +157,9 @@ run:
       remove_unused_columns: False
       load_best_model_at_end: True
       bf16: True
-      report_to:  
-        - tensorboard
-  
+      report_to:
+        - wandb
+
   # interaction config for evaluation
   interaction:
     max_turns: 1

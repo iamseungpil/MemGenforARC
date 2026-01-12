@@ -599,23 +599,162 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             trigger_model = base_model
         
         load_model_path = config_dict.get("load_model_path", None)
+        load_weaver_path = config_dict.get("load_weaver_path", None)
+        load_trigger_path = config_dict.get("load_trigger_path", None)
+
         if not load_model_path:
             model = cls(
-                config=memgen_config, 
-                base_model=base_model, 
-                base_tokenizer=base_tokenizer,
-                weaver_model=weaver_model,
-                trigger_model=trigger_model
-            )
-        else:
-            model = cls.from_pretrained(
-                load_model_path, 
                 config=memgen_config,
                 base_model=base_model,
                 base_tokenizer=base_tokenizer,
                 weaver_model=weaver_model,
                 trigger_model=trigger_model
             )
-        
+        else:
+            model = cls.from_pretrained(
+                load_model_path,
+                config=memgen_config,
+                base_model=base_model,
+                base_tokenizer=base_tokenizer,
+                weaver_model=weaver_model,
+                trigger_model=trigger_model
+            )
+
+        # Load pre-trained weaver adapter if specified
+        if load_weaver_path:
+            model._load_pretrained_weaver(load_weaver_path)
+
+        # Load pre-trained trigger adapter if specified
+        if load_trigger_path:
+            model._load_pretrained_trigger(load_trigger_path)
+
         return model
+
+    def _load_pretrained_weaver(self, weaver_path: str):
+        """
+        Load pre-trained weaver adapter weights from a checkpoint.
+
+        Args:
+            weaver_path: Path to the weaver checkpoint directory
+                         (should contain weaver_lora/weaver/ and projections.pt)
+        """
+        from pathlib import Path
+
+        # PEFT saves adapters in nested structure: weaver_lora/weaver/
+        adapter_path = Path(weaver_path) / "weaver_lora" / "weaver"
+        if not adapter_path.exists():
+            raise FileNotFoundError(f"Weaver LoRA adapter not found: {adapter_path}")
+
+        logging.info(f"Loading pre-trained weaver from: {adapter_path}")
+
+        # Load the LoRA adapter
+        # PEFT saves adapters with different structure depending on how it was saved
+        adapter_bin = adapter_path / "adapter_model.bin"
+        adapter_safetensors = adapter_path / "adapter_model.safetensors"
+
+        if adapter_bin.exists():
+            pretrained_weights = torch.load(str(adapter_bin), map_location='cpu')
+        elif adapter_safetensors.exists():
+            from safetensors.torch import load_file
+            pretrained_weights = load_file(str(adapter_safetensors))
+        else:
+            # Try loading with PEFT's load method
+            from peft import PeftModel
+            self.weaver.model = PeftModel.from_pretrained(
+                self.weaver.model.base_model if hasattr(self.weaver.model, 'base_model') else self.weaver.model,
+                str(adapter_path)
+            )
+            logging.info(f"Loaded weaver adapter using PEFT from {adapter_path}")
+            # Load projections
+            self._load_projections(weaver_path)
+            return
+
+        # Get current weaver state dict
+        weaver_state = self.weaver.model.state_dict()
+
+        # Map pretrained weights to weaver state dict
+        loaded_count = 0
+        for key, value in pretrained_weights.items():
+            if key in weaver_state:
+                if weaver_state[key].shape == value.shape:
+                    weaver_state[key] = value.to(weaver_state[key].dtype)
+                    loaded_count += 1
+                else:
+                    logging.warning(f"Shape mismatch for {key}: expected {weaver_state[key].shape}, got {value.shape}")
+
+        # Load the updated state dict
+        self.weaver.model.load_state_dict(weaver_state, strict=True)
+        logging.info(f"Loaded {loaded_count} weaver adapter weights from checkpoint")
+
+        # Load projections
+        self._load_projections(weaver_path)
+
+    def _load_projections(self, checkpoint_path: str):
+        """Load projection layers and query latents from checkpoint."""
+        from pathlib import Path
+
+        proj_path = Path(checkpoint_path) / "projections.pt"
+        if not proj_path.exists():
+            logging.warning(f"projections.pt not found at {proj_path}")
+            return
+
+        proj_data = torch.load(str(proj_path), map_location='cpu')
+        self.reasoner_to_weaver.load_state_dict(proj_data['reasoner_to_weaver'])
+        self.weaver_to_reasoner.load_state_dict(proj_data['weaver_to_reasoner'])
+        self.weaver.prompt_query_latents.data = proj_data['prompt_query_latents'].to(self.weaver.prompt_query_latents.device)
+        self.weaver.inference_query_latents.data = proj_data['inference_query_latents'].to(self.weaver.inference_query_latents.device)
+        logging.info(f"Loaded projections and query_latents from {proj_path}")
+
+    def _load_pretrained_trigger(self, trigger_path: str):
+        """
+        Load pre-trained trigger adapter weights from a checkpoint.
+
+        Args:
+            trigger_path: Path to the trigger checkpoint directory
+                         (should contain trigger_lora/)
+        """
+        from pathlib import Path
+
+        # trigger_lora subdirectory contains the LoRA adapter
+        adapter_path = Path(trigger_path) / "trigger_lora"
+        if not adapter_path.exists():
+            raise FileNotFoundError(f"Trigger LoRA adapter not found: {adapter_path}")
+
+        logging.info(f"Loading pre-trained trigger from: {trigger_path}")
+
+        # Load the LoRA adapter
+        adapter_bin = adapter_path / "adapter_model.bin"
+        adapter_safetensors = adapter_path / "adapter_model.safetensors"
+
+        if adapter_bin.exists():
+            pretrained_weights = torch.load(str(adapter_bin), map_location='cpu')
+        elif adapter_safetensors.exists():
+            from safetensors.torch import load_file
+            pretrained_weights = load_file(str(adapter_safetensors))
+        else:
+            # Try loading with PEFT's load method
+            from peft import PeftModel
+            self.trigger.model = PeftModel.from_pretrained(
+                self.trigger.model.base_model if hasattr(self.trigger.model, 'base_model') else self.trigger.model,
+                str(adapter_path)
+            )
+            logging.info(f"Loaded trigger adapter using PEFT from {adapter_path}")
+            return
+
+        # Get current trigger state dict
+        trigger_state = self.trigger.model.state_dict()
+
+        # Map pretrained weights to trigger state dict
+        loaded_count = 0
+        for key, value in pretrained_weights.items():
+            if key in trigger_state:
+                if trigger_state[key].shape == value.shape:
+                    trigger_state[key] = value.to(trigger_state[key].dtype)
+                    loaded_count += 1
+                else:
+                    logging.warning(f"Shape mismatch for {key}: expected {trigger_state[key].shape}, got {value.shape}")
+
+        # Load the updated state dict
+        self.trigger.model.load_state_dict(trigger_state, strict=True)
+        logging.info(f"Loaded {loaded_count} trigger adapter weights from checkpoint")
 

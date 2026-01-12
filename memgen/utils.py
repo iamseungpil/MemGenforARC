@@ -9,6 +9,7 @@ from typing import Optional, Callable, Dict, List
 from safetensors import safe_open
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
+import wandb
 
 
 # ===== chat template =====
@@ -156,6 +157,11 @@ class StaticEvalRecorder:
                 for name, value in mean_metrics.items():
                     self.writer.add_scalar(name, value, global_step=self.metric_counts[name])
 
+            # Log to wandb
+            if wandb.run is not None:
+                mean_metrics = self.get_mean_metrics()
+                step = sum(self.metric_counts.values()) // len(self.metric_counts)
+                wandb.log({f"eval/{name}": value for name, value in mean_metrics.items()}, step=step)
 
     def get_mean_metrics(self) -> Dict[str, float]:
         return {
@@ -177,6 +183,11 @@ class StaticEvalRecorder:
             mean_metrics = self.get_mean_metrics()
             for name, value in mean_metrics.items():
                 self.writer.add_scalar(name + "_final", value, global_step=self.metric_counts[name])
+
+        # Log final metrics to wandb
+        if wandb.run is not None:
+            wandb.log({f"eval/{name}_final": value for name, value in mean_metrics.items()})
+            wandb.summary.update({f"eval/{name}": value for name, value in mean_metrics.items()})
 
 
 @dataclass
@@ -228,6 +239,10 @@ class DynamicEvalRecorder:
         if self.writer is not None:
             self.writer.add_scalar("reward/avg", avg_reward, self._count)
 
+        # Log to wandb
+        if wandb.run is not None:
+            wandb.log({"eval/avg_reward": avg_reward}, step=self._count)
+
         # Log summary info
         self.logger.info(f"Recorded {len(conversations)} items, avg_reward={avg_reward:.4f}")
 
@@ -246,6 +261,11 @@ class DynamicEvalRecorder:
         if self.writer:
             self.writer.add_scalar("ave_reward_final", avg_reward, global_step=self._count)
 
+        # Log final metrics to wandb
+        if wandb.run is not None:
+            wandb.log({"eval/avg_reward_final": avg_reward})
+            wandb.summary.update({"eval/avg_reward": avg_reward})
+
 
 # --- helper functions ---
 def create_tensorboard(save_dir: str):
@@ -256,4 +276,34 @@ def create_tensorboard(save_dir: str):
 def remove_trainer_checkpoints(trainer_output_dir):
     ckpt_paths = glob.glob(os.path.join(trainer_output_dir, "checkpoint-*"))
     for ckpt in ckpt_paths:
-        shutil.rmtree(ckpt, ignore_errors=True)    
+        shutil.rmtree(ckpt, ignore_errors=True)
+
+
+def init_wandb(save_dir: str, project: str = None, name: str = None):
+    """Initialize wandb run (only on main process).
+
+    Args:
+        save_dir: Directory to save wandb logs
+        project: Wandb project name (defaults to WANDB_PROJECT env var or "memgen")
+        name: Run name (defaults to WANDB_RUN_NAME env var or directory basename)
+
+    Returns:
+        wandb.Run or None if not on main process
+    """
+    # Only initialize on main process (rank 0)
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    if local_rank != 0:
+        return None
+
+    project = project or os.environ.get("WANDB_PROJECT", "memgen")
+    entity = os.environ.get("WANDB_ENTITY", None)
+    run_name = name or os.environ.get("WANDB_RUN_NAME") or os.path.basename(save_dir)
+
+    wandb.init(
+        project=project,
+        entity=entity,
+        name=run_name,
+        dir=save_dir,
+        resume="allow"
+    )
+    return wandb.run
