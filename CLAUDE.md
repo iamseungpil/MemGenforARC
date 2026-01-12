@@ -69,6 +69,142 @@ ltpo 브랜치에서 원본 master 대비 변경되었던 부분을 복원한 �
 - **원본**: `mixed_precision: 'no'` (full precision)
 - **수정**: `mixed_precision: 'no'`로 복원
 
+### 8. temperature 버그 수정 (`modeling_memgen.py`) (2026-01-09)
+- **문제**: `generate()` 루프에서 temperature 처리 시 falsy 값 버그
+- **원인**: Python에서 `0.0`은 falsy 값이므로 `if temperature else 1.0`에서 `temperature=0.0` → `1.0`으로 변환됨
+- **증상**: 평가 시 `temperature=0.0` (greedy decoding) 설정에도 `temperature=1.0` (sampling) 사용됨
+- **영향 범위**:
+  - Vanilla 평가: 영향 없음 (별도 경로 사용)
+  - Weaver/Trigger/LTPO 평가: **영향** (sampling 모드로 실행됨)
+  - 학습 (SFT/GRPO): 영향 없음 (temperature=1.0 사용)
+- **원본 (Master)**: `do_sample=False, temperature=0.0` (Line 689-690 하드코딩)
+- **수정**: Master 방식으로 복원 - `do_sample=False, temperature=0.0` 하드코딩
+
+```python
+# 수정 전 (버그)
+do_sample=generation_config.do_sample,
+temperature=generation_config.temperature if generation_config.temperature else 1.0
+
+# 수정 후 (Master 방식)
+do_sample=False,
+temperature=0.0
+```
+
+### 9. SmolLM3 generation_config 오버라이드 문제 (2026-01-10)
+- **문제**: SmolLM3 모델이 `generation_config` 기본값을 강제로 덮어씀
+- **증상**: 로그에 다음 경고 발생:
+  ```
+  `generation_config` default values have been modified to match model-specific defaults:
+  {'do_sample': True, 'temperature': 0.6, 'top_p': 0.95}
+  ```
+- **원인**: SmolLM3의 `model.generation_config`에 기본값이 설정되어 있음
+
+**해결**: 8번의 Master 방식 하드코딩으로 해결됨
+- `_append_one_step()` 호출 시 `do_sample=False, temperature=0.0` 하드코딩
+- `generation_config` 값을 사용하지 않으므로 SmolLM3 오버라이드 영향 없음
+- 추가 수정 불필요
+
+### 10. LoRA adapter 로딩 버그 수정 (`modeling_memgen.py`) (2026-01-10)
+- **문제**: `_load_pretrained_weaver()` 메서드가 LoRA 가중치를 로드하지 못함
+- **증상**: "Loaded 0 weaver adapter weights from checkpoint" 로그 출력
+- **원인**: PEFT adapter 파일의 키 형식(`base_model.model.model.layers...`)과 모델 state_dict 키가 불일치
+- **영향**:
+  - Weaver 평가 시 학습된 LoRA 가중치 미적용 → ~37% 정확도 (vanilla와 동일)
+  - 수정 후 → **67.50%** 정확도 (정상)
+- **수정**: PEFT의 `set_peft_model_state_dict()` 함수 사용, 올바른 adapter 이름 지정
+
+```python
+# 수정 전 (키 불일치로 0개 로드)
+weaver_state = self.weaver.model.state_dict()
+for key, value in pretrained_weights.items():
+    if key in weaver_state:
+        weaver_state[key] = value
+self.weaver.model.load_state_dict(weaver_state, strict=True)
+
+# 수정 후 (144개 로드 성공)
+from peft import set_peft_model_state_dict
+set_peft_model_state_dict(self.weaver.model, pretrained_weights, adapter_name="weaver")
+```
+
+- **주의**: adapter 이름은 `"weaver"` 또는 `"trigger"` (PEFT 모델 생성 시 지정된 이름)
+- **동일 수정**: `_load_pretrained_trigger()` 메서드에도 동일 방식 적용
+
+### 11. LTPO confidence 계산 범위 수정 (`memgen_ltpo.py`) (2026-01-12)
+- **문제**: confidence 계산 시 `range(latent_start_idx, latent_end_idx + 1)` 사용
+- **원인**: 원본 LTPO는 special tokens 뒤에 `gen_prompt` 토큰이 있어서 +1 위치까지 포함
+  - 원본 구조: `[prompt] [special tokens] [gen_prompt]` → `thought_idx[1]` 위치에 실제 토큰 존재
+  - MemGen 구조: `[prompt] [latent tokens]` → latent가 sequence 끝, 다음 토큰 없음
+- **증상**:
+  - `latent_end_idx + 1 = seq_len + 1`로 sequence 범위 초과
+  - boundary check로 마지막 iteration 스킵되지만, `num_tokens`는 `n+1`로 계산
+  - 실제 합산은 `n`개인데 `n+1`로 나눔 → **confidence 과소평가**
+- **수정**: latent positions만 계산하도록 변경
+
+```python
+# 수정 전 (버그)
+for idx in range(latent_start_idx, latent_end_idx + 1):
+    if idx < probs.shape[0]:
+        topk = torch.topk(probs[idx], k=self.top_k, largest=True)[0]
+        confidence -= torch.sum(torch.log(topk + 1e-10)) / self.top_k
+num_tokens = latent_end_idx - latent_start_idx + 1
+
+# 수정 후 (올바름)
+for idx in range(latent_start_idx, latent_end_idx):
+    topk = torch.topk(probs[idx], k=self.top_k, largest=True)[0]
+    confidence -= torch.sum(torch.log(topk + 1e-10)) / self.top_k
+num_tokens = latent_end_idx - latent_start_idx
+```
+
+- **핵심 차이**: 원본 LTPO는 `gen_prompt` 첫 토큰 예측까지 포함, MemGen은 latent만
+
+---
+
+## 🚨 학습 시 반드시 accelerate launch 사용 (2025-01-08)
+
+### 문제 상황
+직접 `python main.py`로 학습 실행 시 체크포인트 저장에서 크래시 발생:
+```
+RuntimeError: The weights trying to be saved contained shared tensors
+[{'trigger.model.base_model.model.model.embed_tokens.weight',
+  'reasoner.model.embed_tokens.weight',
+  'weaver.model.base_model.model.model.embed_tokens.weight'}, ...]
+```
+
+### 원인
+- MemGen은 `reasoner`, `weaver`, `trigger`가 동일한 base model 가중치를 **공유**
+- HuggingFace Trainer의 기본 `save_pretrained`는 shared tensors를 처리하지 못함
+- DeepSpeed ZeRO-2와 함께 `accelerate launch`를 사용해야 올바르게 저장됨
+
+### 올바른 실행 방법
+
+**✅ 올바름 (accelerate launch 사용):**
+```bash
+python -m accelerate.commands.launch \
+    --config_file=configs/zero2.yaml \
+    --num_processes=1 \
+    main.py \
+    --cfg-path configs/latent_memory/<dataset>.yaml \
+    --options ...
+```
+
+**❌ 잘못됨 (직접 python 실행):**
+```bash
+python main.py --cfg-path configs/latent_memory/<dataset>.yaml --options ...
+```
+
+### 단일 GPU 사용 시에도 accelerate 필수
+```bash
+# GPU 0만 사용하더라도 accelerate launch 필요
+CUDA_VISIBLE_DEVICES=0 python -m accelerate.commands.launch \
+    --config_file=configs/zero2.yaml \
+    --num_processes=1 \
+    main.py ...
+```
+
+### 평가(evaluate)는 직접 실행 가능
+- 평가 모드에서는 체크포인트 저장이 없으므로 직접 `python main.py` 사용 가능
+- 하지만 일관성을 위해 `accelerate launch` 권장
+
 ## Common Commands
 
 ### Environment Setup
@@ -693,3 +829,48 @@ LOAD_TRIGGER_PATH="/path/to/trigger_lora"
 | Noise 적용 | `ltpo/memgen_ltpo.py:157-163` |
 | GRPO reward | `memgen/trainer/weaver_grpo_trainer.py:186-241` |
 | Binary reward | `data/arc/env.py:107-116` |
+
+---
+
+## ✅ 의도된 설계 결정사항 (오류 아님) (2025-01-08)
+
+코드 리뷰 시 오류로 잡지 않아야 하는 master branch 설계 결정사항:
+
+### 1. GSM8KEnv.compute_reward() 시그니처
+**파일:** `data/gsm8k/env.py:10`
+
+```python
+@classmethod
+def compute_reward(cls, completions: list[str], solution: list[str], **kwargs) -> list[float]:
+```
+
+- **의도**: `prompts` 파라미터는 `**kwargs`로 전달되어 무시됨
+- **이유**: GSM8K는 completion과 solution만으로 reward 계산 가능
+- **상태**: master branch와 동일 (변경 불필요)
+- **참고**: GRPO trainer에서 `prompts`를 전달해도 kwargs에서 무시되므로 정상 작동
+
+### 2. LTPO logits 인덱싱 (batch_size=1 가정)
+**파일:** `ltpo/memgen_ltpo.py:96`
+
+```python
+logits = outputs.logits[0]  # 첫 번째 샘플만 사용
+```
+
+- **의도**: LTPO 최적화는 샘플당 개별 실행 (batch_size=1)
+- **이유**: 각 샘플마다 latent를 독립적으로 최적화하므로 batch 처리 불필요
+- **상태**: ltpo_sub 브랜치에서 새로 작성된 파일 (master에 없음)
+- **주의**: batch_size > 1 사용 시 수정 필요 (현재는 해당 없음)
+
+### 3. KodCode 데이터셋 크기
+- **문제 수**: 10,000개
+- **파일**: `data/kodcode/builder.py`
+
+### 코드 리뷰 체크리스트
+
+| 항목 | 상태 | 설명 |
+|------|------|------|
+| GSM8KEnv prompts kwargs | ✅ 정상 | 의도된 설계 |
+| LTPO batch_size=1 | ✅ 정상 | 의도된 설계 |
+| float32 dtype | ✅ 복원됨 | CLAUDE.md 1-7번 항목 |
+| is_grpo 플래그 | ✅ 삭제됨 | CLAUDE.md 2번 항목 |
+| _grpo_forward | ✅ 삭제됨 | CLAUDE.md 1번 항목 |

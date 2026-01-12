@@ -96,13 +96,13 @@ class MemGenLTPOOptimizer(nn.Module):
         logits = outputs.logits[0]  # (seq_len, vocab_size)
         probs = torch.softmax(logits, dim=-1)
 
-        # Compute confidence over latent positions
-        # Note: latent_end_idx is exclusive (Python slicing convention)
+        # Compute confidence over latent positions only
+        # NOTE: Unlike original LTPO which includes +1 position (gen_prompt token after latents),
+        # MemGen has latents at sequence end with no following tokens, so we only use latent positions.
         confidence = 0.0
         for idx in range(latent_start_idx, latent_end_idx):
-            if idx < probs.shape[0]:
-                topk = torch.topk(probs[idx], k=self.top_k, largest=True)[0]
-                confidence -= torch.sum(torch.log(topk + 1e-10)) / self.top_k
+            topk = torch.topk(probs[idx], k=self.top_k, largest=True)[0]
+            confidence -= torch.sum(torch.log(topk + 1e-10)) / self.top_k
 
         num_tokens = latent_end_idx - latent_start_idx
         return confidence / max(num_tokens, 1)  # Prevent division by zero
@@ -154,12 +154,14 @@ class MemGenLTPOOptimizer(nn.Module):
             if self.use_auto_grad:
                 optimizer.zero_grad()
 
-            # Add exploration noise
+            # Add exploration noise (match dtype to avoid precision issues)
             epsilon = torch.normal(
                 mean=0.0,
                 std=sigma,
-                size=thought_hidden_states.shape
-            ).to(device)
+                size=thought_hidden_states.shape,
+                dtype=thought_hidden_states.dtype,
+                device=device,
+            )
             candidate_latents = thought_hidden_states + epsilon
 
             # Compute reward (confidence)
