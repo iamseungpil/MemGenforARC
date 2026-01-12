@@ -686,8 +686,8 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                 current_attention_mask,
                 current_position_ids,
                 current_input_ids,
-                do_sample=generation_config.do_sample,
-                temperature=generation_config.temperature if generation_config.temperature else 1.0
+                do_sample=False,
+                temperature=0.0
             )
             current_cache = outputs.past_key_values
 
