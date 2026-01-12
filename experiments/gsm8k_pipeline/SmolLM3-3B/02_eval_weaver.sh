@@ -19,7 +19,7 @@ export WANDB_ENTITY="gistdslab"
 export WANDB_PROJECT="memgen_ltpo"
 export DEBUG_MODE=true
 export LOG_PATH="./logs/02_eval_weaver.log"
-export CUDA_VISIBLE_DEVICES=0,1  # Use 2 GPUs (A100 40GB x2)
+export CUDA_VISIBLE_DEVICES=0  # Use 1 GPU
 export MAIN_PROCESS_PORT=29507
 export NCCL_DEBUG=INFO
 export NCCL_IB_DISABLE=1
@@ -87,12 +87,12 @@ echo "============================================"
 
 python -m accelerate.commands.launch \
     --config_file=configs/zero2.yaml \
-    --num_processes=2 \
+    --num_processes=1 \
     main.py \
     --cfg-path configs/latent_memory/${DATASET_NAME}.yaml \
     --options \
     model.model_name ${MODEL_NAME} \
-    model.load_weaver_path ${LOAD_WEAVER_PATH} \
+    model.load_model_path ${LOAD_WEAVER_PATH} \
     model.max_prompt_aug_num ${MAX_PROMPT_AUG_NUM} \
     model.max_inference_aug_num ${MAX_INFERENCE_AUG_NUM} \
     model.weaver.model_name ${MODEL_NAME} \

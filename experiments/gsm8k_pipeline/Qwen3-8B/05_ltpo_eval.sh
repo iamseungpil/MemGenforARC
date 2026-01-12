@@ -22,7 +22,7 @@ export WANDB_ENTITY="gistdslab"
 export WANDB_PROJECT="memgen_ltpo"
 export DEBUG_MODE=true
 export LOG_PATH="./logs/05_ltpo_eval.log"
-export CUDA_VISIBLE_DEVICES=0,1  # Use 2 GPUs (A100 40GB x2)
+export CUDA_VISIBLE_DEVICES=0  # Use 1 GPU
 export MAIN_PROCESS_PORT=29507
 export NCCL_DEBUG=INFO
 export NCCL_IB_DISABLE=1
@@ -111,7 +111,7 @@ LTPO_USE_AUTO_GRAD=true
 LTPO_VERBOSE=false  # Set to true for debugging
 
 # Evaluation configs
-BATCH_SIZE=4
+BATCH_SIZE=1
 TEMPERATURE=0.0
 
 # ============================================================================
@@ -137,7 +137,7 @@ echo "============================================"
 # Build the command with conditional checkpoint loading
 CMD="python -m accelerate.commands.launch \
     --config_file=configs/zero2.yaml \
-    --num_processes=2 \
+    --num_processes=1 \
     main.py \
     --cfg-path configs/latent_memory/${DATASET_NAME}.yaml \
     --options \

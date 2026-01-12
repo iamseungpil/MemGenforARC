@@ -22,8 +22,8 @@ export WANDB_ENTITY="gistdslab"
 export WANDB_PROJECT="memgen_ltpo"
 export DEBUG_MODE=true
 export LOG_PATH="./logs/05_ltpo_eval.log"
-export CUDA_VISIBLE_DEVICES=0,1  # Use 2 GPUs (A100 40GB x2)
-export MAIN_PROCESS_PORT=29507
+export CUDA_VISIBLE_DEVICES=1  # Use 1 GPU
+export MAIN_PROCESS_PORT=29508
 export NCCL_DEBUG=INFO
 export NCCL_IB_DISABLE=1
 export NCCL_P2P_DISABLE=1
@@ -65,7 +65,7 @@ if [ -n "$2" ]; then
         LOAD_TRIGGER_PATH="$2"
     fi
 else
-    LOAD_TRIGGER_PATH=$(find_latest_trigger_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}")
+    LOAD_TRIGGER_PATH=$(find_latest_trigger_checkpoint "${DATASET_NAME}" "${MODEL_NAME_SAFE}" || true)
 fi
 
 echo "============================================"
@@ -142,7 +142,7 @@ echo "============================================"
 # Build the command with conditional checkpoint loading
 CMD="python -m accelerate.commands.launch \
     --config_file=configs/zero2.yaml \
-    --num_processes=2 \
+    --num_processes=1 \
     main.py \
     --cfg-path configs/latent_memory/${DATASET_NAME}.yaml \
     --options \
@@ -169,14 +169,9 @@ CMD="python -m accelerate.commands.launch \
     run.interaction.temperature ${TEMPERATURE} \
     run.interaction.max_response_length 1024"
 
-# Add weaver path if available
+# Add model path if available (Master style - full model checkpoint)
 if [ -n "$LOAD_WEAVER_PATH" ]; then
-    CMD="${CMD} model.load_weaver_path ${LOAD_WEAVER_PATH}"
-fi
-
-# Add trigger path if available
-if [ -n "$LOAD_TRIGGER_PATH" ]; then
-    CMD="${CMD} model.load_trigger_path ${LOAD_TRIGGER_PATH}"
+    CMD="${CMD} model.load_model_path ${LOAD_WEAVER_PATH}"
 fi
 
 # Execute

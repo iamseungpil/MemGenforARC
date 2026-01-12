@@ -178,50 +178,13 @@ class MemGenRunner:
         self.model.open_component("weaver")
         log_trainable_params(self.model)
 
-        # Enable gradient checkpointing to save memory
-        # This trades compute for memory by recomputing activations during backward pass
-        if hasattr(self.model.reasoner, 'gradient_checkpointing_enable'):
-            self.model.reasoner.gradient_checkpointing_enable()
-            logging.info("Gradient checkpointing enabled for reasoner")
-        if hasattr(self.model.weaver.model, 'gradient_checkpointing_enable'):
-            self.model.weaver.model.gradient_checkpointing_enable()
-            logging.info("Gradient checkpointing enabled for weaver")
-
         # train weaver
         weaver_trainer = self._create_weaver_trainer()
         weaver_trainer.train()
+        weaver_trainer.save_model()   # save the best model
 
-        # Save weaver LoRA weights only (avoid shared tensor issues with full model save)
+        # remove checkpoints and save weaver
         output_dir = weaver_trainer.args.output_dir
-        os.makedirs(output_dir, exist_ok=True)
-
-        try:
-            # Try to save the weaver LoRA adapter separately
-            weaver_lora_path = os.path.join(output_dir, "weaver_lora")
-            if hasattr(self.model.weaver.model, 'save_pretrained'):
-                self.model.weaver.model.save_pretrained(weaver_lora_path, safe_serialization=False)
-                logging.info(f"Saved weaver LoRA to {weaver_lora_path}")
-
-            # Also save projection layers
-            import torch
-            proj_path = os.path.join(output_dir, "projections.pt")
-            torch.save({
-                'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
-                'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
-                'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
-                'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
-            }, proj_path)
-            logging.info(f"Saved projections to {proj_path}")
-        except Exception as e:
-            logging.warning(f"Failed to save weaver separately: {e}")
-            # Fallback: try full model save with safe_serialization=False
-            try:
-                weaver_trainer.model.save_pretrained(output_dir, safe_serialization=False)
-                logging.info(f"Saved full model to {output_dir} with safe_serialization=False")
-            except Exception as e2:
-                logging.error(f"Failed to save model: {e2}")
-
-        # remove checkpoints
         remove_trainer_checkpoints(output_dir)
     
     
@@ -253,57 +216,11 @@ class MemGenRunner:
         # train trigger
         trigger_trainer = self._create_trigger_trainer()
         trigger_trainer.train()
+        trigger_trainer.save_model()     # save the best model
 
-        # Save trigger LoRA weights
+        # remove checkpoints and save weaver
         output_dir = trigger_trainer.args.output_dir
-        os.makedirs(output_dir, exist_ok=True)
-
-        try:
-            # Save trigger LoRA adapter
-            trigger_lora_path = os.path.join(output_dir, "trigger_lora")
-            if hasattr(self.model.trigger.model, 'save_pretrained'):
-                self.model.trigger.model.save_pretrained(trigger_lora_path, safe_serialization=False)
-                logging.info(f"Saved trigger LoRA to {trigger_lora_path}")
-        except Exception as e:
-            logging.warning(f"Failed to save trigger separately: {e}")
-            # Fallback: use trainer's save_model
-            trigger_trainer.save_model()
-
-        # Also save weaver (required for Phase 4, 5 to load both components)
-        self._save_weaver_checkpoint(output_dir)
-
-        # remove checkpoints
         remove_trainer_checkpoints(output_dir)
-
-    def _save_weaver_checkpoint(self, output_dir: str):
-        """
-        Save weaver LoRA weights and projection layers to output_dir.
-
-        This is called both after weaver training and after trigger training,
-        so that the trigger checkpoint directory also contains the weaver weights
-        needed for evaluation.
-
-        Args:
-            output_dir: Directory to save weaver checkpoint
-        """
-        try:
-            # Save weaver LoRA adapter
-            weaver_lora_path = os.path.join(output_dir, "weaver_lora")
-            if hasattr(self.model.weaver.model, 'save_pretrained'):
-                self.model.weaver.model.save_pretrained(weaver_lora_path, safe_serialization=False)
-                logging.info(f"Saved weaver LoRA to {weaver_lora_path}")
-
-            # Save projection layers and query latents
-            proj_path = os.path.join(output_dir, "projections.pt")
-            torch.save({
-                'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
-                'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
-                'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
-                'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
-            }, proj_path)
-            logging.info(f"Saved projections to {proj_path}")
-        except Exception as e:
-            logging.warning(f"Failed to save weaver checkpoint: {e}")
 
     
     # ===== train weaver/trigger =====
