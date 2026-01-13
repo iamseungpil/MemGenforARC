@@ -40,6 +40,7 @@ class MemGenLTPOOptimizer(nn.Module):
         reward_threshold: float = -1.0,
         top_k: int = 10,
         use_auto_grad: bool = True,
+        last_position_only: bool = True,  # Default True: only compute confidence at last latent position (vocab token prediction)
     ):
         """
         Args:
@@ -51,6 +52,9 @@ class MemGenLTPOOptimizer(nn.Module):
             reward_threshold: Early stopping threshold (if > 0)
             top_k: Number of top tokens for confidence calculation
             use_auto_grad: If True, use PyTorch autograd; else use REINFORCE
+            last_position_only: If True, compute confidence only at last latent position
+                               (predicting the first token after latents). This provides
+                               a cleaner optimization signal focused on generation readiness.
         """
         super().__init__()
         self.model = model
@@ -61,6 +65,7 @@ class MemGenLTPOOptimizer(nn.Module):
         self.reward_threshold = reward_threshold
         self.top_k = top_k
         self.use_auto_grad = use_auto_grad
+        self.last_position_only = last_position_only
 
     def compute_confidence(
         self,
@@ -96,16 +101,26 @@ class MemGenLTPOOptimizer(nn.Module):
         logits = outputs.logits[0]  # (seq_len, vocab_size)
         probs = torch.softmax(logits, dim=-1)
 
-        # Compute confidence over latent positions only
-        # NOTE: Unlike original LTPO which includes +1 position (gen_prompt token after latents),
-        # MemGen has latents at sequence end with no following tokens, so we only use latent positions.
-        confidence = 0.0
-        for idx in range(latent_start_idx, latent_end_idx):
-            topk = torch.topk(probs[idx], k=self.top_k, largest=True)[0]
-            confidence -= torch.sum(torch.log(topk + 1e-10)) / self.top_k
+        # Compute confidence based on mode
+        if self.last_position_only:
+            # NEW: Only use last latent position (predicts first token after latents)
+            # This provides cleaner optimization signal - all latents contribute via attention
+            # to predict the generation start token, avoiding "moving target" problem.
+            last_idx = latent_end_idx - 1
+            topk = torch.topk(probs[last_idx], k=self.top_k, largest=True)[0]
+            confidence = -torch.sum(torch.log(topk + 1e-10)) / self.top_k
+        else:
+            # Original: Average confidence over all latent positions
+            # NOTE: Unlike original LTPO which includes +1 position (gen_prompt token after latents),
+            # MemGen has latents at sequence end with no following tokens, so we only use latent positions.
+            confidence = 0.0
+            for idx in range(latent_start_idx, latent_end_idx):
+                topk = torch.topk(probs[idx], k=self.top_k, largest=True)[0]
+                confidence -= torch.sum(torch.log(topk + 1e-10)) / self.top_k
+            num_tokens = latent_end_idx - latent_start_idx
+            confidence = confidence / max(num_tokens, 1)  # Prevent division by zero
 
-        num_tokens = latent_end_idx - latent_start_idx
-        return confidence / max(num_tokens, 1)  # Prevent division by zero
+        return confidence
 
     def optimize(
         self,
