@@ -1,0 +1,112 @@
+Bootstrap: docker
+From: nvidia/cuda:12.8.0-devel-ubuntu22.04
+
+%labels
+    Author MemGen Reproduce
+    Version 1.0
+    Description Singularity container for MemGen GSM8K reproduction (PyTorch 2.7.1, CUDA 12.8)
+
+%post
+    # Set non-interactive mode
+    export DEBIAN_FRONTEND=noninteractive
+
+    # Update and install basic dependencies
+    apt-get update && apt-get install -y \
+        wget \
+        curl \
+        git \
+        vim \
+        bzip2 \
+        ca-certificates \
+        build-essential \
+        && rm -rf /var/lib/apt/lists/*
+
+    # Install Miniconda
+    wget https://repo.anaconda.com/miniconda/Miniconda3-py311_24.9.2-0-Linux-x86_64.sh -O /tmp/miniconda.sh
+    bash /tmp/miniconda.sh -b -p /opt/conda
+    rm /tmp/miniconda.sh
+
+    # Initialize conda
+    . /opt/conda/etc/profile.d/conda.sh
+    conda init bash
+
+    # Create memgen environment with Python 3.11
+    conda create -n memgen python=3.11 -y
+    conda activate memgen
+
+    # Install PyTorch with CUDA 12.8
+    pip install torch==2.7.1 --index-url https://download.pytorch.org/whl/cu128
+
+    # Install core ML packages
+    pip install \
+        transformers==4.55.4 \
+        peft==0.17.1 \
+        trl==0.21.0 \
+        accelerate==1.10.1 \
+        datasets==4.0.0 \
+        huggingface-hub==0.36.0 \
+        tokenizers==0.21.4 \
+        safetensors==0.7.0
+
+    # Install DeepSpeed
+    pip install deepspeed==0.18.3
+
+    # Install Flash Attention (requires CUDA)
+    pip install flash-attn==2.8.3 --no-build-isolation
+
+    # Install other dependencies
+    pip install \
+        wandb==0.23.0 \
+        omegaconf==2.3.0 \
+        einops==0.8.1 \
+        sentencepiece==0.2.1 \
+        pandas==2.3.3 \
+        numpy==2.3.5 \
+        scipy \
+        scikit-learn \
+        tensorboard==2.20.0 \
+        tqdm==4.67.1 \
+        pyyaml==6.0.3 \
+        rich==11.2.0 \
+        prettytable==3.17.0 \
+        antlr4-python3-runtime==4.9.3 \
+        fastnlp==1.0.1 \
+        triton==3.3.1
+
+    # Clean up
+    conda clean -afy
+    pip cache purge
+
+%environment
+    export PATH=/opt/conda/bin:$PATH
+    export CONDA_DEFAULT_ENV=memgen
+    export CUDA_HOME=/usr/local/cuda
+    export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
+    # Activate conda environment
+    . /opt/conda/etc/profile.d/conda.sh
+    conda activate memgen
+
+%runscript
+    exec /bin/bash -c "source /opt/conda/etc/profile.d/conda.sh && conda activate memgen && $@"
+
+%help
+    MemGen GSM8K Reproduction Container
+
+    This container provides the environment for reproducing MemGen paper results on GSM8K.
+
+    Key packages:
+    - PyTorch 2.7.1 with CUDA 12.8
+    - Transformers 4.55.4
+    - PEFT 0.17.1
+    - TRL 0.21.0
+    - DeepSpeed 0.18.3
+    - Flash Attention 2.8.3
+    - WandB 0.23.0
+
+    Usage:
+    1. Build: singularity build memgen.sif memgen.def
+    2. Shell: singularity shell --nv memgen.sif
+    3. Exec:  singularity exec --nv memgen.sif python main.py
+
+    Note: Use --nv flag to enable GPU support
