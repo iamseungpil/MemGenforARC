@@ -89,12 +89,29 @@ def main():
         working_dir=working_dir
     )
 
-    # train or evaluate 
+    # train or evaluate
     if config.run_cfg.mode == "train":
         runner.train()
-    
+
     elif config.run_cfg.mode == "evaluate":
         runner.evaluate()
+
+    elif config.run_cfg.mode == "evaluate_ltpo":
+        from ltpo import LTPOConfig
+        ltpo_cfg = config.run_cfg.get("ltpo", {})
+        ltpo_config = LTPOConfig(
+            enabled=ltpo_cfg.get("enabled", True),
+            lr=ltpo_cfg.get("lr", 0.03),
+            sigma=ltpo_cfg.get("sigma", 0.1),
+            sigma_decay=ltpo_cfg.get("sigma_decay", 0.99),
+            max_steps=ltpo_cfg.get("max_steps", 10),
+            reward_threshold=ltpo_cfg.get("reward_threshold", -1),
+            top_k=ltpo_cfg.get("top_k", 10),
+            use_auto_grad=ltpo_cfg.get("use_auto_grad", True),
+            disable_best_reward=ltpo_cfg.get("disable_best_reward", False),
+            verbose=ltpo_cfg.get("verbose", 1),
+        )
+        runner.evaluate_with_ltpo(ltpo_config)
 
 if __name__ == "__main__":
     main()

@@ -22,6 +22,7 @@ from interactions.singleturn_interaction import SingleTurnInteractionManager
 from interactions.multiturn_interaction import MultiTurnInteractionManager
 
 from memgen.model.modeling_memgen import MemGenModel
+from ltpo import LTPOConfig
 from memgen.trainer.weaver_grpo_trainer import WeaverGRPOTrainer
 from memgen.trainer.trigger_grpo_trainer import TriggerGRPOTrainer
 from memgen.utils import (
@@ -330,6 +331,85 @@ class MemGenRunner:
         recorder.finalize()
         writer.close()
 
+    def evaluate_with_ltpo(self, ltpo_config: LTPOConfig = None):
+        """
+        LTPO 최적화를 적용한 평가 - LTPO_INTEGRATION_PLAN.md 기반
+
+        Static 환경만 지원 (결정 #4: batch_size=1)
+        """
+        if ltpo_config is None:
+            ltpo_config = LTPOConfig(enabled=True)
+
+        self.model = self.model.to(torch.bfloat16)
+        self.model.fix_component("weaver")
+        self.model.fix_component("trigger")
+
+        if self.env.ENV_CARD != "STATIC":
+            raise ValueError("LTPO evaluation only supports STATIC environments")
+
+        return self._static_evaluate_with_ltpo(ltpo_config)
+
+    def _static_evaluate_with_ltpo(self, ltpo_config: LTPOConfig):
+        """LTPO를 적용한 Static 평가"""
+        from transformers import GenerationConfig
+
+        accelerator = Accelerator()
+        writer = create_tensorboard(save_dir=self.working_dir)
+        init_wandb(save_dir=self.working_dir)
+
+        output_dir = self.interaction_config.output_dir
+
+        # batch_size=1 강제 (결정 #4)
+        test_dataloader = accelerator.prepare(DataLoader(
+            dataset=self.test_dataset,
+            batch_size=1,
+            shuffle=False,
+            collate_fn=lambda batch: batch
+        ))
+
+        # prepare model
+        model_wrapped = accelerator.prepare_model(model=self.model, evaluation_mode=True)
+        model_wrapped.eval()
+
+        # construct eval recorder
+        test_funcs = [self.env_cls.compute_reward]
+        save_file = os.path.join(output_dir, "answer_ltpo.json")
+        recorder = StaticEvalRecorder(compute_metrics=test_funcs, writer=writer, log_file=save_file)
+
+        # generation config
+        gen_config = GenerationConfig(
+            max_new_tokens=self.interaction_config.max_new_tokens,
+            do_sample=False,
+            pad_token_id=self.processing_class.pad_token_id,
+            eos_token_id=self.processing_class.eos_token_id,
+        )
+
+        # batch generation with LTPO
+        for test_batch in tqdm(test_dataloader):
+            with unwrap_model_for_generation(
+                model_wrapped, accelerator
+            ) as unwrapped_model:
+                # 입력 준비
+                prompts = [x["prompt"] for x in test_batch]
+                prompt_inputs = self.processing_class(
+                    text=prompts, return_tensors="pt", padding=True, padding_side="left", add_special_tokens=True
+                )
+                prompt_ids = prompt_inputs["input_ids"].to(accelerator.device)
+                prompt_mask = prompt_inputs["attention_mask"].to(accelerator.device)
+
+                # LTPO 적용 생성
+                completion_ids = unwrapped_model.generate_with_ltpo(
+                    input_ids=prompt_ids,
+                    attention_mask=prompt_mask,
+                    generation_config=gen_config,
+                    ltpo_config=ltpo_config,
+                )
+
+                completions = self.processing_class.batch_decode(completion_ids, skip_special_tokens=True)
+
+            recorder.record_batch(completions, test_batch)
+        recorder.finalize()
+        writer.close()
 
     def _dynamic_evaluate(self):
         

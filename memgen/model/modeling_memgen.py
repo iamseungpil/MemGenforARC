@@ -24,6 +24,7 @@ from memgen.utils import (
     CONVERSATION_TEMPLATE,
     fix_model_parameters,
 )
+from ltpo import LTPOConfig, MemGenLTPOOptimizer
 
 class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin):
     config_class = MemGenConfig
@@ -545,7 +546,157 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             return (current_input_ids, augmentation_pos)
         else:
             return current_input_ids
-    
+
+    def generate_with_ltpo(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        generation_config: GenerationConfig,
+        ltpo_config: LTPOConfig,
+        **kwargs
+    ) -> torch.LongTensor:
+        """
+        LTPO 최적화를 적용한 생성 - LTPO_INTEGRATION_PLAN.md 기반
+
+        결정사항 반영:
+        - #5: Option B - Reasoner 공간에서 최적화 (weaver_to_reasoner 후)
+        - #7: Option A - 삽입 시점마다 독립적으로 최적화
+        - #8: Phase 1 - trigger 무시, 항상 augment
+        - #4: batch_size=1
+        """
+        tokenizer = self.tokenizer
+        reasoner = self.reasoner
+        weaver = self.weaver
+        max_augment_num = self.config.max_inference_aug_num
+
+        # LTPO optimizer 생성
+        ltpo_optimizer = MemGenLTPOOptimizer(ltpo_config)
+
+        # 입력 전처리
+        input_ids = input_ids.to(self.device)
+        attention_mask = attention_mask.to(self.device)
+        max_new_tokens = generation_config.max_new_tokens
+        eos_token_id = tokenizer.eos_token_id
+        prompt_len = input_ids.size(1)
+
+        inputs_embeds = reasoner.get_input_embeddings()(input_ids)
+        B, _, hidden_size = inputs_embeds.shape
+        device = inputs_embeds.device
+
+        # batch_size=1 확인 (결정 #4)
+        assert B == 1, "LTPO는 batch_size=1만 지원"
+
+        # 생성 루프 초기화
+        current_inputs_embeds = inputs_embeds
+        current_attention_mask = attention_mask
+        current_position_ids = self._generate_position_ids(current_attention_mask)
+        current_input_ids = input_ids
+        current_cache = None
+        augment_count = 0
+
+        for i in range(max_new_tokens):
+            # Phase 1: trigger 무시, 항상 augment (결정 #8)
+            should_augment = (i == 0) or (
+                augment_count < max_augment_num and
+                self._is_delimiter(current_input_ids[0, -1].item())
+            )
+
+            if should_augment:
+                if i != 0:
+                    augment_count += 1
+
+                # Weaver로 memory 생성
+                weaver_inputs_embeds = self.reasoner_to_weaver(current_inputs_embeds)
+                if i == 0:
+                    weaver_hidden_states, attn_mask, _ = weaver.augment_prompt(
+                        weaver_inputs_embeds, current_attention_mask, current_position_ids
+                    )
+                    latent_len = weaver.prompt_latents_num
+                else:
+                    weaver_hidden_states, attn_mask, _ = weaver.augment_inference(
+                        weaver_inputs_embeds, current_attention_mask, current_position_ids
+                    )
+                    latent_len = weaver.inference_latents_num
+
+                # Reasoner 공간으로 projection (결정 #5: Option B)
+                latent_inputs_embeds = self.weaver_to_reasoner(weaver_hidden_states)
+
+                # latent를 inputs에 concat
+                current_inputs_embeds = torch.cat([current_inputs_embeds, latent_inputs_embeds], dim=1)
+                current_attention_mask = torch.cat([current_attention_mask, attn_mask], dim=1)
+
+                # LTPO 최적화 (결정 #7: 삽입 시점마다)
+                latent_start_idx = current_inputs_embeds.size(1) - latent_len
+                latent_end_idx = current_inputs_embeds.size(1)
+
+                current_inputs_embeds = ltpo_optimizer.optimize(
+                    model=reasoner,
+                    inputs_embeds=current_inputs_embeds,
+                    attention_mask=current_attention_mask,
+                    latent_start_idx=latent_start_idx,
+                    latent_end_idx=latent_end_idx,
+                )
+
+                current_position_ids = self._generate_position_ids(current_attention_mask)
+                current_cache = None  # cache 무효화 (결정 #6)
+
+            # 최대 augment 도달 시 나머지 한번에 생성
+            if augment_count >= max_augment_num:
+                gen_config = GenerationConfig(
+                    do_sample=False,
+                    pad_token_id=tokenizer.pad_token_id,
+                    eos_token_id=eos_token_id,
+                    use_cache=False,
+                    max_new_tokens=max_new_tokens - i
+                )
+                generated = reasoner.generate(
+                    inputs_embeds=current_inputs_embeds,
+                    attention_mask=current_attention_mask,
+                    generation_config=gen_config
+                )
+                current_input_ids = torch.cat([current_input_ids, generated], dim=1)
+                break
+
+            # Reasoner forward
+            if current_cache is not None:
+                reasoner_inputs_embeds = current_inputs_embeds[:, -1:]
+                reasoner_position_ids = current_position_ids[:, -1:]
+            else:
+                reasoner_inputs_embeds = current_inputs_embeds
+                reasoner_position_ids = current_position_ids
+
+            outputs = reasoner(
+                inputs_embeds=reasoner_inputs_embeds,
+                attention_mask=current_attention_mask,
+                position_ids=reasoner_position_ids,
+                output_hidden_states=False,
+                use_cache=True,
+                past_key_values=current_cache
+            )
+
+            current_inputs_embeds, current_attention_mask, current_position_ids, current_input_ids = self._append_one_step(
+                outputs,
+                current_inputs_embeds,
+                current_attention_mask,
+                current_position_ids,
+                current_input_ids,
+                do_sample=False,
+                temperature=0.0
+            )
+            current_cache = outputs.past_key_values
+
+            if (current_input_ids[:, -1] == eos_token_id).all():
+                break
+
+            del outputs
+
+        return current_input_ids
+
+    def _is_delimiter(self, token_id: int) -> bool:
+        """토큰이 delimiter인지 확인"""
+        token = self.tokenizer.decode([token_id])
+        return any(d in token for d in self.delimiters)
+
     @classmethod
     def from_config(cls, config_dict: dict):
         # base LLM

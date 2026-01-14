@@ -170,3 +170,16 @@ run:
     do_sample: False
     temperature: 1.0
     batch_size: 8
+
+  # LTPO config for test-time optimization
+  ltpo:
+    enabled: false              # LTPO 활성화 여부
+    lr: 0.03                    # learning rate
+    sigma: 0.1                  # noise std
+    sigma_decay: 0.99           # noise decay per step
+    max_steps: 10               # 최대 최적화 스텝
+    reward_threshold: -1        # early stopping (-1 = disabled)
+    top_k: 10                   # confidence 계산용 top-k
+    use_auto_grad: true         # PyTorch autograd 사용 (OOM 시 false로)
+    disable_best_reward: false  # best step 결과 사용 여부
+    verbose: 1                  # 로깅 레벨
