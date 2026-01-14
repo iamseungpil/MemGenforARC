@@ -1,0 +1,133 @@
+# Gnosis Self-Awareness Module Configuration
+# Based on: "Can LLMs Predict Their Own Failures?" (arXiv:2512.20578)
+#
+# Usage:
+#   from gnosis.configs import load_config
+#   config = load_config("gnosis/configs/gnosis.yaml")
+
+# =============================================================================
+# Model Configuration
+# =============================================================================
+model:
+  # HuggingFace model ID or local path
+  name: Qwen/Qwen3-8B
+
+  # Model architecture parameters (auto-detected from model config)
+  hidden_size: 4096
+  num_layers: 32
+  num_heads: 32
+
+  # Precision and optimization
+  torch_dtype: bfloat16
+  attn_implementation: flash_attention_2
+
+# =============================================================================
+# Gnosis Head Configuration
+# =============================================================================
+gnosis:
+  # Feature extractor output dimensions
+  d_att: 256    # Attention feature dimension
+  d_hid: 256    # Hidden state feature dimension
+  d_conf: 128   # Confidence feature dimension
+
+  # Correctness head
+  d_fusion: 256        # Fusion layer dimension
+  attn_map_size: 32    # Fixed attention map size after resize
+  top_k: 10            # Top-k tokens for confidence features
+  pdrop: 0.1           # Dropout probability
+
+  # Layer selection for attention features
+  # null = use last 8 layers, or specify list like [24, 25, 26, 27, 28, 29, 30, 31]
+  selected_layers: null
+
+  # Stop decision threshold
+  # correctness_prob < threshold -> should_stop = True
+  stop_threshold: 0.5
+
+# =============================================================================
+# Training Configuration
+# =============================================================================
+training:
+  # Output directory for checkpoints and logs
+  output_dir: ./gnosis_output
+
+  # Training duration
+  num_train_epochs: 3
+
+  # Batch sizes
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 8
+
+  # Optimizer settings
+  learning_rate: 1.0e-4
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  max_grad_norm: 1.0
+
+  # Gradient accumulation
+  gradient_accumulation_steps: 1
+
+  # Logging and evaluation frequency
+  logging_steps: 10
+  eval_steps: 100
+  save_steps: 500
+
+  # Evaluation and saving strategies: "steps", "epoch", or "no"
+  eval_strategy: steps
+  save_strategy: steps
+
+  # Mixed precision training
+  fp16: false
+  bf16: true
+
+  # Loss configuration
+  # pos_weight > 1.0 gives more weight to positive (correct) samples
+  pos_weight: 1.0
+
+  # LLM backbone freezing (must be true for Gnosis training)
+  freeze_llm: true
+
+  # Best model selection
+  load_best_model_at_end: true
+  metric_for_best_model: eval_auroc
+  greater_is_better: true
+
+# =============================================================================
+# Data Configuration
+# =============================================================================
+data:
+  # Training data path (parquet or csv)
+  train_path: data/gnosis/Final/merged_balanced.parquet
+
+  # Evaluation data path (optional, uses eval_split from train if null)
+  eval_path: null
+
+  # Fraction of training data to use for evaluation (if eval_path is null)
+  eval_split: 0.1
+
+  # Task type for evaluation: "math", "trivia", or "mcq"
+  task: math
+
+  # Maximum sequence length
+  max_length: 2048
+
+  # Column names in dataset
+  text_column: completion
+  label_column: correctness_label
+
+# =============================================================================
+# Example Override Usage
+# =============================================================================
+# To override values from command line or code:
+#
+#   # Command line style (not directly supported, use load_config)
+#   config = load_config("gnosis.yaml", overrides={
+#       "training.learning_rate": 5e-5,
+#       "training.num_train_epochs": 5,
+#       "gnosis.d_att": 512,
+#   })
+#
+# Environment-specific configs can be created:
+#   - gnosis_debug.yaml: Small batch sizes, frequent logging
+#   - gnosis_production.yaml: Large batches, less logging
+#   - gnosis_ablation.yaml: Different feature configurations
