@@ -845,26 +845,29 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
 
         logging.info(f"Loading pre-trained weaver from: {weaver_path}")
 
-        # Load the pre-trained weights
-        pretrained_weights = torch.load(str(adapter_path), map_location='cpu')
-
-        # Get current weaver state dict
-        weaver_state = self.weaver.model.state_dict()
-
-        # Map pretrained weights to weaver state dict
+        # SKIP LoRA loading - the 0108 checkpoint's LoRA was trained with buggy code
+        # Only load projections + query_latents which achieved 88.96% accuracy
+        # TODO: Retrain LoRA with fixed code and re-enable this section
+        logging.info(f"Skipping LoRA adapter loading (trained with buggy code)")
         loaded_count = 0
-        for key, value in pretrained_weights.items():
-            if key in weaver_state:
-                if weaver_state[key].shape == value.shape:
-                    weaver_state[key] = value.to(weaver_state[key].dtype)
-                    loaded_count += 1
-                else:
-                    logging.warning(f"Shape mismatch for {key}: expected {weaver_state[key].shape}, got {value.shape}")
 
-        # Load the updated state dict
-        self.weaver.model.load_state_dict(weaver_state, strict=True)
+        # Original LoRA loading code (disabled):
+        # pretrained_weights = torch.load(str(adapter_path), map_location='cpu')
+        # weaver_state = self.weaver.model.state_dict()
+        # for key, value in pretrained_weights.items():
+        #     if key in weaver_state:
+        #         target_key = key
+        #     elif "lora_" in key and key.endswith(".weight"):
+        #         target_key = key.replace(".weight", ".weaver.weight")
+        #     else:
+        #         target_key = key
+        #     if target_key in weaver_state:
+        #         if weaver_state[target_key].shape == value.shape:
+        #             weaver_state[target_key] = value.to(weaver_state[target_key].dtype)
+        #             loaded_count += 1
+        # self.weaver.model.load_state_dict(weaver_state, strict=True)
 
-        logging.info(f"Loaded {loaded_count} weaver adapter weights from checkpoint")
+        logging.info(f"Loaded {loaded_count} weaver adapter weights from checkpoint (LoRA skipped)")
 
         # Load projections.pt (saved by runner.py)
         proj_path = Path(weaver_path).parent / "projections.pt"
@@ -902,14 +905,30 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         trigger_state = self.trigger.model.state_dict()
 
         # Map pretrained weights to trigger state dict
+        # PEFT adds adapter name to LoRA keys when using named adapters
+        # Saved: base_model.model.model.layers.X.self_attn.q_proj.lora_A.weight
+        # State: base_model.model.model.layers.X.self_attn.q_proj.lora_A.trigger.weight
+        # We need to transform saved keys by inserting ".trigger" before ".weight"
         loaded_count = 0
         for key, value in pretrained_weights.items():
+            # Try direct match first
             if key in trigger_state:
-                if trigger_state[key].shape == value.shape:
-                    trigger_state[key] = value.to(trigger_state[key].dtype)
+                target_key = key
+            # Transform key: insert ".trigger" before ".weight" for LoRA keys
+            elif "lora_" in key and key.endswith(".weight"):
+                # e.g., "...lora_A.weight" -> "...lora_A.trigger.weight"
+                target_key = key.replace(".weight", ".trigger.weight")
+            else:
+                target_key = key
+
+            if target_key in trigger_state:
+                if trigger_state[target_key].shape == value.shape:
+                    trigger_state[target_key] = value.to(trigger_state[target_key].dtype)
                     loaded_count += 1
                 else:
-                    logging.warning(f"Shape mismatch for {key}: expected {trigger_state[key].shape}, got {value.shape}")
+                    logging.warning(f"Shape mismatch for {target_key}: expected {trigger_state[target_key].shape}, got {value.shape}")
+            else:
+                logging.debug(f"Key not found in state_dict: {key} (transformed to: {target_key})")
 
         # Load the updated state dict
         self.trigger.model.load_state_dict(trigger_state, strict=True)

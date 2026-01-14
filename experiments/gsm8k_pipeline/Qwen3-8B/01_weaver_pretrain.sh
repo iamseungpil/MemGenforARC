@@ -16,10 +16,10 @@ source "${SCRIPT_DIR}/../common.sh"
 
 # Environment setup
 export WANDB_ENTITY="gistdslab"
-export WANDB_PROJECT="memgen_ltpo"
+export WANDB_PROJECT="memgen-check"
 export DEBUG_MODE=true
 export LOG_PATH="./logs/01_weaver_pretrain.log"
-export CUDA_VISIBLE_DEVICES=0,1  # Use 2 GPUs (A100 40GB x2)
+export CUDA_VISIBLE_DEVICES=0  # Use GPU 0 only (A100 40GB)
 export MAIN_PROCESS_PORT=29507
 export NCCL_DEBUG=INFO
 export NCCL_IB_DISABLE=1
@@ -73,7 +73,7 @@ echo "============================================"
 
 python -m accelerate.commands.launch \
     --config_file=configs/zero2.yaml \
-    --num_processes=2 \
+    --num_processes=1 \
     main.py \
     --cfg-path configs/latent_memory/${DATASET_NAME}.yaml \
     --options \

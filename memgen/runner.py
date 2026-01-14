@@ -181,11 +181,33 @@ class MemGenRunner:
         # train weaver
         weaver_trainer = self._create_weaver_trainer()
         weaver_trainer.train()
-        weaver_trainer.save_model()   # save the best model
+        weaver_trainer.save_model()   # save the best model (includes PEFT adapters)
 
-        # remove checkpoints and save weaver
+        # remove checkpoints and save weaver projections
         output_dir = weaver_trainer.args.output_dir
         remove_trainer_checkpoints(output_dir)
+
+        # Save projections and query_latents separately for load_weaver_path
+        self._save_weaver_projections(output_dir)
+
+    def _save_weaver_projections(self, output_dir: str):
+        """
+        Save weaver projections and query_latents to projections.pt
+
+        This is needed for load_weaver_path loading method.
+        The PEFT adapter is saved by trainer.save_model() to output_dir/weaver/
+        """
+        proj_path = os.path.join(output_dir, "projections.pt")
+
+        proj_data = {
+            'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
+            'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
+            'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
+            'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
+        }
+
+        torch.save(proj_data, proj_path)
+        logging.info(f"Saved weaver projections and query_latents to {proj_path}")
     
     
     # ===== train trigger =====
@@ -216,11 +238,12 @@ class MemGenRunner:
         # train trigger
         trigger_trainer = self._create_trigger_trainer()
         trigger_trainer.train()
-        trigger_trainer.save_model()     # save the best model
+        trigger_trainer.save_model()     # save the best model (PEFT adapter to output_dir/trigger/)
 
-        # remove checkpoints and save weaver
+        # remove checkpoints
         output_dir = trigger_trainer.args.output_dir
         remove_trainer_checkpoints(output_dir)
+        logging.info(f"Trigger adapter saved to {output_dir}/trigger/")
 
     
     # ===== train weaver/trigger =====

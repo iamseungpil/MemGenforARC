@@ -132,6 +132,76 @@ num_tokens = latent_end_idx - latent_start_idx
 
 - **핵심 차이**: 원본 LTPO는 `gen_prompt` 첫 토큰 예측까지 포함, MemGen은 latent만
 
+### 10-1. LTPO `last_position_only=True` 기본값 변경 (`memgen_ltpo.py`) (2026-01-13)
+- **문제**: 원본 수정(Section 10)만으로는 latent → latent 예측 confidence를 사용
+  - 중간 latent 위치에서 다음 latent를 예측하는 것은 무의미
+  - 마지막 latent 위치만 실제 vocab token(생성 첫 토큰)을 예측
+- **해결**: `last_position_only=True`를 기본값으로 설정
+  - 마지막 latent 위치의 confidence만 사용 (의미 있는 vocab token 예측)
+  - latent → latent 예측 평균값 제거
+
+```python
+# 수정 전
+def __init__(self, ..., last_position_only: bool = False):
+
+# 수정 후
+def __init__(self, ..., last_position_only: bool = True):
+
+# last_position_only=True일 때
+last_idx = latent_end_idx - 1  # 마지막 latent 위치
+topk = torch.topk(probs[last_idx], k=self.top_k, largest=True)[0]
+confidence = -torch.sum(torch.log(topk + 1e-10)) / self.top_k
+```
+
+### 11. `_load_pretrained_weaver` LoRA 로딩 버그 수정 (`modeling_memgen.py`) (2026-01-13)
+- **문제**: `_load_pretrained_weaver()` 메서드가 LoRA 가중치 0개 로드
+- **원인**: PEFT adapter 키 이름 불일치
+  - 저장된 키: `base_model.model.model.layers.0.self_attn.q_proj.lora_A.weight`
+  - state_dict 키: `base_model.model.model.layers.0.self_attn.q_proj.lora_A.weaver.weight`
+  - `.weaver.` 부분이 불일치하여 키 매칭 실패
+- **증상**: 로그에 `"Loaded 0 weaver adapter weights from checkpoint"` 출력
+- **영향**:
+  - 거의 모든 평가에서 LoRA adapter 미적용
+  - query_latents와 projections만 로드되어 부분적 성능만 발휘
+  - Vanilla(31.9%) → Weaver(54.4%)는 query_latents 효과, LoRA 효과 아님
+- **✅ 수정 완료 (2026-01-13)**:
+  - 키 변환 로직 추가: `lora_A.weight` → `lora_A.weaver.weight`
+  - `_load_pretrained_trigger`도 동일하게 수정: `lora_A.weight` → `lora_A.trigger.weight`
+  - 수정 후: `"Loaded 144 weaver adapter weights from checkpoint"` 출력 확인
+
+```python
+# 수정된 키 변환 로직 (weaver)
+if "lora_" in key and key.endswith(".weight"):
+    target_key = key.replace(".weight", ".weaver.weight")
+
+# 수정된 키 변환 로직 (trigger)
+if "lora_" in key and key.endswith(".weight"):
+    target_key = key.replace(".weight", ".trigger.weight")
+```
+
+### 12. Weaver projections 저장 기능 추가 (`runner.py`) (2026-01-13)
+- **문제**: trainer.save_model()는 PEFT adapter만 저장, projections와 query_latents는 저장 안됨
+- **추가 기능**: `_save_weaver_projections(output_dir)` 메서드 추가
+- **저장 내용**:
+  - `reasoner_to_weaver` state_dict
+  - `weaver_to_reasoner` state_dict
+  - `prompt_query_latents`
+  - `inference_query_latents`
+- **저장 위치**: `{output_dir}/projections.pt`
+- **두 가지 로딩 방식**:
+  1. **load_model_path**: 전체 모델 로드 (LoRA가 병합된 상태)
+  2. **load_weaver_path**: LoRA adapter + projections.pt 별도 로드
+
+```
+체크포인트 디렉토리 구조:
+{output_dir}/
+├── weaver/
+│   ├── adapter_model.bin    # LoRA adapter (trainer.save_model()이 저장)
+│   └── adapter_config.json
+├── projections.pt           # projections + query_latents (_save_weaver_projections이 저장)
+└── ...
+```
+
 ---
 
 ## 🚨 학습 시 반드시 accelerate launch 사용 (2025-01-08)
@@ -849,3 +919,18 @@ logits = outputs.logits[0]  # 첫 번째 샘플만 사용
 | float32 dtype | ✅ 복원됨 | CLAUDE.md 1-7번 항목 |
 | is_grpo 플래그 | ✅ 삭제됨 | CLAUDE.md 2번 항목 |
 | _grpo_forward | ✅ 삭제됨 | CLAUDE.md 1번 항목 |
+| LTPO confidence 범위 | ✅ 수정됨 | CLAUDE.md 10번 항목 |
+| _load_pretrained_* 키 변환 | ✅ 수정됨 | CLAUDE.md 11번 항목 |
+
+---
+
+## 📊 최근 평가 결과 (2026-01-13)
+
+| 모델 | 데이터셋 | 평가 방식 | 정확도 | 샘플 수 |
+|------|----------|----------|--------|---------|
+| Qwen3-8B | GSM8K | LTPO | 81.36% | 1,320 |
+| Qwen3-8B | GSM8K | Standard | 81.44% | 1,320 |
+| SmolLM3-3B | GSM8K | LTPO | 68.86% | 1,320 |
+| SmolLM3-3B | KodCode | LTPO | 54.42% | 2,001 |
+
+**참고**: LTPO와 Standard 평가 결과가 거의 동일 (Qwen3-8B 기준 -0.08%)

@@ -40,7 +40,7 @@ class MemGenLTPOOptimizer(nn.Module):
         reward_threshold: float = -1.0,
         top_k: int = 10,
         use_auto_grad: bool = True,
-        last_position_only: bool = True,  # Default True: only compute confidence at last latent position (vocab token prediction)
+        last_position_only: bool = False,  # Default False: compute confidence at all latent positions
     ):
         """
         Args:
