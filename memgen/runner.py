@@ -175,20 +175,48 @@ class MemGenRunner:
 
         # fix trigger parameters
         self.model.fix_component("trigger")
-        self.model.open_component("weaver")
+        projection_only = self.model.config.projection_only
+        skip_lora = self.model.config.skip_lora
+        latent_processor = self.model.config.latent_processor
+        self.model.open_component("weaver", projection_only=projection_only, skip_lora=skip_lora, latent_processor=latent_processor)
+
+        if projection_only:
+            logging.info("Projection-only mode enabled: training only projection layers")
+        elif latent_processor:
+            logging.info("LatentProcessor mode enabled: training query_latents, projections, and latent_processor (no LoRA)")
+        elif skip_lora:
+            logging.info("Skip-LoRA mode enabled: training query_latents and projections (no LoRA)")
+
         log_trainable_params(self.model)
 
         # train weaver
         weaver_trainer = self._create_weaver_trainer()
         weaver_trainer.train()
-        weaver_trainer.save_model()   # save the best model (includes PEFT adapters)
 
-        # remove checkpoints and save weaver projections
         output_dir = weaver_trainer.args.output_dir
-        remove_trainer_checkpoints(output_dir)
+        os.makedirs(output_dir, exist_ok=True)
 
-        # Save projections and query_latents separately for load_weaver_path
-        self._save_weaver_projections(output_dir)
+        # Save checkpoint based on mode
+        if projection_only:
+            # Projection-only: save only projection layers
+            self._save_projection_only_checkpoint(output_dir)
+        elif latent_processor:
+            # LatentProcessor: save projections + query_latents + latent_processor (no LoRA adapter)
+            self._save_latent_processor_checkpoint(output_dir)
+        elif skip_lora:
+            # Skip-LoRA: save projections + query_latents (no LoRA adapter)
+            self._save_skip_lora_checkpoint(output_dir)
+        else:
+            # Default: adapter-only saving (MemGen_reproduce 방식, ~170MB)
+            self._save_weaver_checkpoint(output_dir)
+
+        # Optional: full model saving (47GB, requires run.save_full_model: true)
+        save_full_model = self.config.get("run", {}).get("save_full_model", False)
+        if save_full_model:
+            weaver_trainer.save_model()  # saves full merged model
+            self._save_weaver_projections(output_dir)  # also save projections for load_model_path
+
+        remove_trainer_checkpoints(output_dir)
 
     def _save_weaver_projections(self, output_dir: str):
         """
@@ -208,8 +236,98 @@ class MemGenRunner:
 
         torch.save(proj_data, proj_path)
         logging.info(f"Saved weaver projections and query_latents to {proj_path}")
-    
-    
+
+    def _save_weaver_checkpoint(self, output_dir: str):
+        """
+        Save weaver LoRA weights and projection layers to output_dir.
+        (MemGen_reproduce 방식 - adapter-only 저장)
+
+        This saves:
+        1. weaver_lora/ - LoRA adapter weights (~82MB)
+        2. projections.pt - projection layers and query latents (~82MB)
+
+        Total size: ~170MB (vs 47GB for trainer.save_model())
+        """
+        try:
+            # 1. Save weaver LoRA adapter
+            weaver_lora_path = os.path.join(output_dir, "weaver_lora")
+            if hasattr(self.model.weaver.model, 'save_pretrained'):
+                self.model.weaver.model.save_pretrained(weaver_lora_path, safe_serialization=False)
+                logging.info(f"Saved weaver LoRA to {weaver_lora_path}")
+
+            # 2. Save projection layers and query latents
+            proj_path = os.path.join(output_dir, "projections.pt")
+            torch.save({
+                'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
+                'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
+                'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
+                'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
+            }, proj_path)
+            logging.info(f"Saved projections to {proj_path}")
+        except Exception as e:
+            logging.warning(f"Failed to save weaver checkpoint: {e}")
+
+    def _save_projection_only_checkpoint(self, output_dir: str):
+        """
+        Save only projection layers for projection-only mode.
+        (No LoRA, no query_latents - just projection layers)
+
+        This saves:
+        1. projections_only.pt - projection layers only (~33MB)
+        """
+        try:
+            proj_path = os.path.join(output_dir, "projections_only.pt")
+            torch.save({
+                'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
+                'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
+            }, proj_path)
+            logging.info(f"Saved projection-only checkpoint to {proj_path}")
+        except Exception as e:
+            logging.warning(f"Failed to save projection-only checkpoint: {e}")
+
+    def _save_skip_lora_checkpoint(self, output_dir: str):
+        """
+        Save projections + query_latents for skip-lora mode.
+        (No LoRA adapter - just projections and query_latents)
+
+        This saves:
+        1. skip_lora.pt - projection layers + query_latents (~33.5MB)
+        """
+        try:
+            skip_lora_path = os.path.join(output_dir, "skip_lora.pt")
+            torch.save({
+                'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
+                'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
+                'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
+                'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
+            }, skip_lora_path)
+            logging.info(f"Saved skip-lora checkpoint to {skip_lora_path}")
+        except Exception as e:
+            logging.warning(f"Failed to save skip-lora checkpoint: {e}")
+
+    def _save_latent_processor_checkpoint(self, output_dir: str):
+        """
+        Save projections + query_latents + latent_processor for latent_processor mode.
+        (No LoRA adapter - uses LatentProcessor MLP instead)
+
+        This saves:
+        1. latent_processor.pt - projection layers + query_latents + latent_processor MLP
+        """
+        try:
+            lp_path = os.path.join(output_dir, "latent_processor.pt")
+            checkpoint = {
+                'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
+                'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
+                'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
+                'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
+                'latent_processor': self.model.latent_processor.state_dict(),
+            }
+            torch.save(checkpoint, lp_path)
+            logging.info(f"Saved latent_processor checkpoint to {lp_path}")
+        except Exception as e:
+            logging.warning(f"Failed to save latent_processor checkpoint: {e}")
+
+
     # ===== train trigger =====
     def _create_trigger_trainer(self):
         
@@ -238,12 +356,29 @@ class MemGenRunner:
         # train trigger
         trigger_trainer = self._create_trigger_trainer()
         trigger_trainer.train()
-        trigger_trainer.save_model()     # save the best model (PEFT adapter to output_dir/trigger/)
 
-        # remove checkpoints
         output_dir = trigger_trainer.args.output_dir
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Save trigger LoRA adapter
+        try:
+            trigger_lora_path = os.path.join(output_dir, "trigger_lora")
+            if hasattr(self.model.trigger.model, 'save_pretrained'):
+                self.model.trigger.model.save_pretrained(trigger_lora_path, safe_serialization=False)
+                logging.info(f"Saved trigger LoRA to {trigger_lora_path}")
+        except Exception as e:
+            logging.warning(f"Failed to save trigger separately: {e}")
+            trigger_trainer.save_model()  # fallback to trainer.save_model()
+
+        # Also save weaver checkpoint (required for evaluation)
+        self._save_weaver_checkpoint(output_dir)
+
+        # Optional: full model saving
+        save_full_model = self.config.get("run", {}).get("save_full_model", False)
+        if save_full_model:
+            trigger_trainer.save_model()
+
         remove_trainer_checkpoints(output_dir)
-        logging.info(f"Trigger adapter saved to {output_dir}/trigger/")
 
     
     # ===== train weaver/trigger =====

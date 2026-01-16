@@ -20,6 +20,13 @@ class MemGenConfig(PretrainedConfig):
         trigger_lora_config: Optional[dict] = None,
         max_prompt_aug_num: int = 1,
         max_inference_aug_num: int = 5,
+        # projection-only mode (no query latents, no LoRA)
+        projection_only: bool = False,
+        # skip-lora mode (query latents + projections, no LoRA)
+        skip_lora: bool = False,
+        # latent processor mode (MLP after weaver output, replaces LoRA gradient effect)
+        latent_processor: bool = False,
+        latent_processor_depth: int = 2,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -35,3 +42,13 @@ class MemGenConfig(PretrainedConfig):
         self.trigger_lora_config = trigger_lora_config
         self.max_prompt_aug_num = max_prompt_aug_num
         self.max_inference_aug_num = max_inference_aug_num
+
+        # projection-only mode
+        self.projection_only = projection_only
+
+        # skip-lora mode
+        self.skip_lora = skip_lora
+
+        # latent processor mode
+        self.latent_processor = latent_processor
+        self.latent_processor_depth = latent_processor_depth

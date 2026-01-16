@@ -1,0 +1,53 @@
+# Projection Layer Analysis Experiment Configuration
+#
+# This experiment analyzes how projection layers transform embeddings
+# and whether weaver_to_reasoner clusters same-problem embeddings together.
+
+experiment:
+  # Number of problems to analyze from GSM8K
+  num_problems: 20
+
+  # Number of random query latents to generate per problem
+  num_random_latents: 10
+
+  # Length of query latents (should match training config)
+  latent_len: 8
+
+  # Random seed for problem selection (for reproducibility)
+  seed: 42
+
+model:
+  # Base model name
+  model_name: "Qwen/Qwen3-8B"
+
+  # Path to trained weaver checkpoint (contains projections.pt or skip_lora.pt)
+  # Set to null for random (untrained) projections
+  load_weaver_path: "/home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-221706/weaver"
+
+  # Latent dimensions
+  prompt_latents_len: 8
+  inference_latents_len: 8
+
+  # LoRA config (needed for model initialization, but LoRA is disabled in skip-lora mode)
+  lora_config:
+    r: 16
+    lora_alpha: 32
+    lora_dropout: 0.1
+    target_modules: ["q_proj", "v_proj"]
+    task_type: "CAUSAL_LM"
+    bias: "none"
+
+# Output directory (auto-generated with timestamp if not specified)
+output_dir: null
+
+# Visualization settings
+visualization:
+  # t-SNE settings
+  tsne:
+    perplexity: 30
+    n_iter: 1000
+
+  # UMAP settings
+  umap:
+    n_neighbors: 15
+    min_dist: 0.1

@@ -59,19 +59,51 @@ class MemGenLoraSwitchMixin:
             fix_model_parameters(self.weaver_to_reasoner)
             fix_model_parameters(self.reasoner_to_weaver)
     
-    def open_component(self, name: Literal["weaver", "trigger"]):
+    def open_component(self, name: Literal["weaver", "trigger"], projection_only: bool = False, skip_lora: bool = False, latent_processor: bool = False):
 
-        component = getattr(self, name)  
-        open_model_parameters(component)
-        if name == "weaver":
+        component = getattr(self, name)
+
+        if projection_only and name == "weaver":
+            # Projection-only mode: only train projection layers, skip LoRA and query_latents
             open_model_parameters(self.weaver_to_reasoner)
-            open_model_parameters(self.reasoner_to_weaver)        
-        
-        fix_model_parameters(component.model.base_model)
-        
-        for p in component.model.named_parameters():
-            if f"lora_A.{name}" in p[0] or f"lora_B.{name}" in p[0]:
-                p[1].requires_grad = True
+            open_model_parameters(self.reasoner_to_weaver)
+            # Keep everything else frozen
+            fix_model_parameters(component)
+        elif latent_processor and name == "weaver":
+            # LatentProcessor mode: train query_latents, projections, and latent_processor (but NOT LoRA)
+            # 1. Train projection layers
+            open_model_parameters(self.weaver_to_reasoner)
+            open_model_parameters(self.reasoner_to_weaver)
+            # 2. Train query_latents
+            component.prompt_query_latents.requires_grad = True
+            component.inference_query_latents.requires_grad = True
+            # 3. Train latent_processor
+            if hasattr(self, 'latent_processor'):
+                open_model_parameters(self.latent_processor)
+            # 4. Keep LoRA and base model frozen
+            fix_model_parameters(component.model)
+        elif skip_lora and name == "weaver":
+            # Skip-LoRA mode: train query_latents and projections, but NOT LoRA
+            # 1. Train projection layers
+            open_model_parameters(self.weaver_to_reasoner)
+            open_model_parameters(self.reasoner_to_weaver)
+            # 2. Train query_latents
+            component.prompt_query_latents.requires_grad = True
+            component.inference_query_latents.requires_grad = True
+            # 3. Keep LoRA and base model frozen
+            fix_model_parameters(component.model)
+        else:
+            # Original mode: train LoRA, query_latents, and projections
+            open_model_parameters(component)
+            if name == "weaver":
+                open_model_parameters(self.weaver_to_reasoner)
+                open_model_parameters(self.reasoner_to_weaver)
+
+            fix_model_parameters(component.model.base_model)
+
+            for p in component.model.named_parameters():
+                if f"lora_A.{name}" in p[0] or f"lora_B.{name}" in p[0]:
+                    p[1].requires_grad = True
 
 
 class MemGenGenerationMixin(GenerationMixin):
@@ -249,7 +281,11 @@ class MemGenGenerationMixin(GenerationMixin):
 
         batch_size = input_ids.size(0)
         
-        if is_prompt:  
+        if is_prompt:
+            # Skip prompt augmentation if max_prompt_aug_num == 0
+            if self.config.max_prompt_aug_num == 0:
+                return torch.full((batch_size,), -100, dtype=torch.long, device=input_ids.device)
+
             attention_mask = (input_ids != tokenizer.pad_token_id).long()
             position_ids = self._generate_position_ids(attention_mask)
             aug_vector = torch.zeros((batch_size,), dtype=torch.long, device=input_ids.device)

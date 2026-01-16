@@ -6,6 +6,7 @@ from contextlib import contextmanager
 if TYPE_CHECKING:
     from ltpo import MemGenLTPOOptimizer
 
+import os
 import random
 import torch
 import torch.nn as nn
@@ -93,6 +94,22 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         )
         
         self.delimiters: list[str] = [",", ".", "\n"]  # delimiters for detecting augmentation points
+
+        # projection-only mode (no query latents, no LoRA)
+        self.projection_only = config.projection_only
+
+        # skip-lora mode (query latents + projections, no LoRA)
+        self.skip_lora = config.skip_lora
+
+        # latent processor mode (MLP after weaver output, replaces LoRA gradient effect)
+        self.latent_processor_enabled = config.latent_processor
+        if self.latent_processor_enabled:
+            from memgen.model.weaver import LatentProcessor
+            self.latent_processor = LatentProcessor(
+                hidden_size=weaver_hidden_size,
+                depth=config.latent_processor_depth,
+            )
+            logging.info(f"LatentProcessor initialized: hidden_size={weaver_hidden_size}, depth={config.latent_processor_depth}")
 
         # postprocess
         self._postprocess_models()
@@ -198,24 +215,51 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             current_position_ids = self._generate_position_ids(current_attention_mask)
             current_latents_mask = torch.cat([current_latents_mask, segment_latents_mask], dim=1)
 
-            # Map reasoner embeddings to weaver embeddings for augmentation
-            weaver_inputs_embeds = self.reasoner_to_weaver(current_inputs_embeds)
-
             # Determine whether this point is the end of the prompt (prompt augmentation)
             is_prompt_end_aug = (labels[:, aug_point_idx] != -100).all() and (labels[:, aug_point_idx-1] == -100).all().item()
 
-            # Depending on type, use weaver to augment prompt or inference
-            if is_prompt_end_aug:
-                weaver_hidden_states, attn_mask, pos_ids = weaver.augment_prompt(
-                    weaver_inputs_embeds, current_attention_mask, current_position_ids
+            # Projection-only mode: skip LoRA and query latents
+            if self.projection_only:
+                # Use projection-only augmentation (no LoRA, no query latents)
+                latent_inputs_embeds, attn_mask, pos_ids = weaver.augment_prompt_projection_only(
+                    current_inputs_embeds, current_attention_mask, current_position_ids,
+                    self.reasoner_to_weaver, self.weaver_to_reasoner
                 )
-            else:
-                weaver_hidden_states, attn_mask, pos_ids = weaver.augment_inference(
-                    weaver_inputs_embeds, current_attention_mask, current_position_ids
-                )
+            elif self.skip_lora or self.latent_processor_enabled:
+                # Skip-LoRA or LatentProcessor mode: query latents + projections, no LoRA adapter
+                weaver_inputs_embeds = self.reasoner_to_weaver(current_inputs_embeds)
 
-            # Map weaver hidden states back to reasoner embeddings
-            latent_inputs_embeds = self.weaver_to_reasoner(weaver_hidden_states)
+                if is_prompt_end_aug:
+                    weaver_hidden_states, attn_mask, pos_ids = weaver.augment_prompt_skip_lora(
+                        weaver_inputs_embeds, current_attention_mask, current_position_ids
+                    )
+                else:
+                    weaver_hidden_states, attn_mask, pos_ids = weaver.augment_inference_skip_lora(
+                        weaver_inputs_embeds, current_attention_mask, current_position_ids
+                    )
+
+                # Apply LatentProcessor if enabled (after weaver output, before projection)
+                if self.latent_processor_enabled:
+                    weaver_hidden_states = self.latent_processor(weaver_hidden_states)
+
+                # Map weaver hidden states back to reasoner embeddings
+                latent_inputs_embeds = self.weaver_to_reasoner(weaver_hidden_states)
+            else:
+                # Original path: map to weaver space, use LoRA + query latents
+                weaver_inputs_embeds = self.reasoner_to_weaver(current_inputs_embeds)
+
+                # Depending on type, use weaver to augment prompt or inference
+                if is_prompt_end_aug:
+                    weaver_hidden_states, attn_mask, pos_ids = weaver.augment_prompt(
+                        weaver_inputs_embeds, current_attention_mask, current_position_ids
+                    )
+                else:
+                    weaver_hidden_states, attn_mask, pos_ids = weaver.augment_inference(
+                        weaver_inputs_embeds, current_attention_mask, current_position_ids
+                    )
+
+                # Map weaver hidden states back to reasoner embeddings
+                latent_inputs_embeds = self.weaver_to_reasoner(weaver_hidden_states)
 
             # Update accumulated embeddings and masks with the newly augmented segment
             current_inputs_embeds = torch.cat([current_inputs_embeds, latent_inputs_embeds], dim=1)
@@ -560,20 +604,38 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                 # Perform inference augmentation using the weaver
                 weaver_inputs_embeds = self.reasoner_to_weaver(candidate_inputs_embeds)
 
-                if i == 0:
-                    weaver_hidden_states, attn_mask, _ = weaver.augment_prompt(
-                        weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
-                    )
-                    # Capture memory from prompt augmentation for return
-                    if return_memory_embeds and captured_memory_embeds is not None:
-                        # Fill memory at correct batch indices (only augmented samples get memory)
-                        # Non-augmented samples keep zero memory from pre-allocation
-                        mem_embeds = self.weaver_to_reasoner(weaver_hidden_states).detach()
-                        captured_memory_embeds[augment_indices] = mem_embeds
+                # Select augmentation method based on mode
+                if self.skip_lora or self.latent_processor_enabled:
+                    # Skip-LoRA or LatentProcessor mode: query latents + projections, no LoRA adapter
+                    if i == 0:
+                        weaver_hidden_states, attn_mask, _ = weaver.augment_prompt_skip_lora(
+                            weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
+                        )
+                    else:
+                        weaver_hidden_states, attn_mask, _ = weaver.augment_inference_skip_lora(
+                            weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
+                        )
                 else:
-                    weaver_hidden_states, attn_mask, _ = weaver.augment_inference(
-                        weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
-                    )
+                    # Full mode: LoRA + query latents
+                    if i == 0:
+                        weaver_hidden_states, attn_mask, _ = weaver.augment_prompt(
+                            weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
+                        )
+                    else:
+                        weaver_hidden_states, attn_mask, _ = weaver.augment_inference(
+                            weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
+                        )
+
+                # Apply LatentProcessor if enabled (after weaver output, before projection)
+                if self.latent_processor_enabled:
+                    weaver_hidden_states = self.latent_processor(weaver_hidden_states)
+
+                # Capture memory from prompt augmentation for return (both modes)
+                if i == 0 and return_memory_embeds and captured_memory_embeds is not None:
+                    # Fill memory at correct batch indices (only augmented samples get memory)
+                    # Non-augmented samples keep zero memory from pre-allocation
+                    mem_embeds = self.weaver_to_reasoner(weaver_hidden_states).detach()
+                    captured_memory_embeds[augment_indices] = mem_embeds
 
                 # Convert weaver hidden states to reasoner space
                 latent_inputs_embeds = self.weaver_to_reasoner(weaver_hidden_states)
@@ -740,6 +802,16 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         trigger_lora_config_dict = trigger_config.get("lora_config", None)
         trigger_model_name = trigger_config.get("model_name", None)
 
+        # Projection-only mode
+        projection_only = config_dict.get("projection_only", False)
+
+        # Skip-LoRA mode (query latents + projections, no LoRA)
+        skip_lora = config_dict.get("skip_lora", False)
+
+        # LatentProcessor mode (query latents + projections + latent_processor MLP, no LoRA)
+        latent_processor = config_dict.get("latent_processor", False)
+        latent_processor_depth = config_dict.get("latent_processor_depth", 2)
+
         # 构造 MemGenConfig
         from transformers import AutoConfig
         memgen_config = AutoConfig.from_pretrained(model_name)
@@ -754,7 +826,14 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             weaver_lora_config=weaver_lora_config_dict,
             # trigger
             trigger_active=trigger_active,
-            trigger_lora_config=trigger_lora_config_dict
+            trigger_lora_config=trigger_lora_config_dict,
+            # projection-only mode
+            projection_only=projection_only,
+            # skip-lora mode
+            skip_lora=skip_lora,
+            # latent_processor mode
+            latent_processor=latent_processor,
+            latent_processor_depth=latent_processor_depth
         )
 
         # Ensure _name_or_path is set for TRL GRPOTrainer compatibility
@@ -799,6 +878,10 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         load_model_path = config_dict.get("load_model_path", None)
         load_weaver_path = config_dict.get("load_weaver_path", None)
         load_trigger_path = config_dict.get("load_trigger_path", None)
+        load_projections = config_dict.get("load_projections", True)  # False = query latents only
+        load_query_latents = config_dict.get("load_query_latents", True)  # False = projections only (legacy)
+        load_prompt_query_latents = config_dict.get("load_prompt_query_latents", load_query_latents)  # False = random prompt latents
+        load_inference_query_latents = config_dict.get("load_inference_query_latents", load_query_latents)  # False = random inference latents
 
         if not load_model_path:
             model = cls(
@@ -818,9 +901,30 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                 trigger_model=trigger_model
             )
 
+            # Load projections.pt when using load_model_path (full model checkpoint)
+            # This is needed because trainer.save_model() doesn't save projection layers
+            proj_path = os.path.join(load_model_path, "projections.pt")
+            if os.path.exists(proj_path):
+                logging.info(f"Loading projections from {proj_path}")
+                proj_data = torch.load(proj_path, map_location='cpu')
+
+                model.reasoner_to_weaver.load_state_dict(proj_data['reasoner_to_weaver'])
+                model.weaver_to_reasoner.load_state_dict(proj_data['weaver_to_reasoner'])
+
+                # Load query_latents
+                model.weaver.prompt_query_latents.data = proj_data['prompt_query_latents'].to(
+                    model.weaver.prompt_query_latents.device
+                )
+                model.weaver.inference_query_latents.data = proj_data['inference_query_latents'].to(
+                    model.weaver.inference_query_latents.device
+                )
+                logging.info(f"Loaded projections and query_latents from {proj_path}")
+
         # Load pre-trained weaver adapter if specified
         if load_weaver_path:
-            model._load_pretrained_weaver(load_weaver_path)
+            model._load_pretrained_weaver(load_weaver_path, load_projections=load_projections,
+                                          load_prompt_query_latents=load_prompt_query_latents,
+                                          load_inference_query_latents=load_inference_query_latents)
 
         # Load pre-trained trigger adapter if specified
         if load_trigger_path:
@@ -828,20 +932,92 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
 
         return model
 
-    def _load_pretrained_weaver(self, weaver_path: str):
+    def _load_pretrained_weaver(self, weaver_path: str, load_projections: bool = True,
+                                load_prompt_query_latents: bool = True, load_inference_query_latents: bool = True):
         """
         Load pre-trained weaver adapter weights from a checkpoint.
 
         Args:
             weaver_path: Path to the weaver adapter checkpoint directory
                          (should contain adapter_model.bin)
+            load_projections: If True, load projection layers (reasoner_to_weaver, weaver_to_reasoner).
+            load_prompt_query_latents: If True, load prompt_query_latents. If False, keep random.
+            load_inference_query_latents: If True, load inference_query_latents. If False, keep random.
         """
         from pathlib import Path
 
+        # Check for latent_processor checkpoint first (projections + query_latents + latent_processor, no LoRA)
+        lp_path = Path(weaver_path) / "latent_processor.pt"
+        if lp_path.exists():
+            logging.info(f"Loading latent_processor checkpoint from {lp_path}")
+            data = torch.load(str(lp_path), map_location='cpu')
+            self.reasoner_to_weaver.load_state_dict(data['reasoner_to_weaver'])
+            self.weaver_to_reasoner.load_state_dict(data['weaver_to_reasoner'])
+            self.weaver.prompt_query_latents.data = data['prompt_query_latents'].to(
+                self.weaver.prompt_query_latents.device
+            )
+            self.weaver.inference_query_latents.data = data['inference_query_latents'].to(
+                self.weaver.inference_query_latents.device
+            )
+            if hasattr(self, 'latent_processor') and 'latent_processor' in data:
+                self.latent_processor.load_state_dict(data['latent_processor'])
+                logging.info(f"Loaded latent_processor MLP from {lp_path}")
+            logging.info(f"Loaded projections + query_latents + latent_processor from {lp_path}")
+            return  # Skip LoRA adapter loading
+
+        # Check for skip-lora checkpoint (projections + query_latents, no LoRA)
+        skip_lora_path = Path(weaver_path) / "skip_lora.pt"
+        if skip_lora_path.exists():
+            logging.info(f"Loading skip-lora checkpoint from {skip_lora_path}")
+            data = torch.load(str(skip_lora_path), map_location='cpu')
+            self.reasoner_to_weaver.load_state_dict(data['reasoner_to_weaver'])
+            self.weaver_to_reasoner.load_state_dict(data['weaver_to_reasoner'])
+            self.weaver.prompt_query_latents.data = data['prompt_query_latents'].to(
+                self.weaver.prompt_query_latents.device
+            )
+            self.weaver.inference_query_latents.data = data['inference_query_latents'].to(
+                self.weaver.inference_query_latents.device
+            )
+            logging.info(f"Loaded projections + query_latents from {skip_lora_path} (skip-lora mode)")
+            return  # Skip LoRA adapter loading
+
+        # Check for projection-only checkpoint (no LoRA, no query_latents)
+        proj_only_path = Path(weaver_path) / "projections_only.pt"
+        if proj_only_path.exists():
+            # Projection-only mode: load only projection layers (no LoRA, no query latents)
+            logging.info(f"Loading projection-only checkpoint from {proj_only_path}")
+            proj_data = torch.load(str(proj_only_path), map_location='cpu')
+            self.reasoner_to_weaver.load_state_dict(proj_data['reasoner_to_weaver'])
+            self.weaver_to_reasoner.load_state_dict(proj_data['weaver_to_reasoner'])
+            logging.info(f"Loaded projection layers from {proj_only_path} (projection-only mode)")
+            return  # Skip adapter and query latents loading
+
+        # Check for existing projections.pt (full checkpoint with projections + query_latents)
+        # This can be used in skip_lora mode to load projections without LoRA
+        proj_path = Path(weaver_path) / "projections.pt"
+        if proj_path.exists() and self.skip_lora:
+            # Skip-LoRA mode with existing projections.pt: load without LoRA
+            logging.info(f"Loading projections.pt for skip-lora mode from {proj_path}")
+            data = torch.load(str(proj_path), map_location='cpu')
+            self.reasoner_to_weaver.load_state_dict(data['reasoner_to_weaver'])
+            self.weaver_to_reasoner.load_state_dict(data['weaver_to_reasoner'])
+            self.weaver.prompt_query_latents.data = data['prompt_query_latents'].to(
+                self.weaver.prompt_query_latents.device
+            )
+            self.weaver.inference_query_latents.data = data['inference_query_latents'].to(
+                self.weaver.inference_query_latents.device
+            )
+            logging.info(f"Loaded projections + query_latents from {proj_path} (skip-lora mode, no LoRA loaded)")
+            return  # Skip LoRA adapter loading
+
         # PEFT saves adapters in subdirectories when multiple adapters exist
+        # Check multiple possible paths for adapter
         adapter_path = Path(weaver_path) / "weaver" / "adapter_model.bin"
         if not adapter_path.exists():
-            raise FileNotFoundError(f"Weaver adapter not found: {adapter_path}")
+            # Also check weaver_lora/ directory (alternative naming)
+            adapter_path = Path(weaver_path) / "weaver_lora" / "adapter_model.bin"
+        if not adapter_path.exists():
+            raise FileNotFoundError(f"Weaver adapter not found. Checked: {Path(weaver_path)}/weaver/, {Path(weaver_path)}/weaver_lora/")
 
         logging.info(f"Loading pre-trained weaver from: {weaver_path}")
 
@@ -875,11 +1051,28 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             raise FileNotFoundError(f"projections.pt not found: {proj_path}")
 
         proj_data = torch.load(str(proj_path), map_location='cpu')
-        self.reasoner_to_weaver.load_state_dict(proj_data['reasoner_to_weaver'])
-        self.weaver_to_reasoner.load_state_dict(proj_data['weaver_to_reasoner'])
-        self.weaver.prompt_query_latents.data = proj_data['prompt_query_latents'].to(self.weaver.prompt_query_latents.device)
-        self.weaver.inference_query_latents.data = proj_data['inference_query_latents'].to(self.weaver.inference_query_latents.device)
-        logging.info(f"Loaded projections and query_latents from {proj_path}")
+
+        # Projection layers (conditional)
+        if load_projections:
+            self.reasoner_to_weaver.load_state_dict(proj_data['reasoner_to_weaver'])
+            self.weaver_to_reasoner.load_state_dict(proj_data['weaver_to_reasoner'])
+            logging.info(f"Loaded projection layers from {proj_path}")
+        else:
+            logging.info(f"Skipping projection layers (load_projections=False)")
+
+        # Prompt query latents (conditional)
+        if load_prompt_query_latents:
+            self.weaver.prompt_query_latents.data = proj_data['prompt_query_latents'].to(self.weaver.prompt_query_latents.device)
+            logging.info(f"Loaded prompt_query_latents from {proj_path}")
+        else:
+            logging.info(f"Skipping prompt_query_latents (random)")
+
+        # Inference query latents (conditional)
+        if load_inference_query_latents:
+            self.weaver.inference_query_latents.data = proj_data['inference_query_latents'].to(self.weaver.inference_query_latents.device)
+            logging.info(f"Loaded inference_query_latents from {proj_path}")
+        else:
+            logging.info(f"Skipping inference_query_latents (random)")
 
     def _load_pretrained_trigger(self, trigger_path: str):
         """

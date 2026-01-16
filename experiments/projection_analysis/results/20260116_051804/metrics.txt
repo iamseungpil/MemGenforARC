@@ -1,0 +1,23 @@
+=== Projection Layer Analysis Metrics ===
+
+Number of problems: 20
+Random latents per problem: 10
+Latent length: 8
+Model: Qwen/Qwen3-8B
+Weaver checkpoint: /home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-221706/weaver
+
+Point1 (after r2w):
+  Silhouette Score: 1.0000
+  Calinski-Harabasz: 1.00
+  Davies-Bouldin: 0.0000
+
+Point2 (weaver hidden):
+  Silhouette Score: -0.1113
+  Calinski-Harabasz: 1.48
+  Davies-Bouldin: 5.0604
+
+Point3 (after w2r):
+  Silhouette Score: -0.1279
+  Calinski-Harabasz: 1.54
+  Davies-Bouldin: 5.2808
+
