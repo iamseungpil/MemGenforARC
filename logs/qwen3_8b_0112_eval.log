@@ -1,0 +1,954 @@
+set seed: 42
+2026-01-13 20:25:56,637 [INFO] 
+=====  Running Parameters    =====
+2026-01-13 20:25:56,638 [INFO] {
+    "interaction": {
+        "batch_size": 4,
+        "do_sample": false,
+        "max_obs_length": 512,
+        "max_prompt_length": 4096,
+        "max_response_length": 1024,
+        "max_start_length": 1024,
+        "max_turns": 1,
+        "temperature": 0.0
+    },
+    "log_dir": "/home/jovyan/data/memgen/evaluate/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-202556/logs",
+    "ltpo": {
+        "enabled": true,
+        "lr": 0.03,
+        "max_steps": 10,
+        "reward_threshold": -1.0,
+        "sigma": 0.1,
+        "sigma_decay": 0.99,
+        "top_k": 10,
+        "use_auto_grad": true,
+        "verbose": false
+    },
+    "mode": "evaluate",
+    "seed": 42,
+    "train_trigger": false,
+    "train_trigger_method": "grpo",
+    "train_weaver": true,
+    "train_weaver_method": "sft",
+    "trigger": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "bnpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        }
+    },
+    "weaver": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "grpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        },
+        "sft": {
+            "assistant_only_loss": false,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "lr_scheduler_type": "cosine",
+            "max_length": 1024,
+            "num_train_epochs": 2,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 4,
+            "per_device_train_batch_size": 4,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "warmup_ratio": 0.1
+        }
+    }
+}
+2026-01-13 20:25:56,638 [INFO] 
+======  Dataset Attributes  ======
+2026-01-13 20:25:56,639 [INFO] {
+    "grpo": {
+        "val_ratio": 0.1
+    },
+    "mode": "sft",
+    "name": "gsm8k",
+    "sft": {
+        "val_ratio": 0.1
+    }
+}
+2026-01-13 20:25:56,639 [INFO] 
+======  Model Attributes  ======
+2026-01-13 20:25:56,639 [INFO] {
+    "load_model_path": "/home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260112-061722/weaver",
+    "load_trigger_path": null,
+    "load_weaver_path": null,
+    "max_inference_aug_num": 5,
+    "max_prompt_aug_num": 1,
+    "model_name": "Qwen/Qwen3-8B",
+    "trigger": {
+        "active": false,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B"
+    },
+    "weaver": {
+        "inference_latents_len": 8,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B",
+        "prompt_latents_len": 8
+    }
+}
+'(MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /Qwen/Qwen3-8B/resolve/main/config.json (Caused by NameResolutionError("HTTPSConnection(host=\'huggingface.co\', port=443): Failed to resolve \'huggingface.co\' ([Errno -3] Temporary failure in name resolution)"))'), '(Request ID: 2addd524-de3d-4076-950d-90f8b6102bfe)')' thrown while requesting HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+2026-01-13 20:25:56,976 [WARNING] '(MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /Qwen/Qwen3-8B/resolve/main/config.json (Caused by NameResolutionError("HTTPSConnection(host=\'huggingface.co\', port=443): Failed to resolve \'huggingface.co\' ([Errno -3] Temporary failure in name resolution)"))'), '(Request ID: 2addd524-de3d-4076-950d-90f8b6102bfe)')' thrown while requesting HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+Retrying in 1s [Retry 1/5].
+2026-01-13 20:25:56,977 [WARNING] Retrying in 1s [Retry 1/5].
+'(MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /Qwen/Qwen3-8B/resolve/main/config.json (Caused by NameResolutionError("HTTPSConnection(host=\'huggingface.co\', port=443): Failed to resolve \'huggingface.co\' ([Errno -3] Temporary failure in name resolution)"))'), '(Request ID: 708cb121-affa-41ec-9038-62a29c607f57)')' thrown while requesting HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+2026-01-13 20:25:57,994 [WARNING] '(MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /Qwen/Qwen3-8B/resolve/main/config.json (Caused by NameResolutionError("HTTPSConnection(host=\'huggingface.co\', port=443): Failed to resolve \'huggingface.co\' ([Errno -3] Temporary failure in name resolution)"))'), '(Request ID: 708cb121-affa-41ec-9038-62a29c607f57)')' thrown while requesting HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+Retrying in 2s [Retry 2/5].
+2026-01-13 20:25:57,995 [WARNING] Retrying in 2s [Retry 2/5].
+'(MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /Qwen/Qwen3-8B/resolve/main/config.json (Caused by NameResolutionError("HTTPSConnection(host=\'huggingface.co\', port=443): Failed to resolve \'huggingface.co\' ([Errno -3] Temporary failure in name resolution)"))'), '(Request ID: 73f47c58-778f-4e72-bfbb-6eb17d084533)')' thrown while requesting HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+2026-01-13 20:26:00,003 [WARNING] '(MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /Qwen/Qwen3-8B/resolve/main/config.json (Caused by NameResolutionError("HTTPSConnection(host=\'huggingface.co\', port=443): Failed to resolve \'huggingface.co\' ([Errno -3] Temporary failure in name resolution)"))'), '(Request ID: 73f47c58-778f-4e72-bfbb-6eb17d084533)')' thrown while requesting HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+Retrying in 4s [Retry 3/5].
+2026-01-13 20:26:00,003 [WARNING] Retrying in 4s [Retry 3/5].
+You are using a model of type qwen3 to instantiate a model of type memgen. This is not supported for all configurations of models and can yield errors.
+Loading checkpoint shards:   0%|          | 0/5 [00:00<?, ?it/s]Loading checkpoint shards:  20%|██        | 1/5 [00:00<00:03,  1.19it/s]Loading checkpoint shards:  40%|████      | 2/5 [00:01<00:02,  1.02it/s]Loading checkpoint shards:  60%|██████    | 3/5 [00:02<00:01,  1.00it/s]Loading checkpoint shards:  80%|████████  | 4/5 [00:03<00:00,  1.07it/s]Loading checkpoint shards: 100%|██████████| 5/5 [00:03<00:00,  1.29it/s]
+Loading checkpoint shards:   0%|          | 0/10 [00:00<?, ?it/s]Loading checkpoint shards:  10%|█         | 1/10 [00:01<00:09,  1.04s/it]Loading checkpoint shards:  20%|██        | 2/10 [00:02<00:09,  1.15s/it]Loading checkpoint shards:  30%|███       | 3/10 [00:03<00:08,  1.25s/it]Loading checkpoint shards:  40%|████      | 4/10 [00:04<00:06,  1.01s/it]Loading checkpoint shards:  50%|█████     | 5/10 [00:05<00:05,  1.06s/it]Loading checkpoint shards:  60%|██████    | 6/10 [00:06<00:04,  1.09s/it]Loading checkpoint shards:  70%|███████   | 7/10 [00:07<00:02,  1.04it/s]Loading checkpoint shards:  80%|████████  | 8/10 [00:08<00:02,  1.04s/it]Loading checkpoint shards:  90%|█████████ | 9/10 [00:09<00:01,  1.15s/it]Loading checkpoint shards: 100%|██████████| 10/10 [00:11<00:00,  1.16s/it]Loading checkpoint shards: 100%|██████████| 10/10 [00:11<00:00,  1.11s/it]
+The following generation flags are not valid and may be ignored: ['temperature']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+2026-01-13 20:26:53,780 [WARNING] Detected kernel version 5.4.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+wandb: Currently logged in as: iamseungpil (gistdslab) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run i9a4c898
+wandb: Tracking run with wandb version 0.23.0
+wandb: Run data is saved locally in /home/jovyan/data/memgen/evaluate/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-202556/wandb/run-20260113_202654-i9a4c898
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run qwen3_8b_0112_full_model
+wandb: ⭐️ View project at https://wandb.ai/gistdslab/memgen-check
+wandb: 🚀 View run at https://wandb.ai/gistdslab/memgen-check/runs/i9a4c898
+wandb: Detected [huggingface_hub.inference] in use.
+wandb: Use W&B Weave for improved LLM call tracing. Install Weave with `pip install weave` then add `import weave` to the top of your script.
+wandb: For more information, check out the docs at: https://weave-docs.wandb.ai/
+  0%|          | 0/330 [00:00<?, ?it/s]`generation_config` default values have been modified to match model-specific defaults: {'do_sample': True, 'temperature': 0.6, 'top_k': 20, 'top_p': 0.95, 'bos_token_id': 151643}. If this is not desired, please set these values explicitly.
+  0%|          | 1/330 [00:18<1:42:29, 18.69s/it]  1%|          | 2/330 [00:41<1:56:51, 21.38s/it]  1%|          | 3/330 [01:12<2:18:18, 25.38s/it]  1%|          | 4/330 [01:38<2:20:19, 25.83s/it]  2%|▏         | 5/330 [02:05<2:21:57, 26.21s/it]  2%|▏         | 6/330 [02:39<2:35:54, 28.87s/it]  2%|▏         | 7/330 [03:03<2:26:07, 27.14s/it]  2%|▏         | 8/330 [03:37<2:37:45, 29.40s/it]  3%|▎         | 9/330 [03:58<2:23:27, 26.81s/it]  3%|▎         | 10/330 [04:42<2:50:49, 32.03s/it]  3%|▎         | 11/330 [05:05<2:36:07, 29.36s/it]  4%|▎         | 12/330 [05:28<2:25:50, 27.52s/it]  4%|▍         | 13/330 [05:47<2:10:31, 24.70s/it]  4%|▍         | 14/330 [06:13<2:13:40, 25.38s/it]  5%|▍         | 15/330 [06:31<2:00:44, 23.00s/it]  5%|▍         | 16/330 [06:59<2:08:13, 24.50s/it]  5%|▌         | 17/330 [07:20<2:02:35, 23.50s/it]  5%|▌         | 18/330 [07:42<1:59:39, 23.01s/it]  6%|▌         | 19/330 [08:01<1:52:58, 21.79s/it]  6%|▌         | 20/330 [08:25<1:56:44, 22.60s/it]  6%|▋         | 21/330 [08:48<1:56:57, 22.71s/it]  7%|▋         | 22/330 [09:08<1:51:37, 21.74s/it]  7%|▋         | 23/330 [09:32<1:54:25, 22.36s/it]  7%|▋         | 24/330 [09:51<1:50:04, 21.58s/it]  8%|▊         | 25/330 [10:08<1:42:31, 20.17s/it]  8%|▊         | 26/330 [10:37<1:55:44, 22.84s/it]  8%|▊         | 27/330 [11:05<2:02:53, 24.33s/it]  8%|▊         | 28/330 [11:24<1:53:57, 22.64s/it]  9%|▉         | 29/330 [11:54<2:05:31, 25.02s/it]  9%|▉         | 30/330 [12:17<2:01:40, 24.34s/it]  9%|▉         | 31/330 [12:37<1:54:45, 23.03s/it] 10%|▉         | 32/330 [12:55<1:46:59, 21.54s/it] 10%|█         | 33/330 [13:25<1:59:04, 24.06s/it] 10%|█         | 34/330 [13:44<1:51:06, 22.52s/it] 11%|█         | 35/330 [14:06<1:49:32, 22.28s/it] 11%|█         | 36/330 [14:27<1:47:09, 21.87s/it][rank0]:[W113 20:41:41.552408881 TCPStore.cpp:125] [c10d] recvValue failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): failed to recv, got 0 bytes
+Exception raised from recvBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:678 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baaf40 (0x7fa7efeb1f40 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5bab84a (0x7fa7efeb284a in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x2a9 (0x7fa7efeac2a9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:41.558283686 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: failed to recv, got 0 bytes
+[rank0]:[W113 20:41:42.558484006 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:42.564385380 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:43.564614554 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:43.578126143 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:44.578358059 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:44.592245819 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:45.592493224 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:45.608075467 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:46.608341597 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:46.620220261 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:47.620453487 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:47.634030114 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:48.634263243 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:48.648428948 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:49.648659184 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:49.662396084 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:50.662630946 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:50.676494374 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:51.676724576 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:51.690067148 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:52.690315982 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:52.704394939 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:53.704624529 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:53.719245821 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:54.719497413 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:54.733225098 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:55.733452342 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:55.747317750 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:56.747548172 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:56.763038176 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:57.763213521 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:57.767936851 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:58.768158165 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:58.781658047 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:41:59.781893665 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:41:59.796054020 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+ 11%|█         | 37/330 [14:57<1:59:17, 24.43s/it][rank0]:[W113 20:42:00.796286010 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:00.810707951 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:01.810897010 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:01.816274850 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:02.816493303 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:02.829901996 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:03.830137659 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:03.844140546 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:04.844376576 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:04.857836426 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:05.858017232 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:05.864229402 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:06.864450669 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:06.878276820 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:07.878461280 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:07.883996961 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:08.884187928 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:08.889758259 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:09.889953099 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:09.896061913 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:10.896247162 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:10.901997900 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:11.902188462 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:11.907382168 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:12.907593082 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:12.921146038 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:13.921370085 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:13.935152191 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:14.935376731 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:14.949242113 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:15.949478886 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:15.963354845 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:16.963600874 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:16.977156492 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:17.977388001 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:17.991467650 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:18.991723286 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:18.005568678 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:19.005806553 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:19.019122073 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+ 12%|█▏        | 38/330 [15:18<1:54:03, 23.44s/it][rank0]:[W113 20:42:20.019352116 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:20.033254421 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:21.033484673 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:21.047641057 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:22.047874287 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:22.061974895 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:23.062200390 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:23.076161038 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:24.076395741 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:24.090151644 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:25.090390048 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:25.104302125 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:26.104494243 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:26.110694543 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:27.110908902 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:27.124218196 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:28.124430691 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:28.130174520 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:29.130401436 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:29.143871066 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:30.144061006 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:30.150212724 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:31.150404913 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:31.159737624 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:32.159936990 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:32.165974075 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:33.166156959 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:33.172213377 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:34.172434627 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:34.186061362 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:35.186296826 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:35.200105817 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:36.200384805 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:36.215035414 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe
+[rank0]:[W113 20:42:37.215271049 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=33, addr=[localhost]:44222, remote=[localhost]:29702): Broken pipe
+Exception raised from sendBytes at /pytorch/torch/csrc/distributed/c10d/Utils.hpp:653 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x98 (0x7fa7a07d35e8 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: <unknown function> + 0x5ba8bfe (0x7fa7efeafbfe in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #2: <unknown function> + 0x5baa458 (0x7fa7efeb1458 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x5babc3e (0x7fa7efeb2c3e in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: c10d::TCPStore::check(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&) + 0x298 (0x7fa7efeac298 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: c10d::ProcessGroupNCCL::heartbeatMonitor() + 0x379 (0x7fa7a154ead9 in /home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/lib/libtorch_cuda.so)
+frame #6: <unknown function> + 0xdf0e6 (0x7fa8ac5490e6 in /home/jovyan/miniconda3/envs/memgen/bin/../lib/libstdc++.so.6)
+frame #7: <unknown function> + 0x94ac3 (0x7fa8aec97ac3 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+frame #8: <unknown function> + 0x126850 (0x7fa8aed29850 in /usr/lib/x86_64-linux-gnu/libc.so.6)
+
+[rank0]:[W113 20:42:37.229046877 ProcessGroupNCCL.cpp:1662] [PG ID 0 PG GUID 0(default_pg) Rank 0] Failed to check the "should dump" flag on TCPStore, (maybe TCPStore server has shut down too early), with error: Broken pipe

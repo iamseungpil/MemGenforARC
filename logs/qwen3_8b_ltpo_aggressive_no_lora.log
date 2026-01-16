@@ -1,0 +1,240 @@
+2026-01-13 21:16:59,373 [INFO] 
+=====  Running Parameters    =====
+2026-01-13 21:16:59,374 [INFO] {
+    "interaction": {
+        "batch_size": 1,
+        "do_sample": false,
+        "max_obs_length": 512,
+        "max_prompt_length": 4096,
+        "max_response_length": 1024,
+        "max_start_length": 1024,
+        "max_turns": 1,
+        "temperature": 1.0
+    },
+    "log_dir": "/home/jovyan/data/memgen/evaluate_ltpo/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-211659/logs",
+    "ltpo": {
+        "enabled": true,
+        "lr": 0.1,
+        "max_steps": 20,
+        "reward_threshold": -1.0,
+        "sigma": 0.2,
+        "sigma_decay": 0.95,
+        "top_k": 10,
+        "use_auto_grad": true,
+        "verbose": false
+    },
+    "mode": "evaluate_ltpo",
+    "seed": 42,
+    "train_trigger": false,
+    "train_trigger_method": "grpo",
+    "train_weaver": true,
+    "train_weaver_method": "sft",
+    "trigger": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "bnpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        }
+    },
+    "weaver": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "grpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        },
+        "sft": {
+            "assistant_only_loss": false,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "lr_scheduler_type": "cosine",
+            "max_length": 1024,
+            "num_train_epochs": 2,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 4,
+            "per_device_train_batch_size": 4,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "warmup_ratio": 0.1
+        }
+    }
+}
+2026-01-13 21:16:59,374 [INFO] 
+======  Dataset Attributes  ======
+2026-01-13 21:16:59,375 [INFO] {
+    "grpo": {
+        "val_ratio": 0.1
+    },
+    "mode": "sft",
+    "name": "gsm8k",
+    "sft": {
+        "val_ratio": 0.1
+    }
+}
+2026-01-13 21:16:59,375 [INFO] 
+======  Model Attributes  ======
+2026-01-13 21:16:59,375 [INFO] {
+    "load_model_path": null,
+    "load_trigger_path": null,
+    "load_weaver_path": "/home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/weaver_lora",
+    "max_inference_aug_num": 5,
+    "max_prompt_aug_num": 1,
+    "model_name": "Qwen/Qwen3-8B",
+    "trigger": {
+        "active": false,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B"
+    },
+    "weaver": {
+        "inference_latents_len": 8,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B",
+        "prompt_latents_len": 8
+    }
+}
+You are using a model of type qwen3 to instantiate a model of type memgen. This is not supported for all configurations of models and can yield errors.
+set seed: 42
+Loading checkpoint shards:   0%|          | 0/5 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 5/5 [00:00<00:00, 101.39it/s]
+2026-01-13 21:17:02,302 [INFO] Loading pre-trained weaver from: /home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/weaver_lora
+2026-01-13 21:17:02,302 [INFO] Skipping LoRA adapter loading (trained with buggy code)
+2026-01-13 21:17:02,302 [INFO] Loaded 0 weaver adapter weights from checkpoint (LoRA skipped)
+2026-01-13 21:17:02,363 [INFO] Loaded projections and query_latents from /home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/projections.pt
+2026-01-13 21:17:31,880 [INFO] [LTPO] Starting LTPO-enhanced evaluation with config: {'enabled': True, 'lr': 0.1, 'sigma': 0.2, 'sigma_decay': 0.95, 'max_steps': 20, 'reward_threshold': -1.0, 'top_k': 10, 'use_auto_grad': True, 'verbose': False}
+2026-01-13 21:17:31,883 [WARNING] Detected kernel version 5.4.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+wandb: Currently logged in as: iamseungpil (gistdslab) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run coav33b8
+wandb: Tracking run with wandb version 0.23.0
+wandb: Run data is saved locally in /home/jovyan/data/memgen/evaluate_ltpo/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-211659/wandb/run-20260113_211732-coav33b8
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run pn=1_pl=8_in=5_il=8_20260113-211659
+wandb: ⭐️ View project at https://wandb.ai/gistdslab/memgen
+wandb: 🚀 View run at https://wandb.ai/gistdslab/memgen/runs/coav33b8
+wandb: Detected [huggingface_hub.inference] in use.
+wandb: Use W&B Weave for improved LLM call tracing. Install Weave with `pip install weave` then add `import weave` to the top of your script.
+wandb: For more information, check out the docs at: https://weave-docs.wandb.ai/
+Traceback (most recent call last):
+  File "/home/jovyan/MemGenforARC/main.py", line 113, in <module>
+    main()
+  File "/home/jovyan/MemGenforARC/main.py", line 110, in main
+    runner.evaluate_with_ltpo()
+  File "/home/jovyan/MemGenforARC/memgen/runner.py", line 528, in evaluate_with_ltpo
+    return evaluate_func(ltpo_optimizer, ltpo_verbose)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/MemGenforARC/memgen/runner.py", line 553, in _static_evaluate_with_ltpo
+    model_wrapped = accelerator.prepare_model(model=self.model, evaluation_mode=True)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/accelerator.py", line 1800, in prepare_model
+    model = model.to(self.device)
+            ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/transformers/modeling_utils.py", line 4346, in to
+    return super().to(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1355, in to
+    return self._apply(convert)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+    module._apply(fn)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+    module._apply(fn)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+    module._apply(fn)
+  [Previous line repeated 6 more times]
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 942, in _apply
+    param_applied = fn(param)
+                    ^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1341, in convert
+    return t.to(
+           ^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 96.00 MiB. GPU 0 has a total capacity of 39.49 GiB of which 89.31 MiB is free. Process 237898 has 16.51 GiB memory in use. Process 281240 has 16.04 GiB memory in use. Process 286253 has 6.84 GiB memory in use. Of the allocated memory 6.38 GiB is allocated by PyTorch, and 61.58 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33mpn=1_pl=8_in=5_il=8_20260113-211659[0m at: [34m[0m
+[1;34mwandb[0m: Find logs at: [1;35m../data/memgen/evaluate_ltpo/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-211659/wandb/run-20260113_211732-coav33b8/logs[0m

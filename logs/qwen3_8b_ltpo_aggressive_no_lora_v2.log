@@ -1,0 +1,235 @@
+2026-01-13 21:18:18,485 [INFO] 
+=====  Running Parameters    =====
+2026-01-13 21:18:18,486 [INFO] {
+    "interaction": {
+        "batch_size": 1,
+        "do_sample": false,
+        "max_obs_length": 512,
+        "max_prompt_length": 4096,
+        "max_response_length": 1024,
+        "max_start_length": 1024,
+        "max_turns": 1,
+        "temperature": 1.0
+    },
+    "log_dir": "/home/jovyan/data/memgen/evaluate_ltpo/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-211818/logs",
+    "ltpo": {
+        "enabled": true,
+        "lr": 0.1,
+        "max_steps": 20,
+        "reward_threshold": -1.0,
+        "sigma": 0.2,
+        "sigma_decay": 0.95,
+        "top_k": 10,
+        "use_auto_grad": true,
+        "verbose": false
+    },
+    "mode": "evaluate_ltpo",
+    "seed": 42,
+    "train_trigger": false,
+    "train_trigger_method": "grpo",
+    "train_weaver": true,
+    "train_weaver_method": "sft",
+    "trigger": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "bnpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        }
+    },
+    "weaver": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "grpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        },
+        "sft": {
+            "assistant_only_loss": false,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "lr_scheduler_type": "cosine",
+            "max_length": 1024,
+            "num_train_epochs": 2,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 4,
+            "per_device_train_batch_size": 4,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "warmup_ratio": 0.1
+        }
+    }
+}
+2026-01-13 21:18:18,486 [INFO] 
+======  Dataset Attributes  ======
+2026-01-13 21:18:18,486 [INFO] {
+    "grpo": {
+        "val_ratio": 0.1
+    },
+    "mode": "sft",
+    "name": "gsm8k",
+    "sft": {
+        "val_ratio": 0.1
+    }
+}
+2026-01-13 21:18:18,486 [INFO] 
+======  Model Attributes  ======
+2026-01-13 21:18:18,487 [INFO] {
+    "load_model_path": null,
+    "load_trigger_path": null,
+    "load_weaver_path": "/home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/weaver_lora",
+    "max_inference_aug_num": 5,
+    "max_prompt_aug_num": 1,
+    "model_name": "Qwen/Qwen3-8B",
+    "trigger": {
+        "active": false,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B"
+    },
+    "weaver": {
+        "inference_latents_len": 8,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B",
+        "prompt_latents_len": 8
+    }
+}
+You are using a model of type qwen3 to instantiate a model of type memgen. This is not supported for all configurations of models and can yield errors.
+set seed: 42
+Loading checkpoint shards:   0%|          | 0/5 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 5/5 [00:00<00:00, 97.71it/s]
+2026-01-13 21:18:21,489 [INFO] Loading pre-trained weaver from: /home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/weaver_lora
+2026-01-13 21:18:21,489 [INFO] Skipping LoRA adapter loading (trained with buggy code)
+2026-01-13 21:18:21,489 [INFO] Loaded 0 weaver adapter weights from checkpoint (LoRA skipped)
+2026-01-13 21:18:21,542 [INFO] Loaded projections and query_latents from /home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/projections.pt
+2026-01-13 21:18:50,904 [INFO] [LTPO] Starting LTPO-enhanced evaluation with config: {'enabled': True, 'lr': 0.1, 'sigma': 0.2, 'sigma_decay': 0.95, 'max_steps': 20, 'reward_threshold': -1.0, 'top_k': 10, 'use_auto_grad': True, 'verbose': False}
+2026-01-13 21:18:50,906 [WARNING] Detected kernel version 5.4.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+wandb: Currently logged in as: iamseungpil (gistdslab) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run 8ouk7tlx
+wandb: Tracking run with wandb version 0.23.0
+wandb: Run data is saved locally in /home/jovyan/data/memgen/evaluate_ltpo/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-211818/wandb/run-20260113_211851-8ouk7tlx
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run pn=1_pl=8_in=5_il=8_20260113-211818
+wandb: ⭐️ View project at https://wandb.ai/gistdslab/memgen
+wandb: 🚀 View run at https://wandb.ai/gistdslab/memgen/runs/8ouk7tlx
+wandb: Detected [huggingface_hub.inference] in use.
+wandb: Use W&B Weave for improved LLM call tracing. Install Weave with `pip install weave` then add `import weave` to the top of your script.
+wandb: For more information, check out the docs at: https://weave-docs.wandb.ai/
+  0%|          | 0/1319 [00:00<?, ?it/s]  0%|          | 1/1319 [00:19<7:05:39, 19.38s/it]  0%|          | 2/1319 [00:24<4:06:54, 11.25s/it]`generation_config` default values have been modified to match model-specific defaults: {'do_sample': True, 'temperature': 0.6, 'top_k': 20, 'top_p': 0.95, 'bos_token_id': 151643}. If this is not desired, please set these values explicitly.
+  0%|          | 3/1319 [00:49<6:21:32, 17.40s/it]  0%|          | 4/1319 [00:58<5:05:12, 13.93s/it]  0%|          | 5/1319 [01:22<6:22:35, 17.47s/it]  0%|          | 6/1319 [01:43<6:51:13, 18.79s/it]  1%|          | 7/1319 [02:05<7:13:33, 19.83s/it]  1%|          | 8/1319 [02:27<7:26:37, 20.44s/it]  1%|          | 9/1319 [03:04<9:24:01, 25.83s/it]  1%|          | 10/1319 [03:21<8:24:45, 23.14s/it]  1%|          | 11/1319 [03:41<7:58:08, 21.93s/it]  1%|          | 12/1319 [03:56<7:16:29, 20.04s/it]  1%|          | 13/1319 [04:19<7:37:08, 21.00s/it]  1%|          | 14/1319 [04:51<8:45:45, 24.17s/it]  1%|          | 15/1319 [05:11<8:17:59, 22.91s/it]  1%|          | 16/1319 [05:32<8:07:32, 22.45s/it]  1%|▏         | 17/1319 [05:47<7:17:32, 20.16s/it]  1%|▏         | 18/1319 [06:07<7:14:48, 20.05s/it]  1%|▏         | 19/1319 [06:19<6:19:05, 17.50s/it]  2%|▏         | 20/1319 [06:42<6:55:38, 19.20s/it]  2%|▏         | 21/1319 [07:07<7:32:20, 20.91s/it]  2%|▏         | 22/1319 [07:25<7:14:04, 20.08s/it]  2%|▏         | 23/1319 [07:39<6:35:51, 18.33s/it]  2%|▏         | 24/1319 [08:00<6:51:08, 19.05s/it]  2%|▏         | 25/1319 [08:20<7:01:32, 19.55s/it]  2%|▏         | 26/1319 [08:45<7:31:36, 20.96s/it]  2%|▏         | 27/1319 [09:06<7:34:38, 21.11s/it]  2%|▏         | 28/1319 [09:29<7:42:45, 21.51s/it]  2%|▏         | 29/1319 [09:46<7:14:15, 20.20s/it]  2%|▏         | 30/1319 [09:54<5:56:49, 16.61s/it]  2%|▏         | 31/1319 [10:15<6:25:06, 17.94s/it]  2%|▏         | 32/1319 [10:35<6:37:05, 18.51s/it]  3%|▎         | 33/1319 [10:45<5:40:23, 15.88s/it]  3%|▎         | 34/1319 [11:03<5:57:59, 16.72s/it]  3%|▎         | 35/1319 [11:23<6:18:02, 17.67s/it]  3%|▎         | 36/1319 [11:43<6:30:08, 18.25s/it]  3%|▎         | 37/1319 [12:03<6:41:26, 18.79s/it]  3%|▎         | 38/1319 [12:27<7:15:20, 20.39s/it]  3%|▎         | 39/1319 [12:47<7:13:44, 20.33s/it]  3%|▎         | 40/1319 [13:13<7:48:54, 22.00s/it]  3%|▎         | 41/1319 [13:32<7:30:07, 21.13s/it]  3%|▎         | 42/1319 [13:53<7:26:52, 21.00s/it]  3%|▎         | 43/1319 [14:05<6:31:25, 18.41s/it]  3%|▎         | 44/1319 [14:29<7:07:16, 20.11s/it]  3%|▎         | 45/1319 [14:50<7:13:50, 20.43s/it]  3%|▎         | 46/1319 [15:12<7:17:45, 20.63s/it]  4%|▎         | 47/1319 [15:36<7:40:08, 21.70s/it]  4%|▎         | 48/1319 [15:59<7:48:12, 22.10s/it]  4%|▎         | 49/1319 [16:12<6:51:03, 19.42s/it]  4%|▍         | 50/1319 [16:24<6:01:22, 17.09s/it]  4%|▍         | 51/1319 [16:37<5:37:45, 15.98s/it]  4%|▍         | 52/1319 [16:47<5:00:58, 14.25s/it]  4%|▍         | 53/1319 [16:58<4:40:54, 13.31s/it]  4%|▍         | 54/1319 [17:16<5:07:43, 14.60s/it]  4%|▍         | 55/1319 [17:29<4:55:42, 14.04s/it]  4%|▍         | 56/1319 [17:40<4:35:54, 13.11s/it]  4%|▍         | 57/1319 [17:47<3:58:02, 11.32s/it]  4%|▍         | 58/1319 [18:08<5:00:35, 14.30s/it]  4%|▍         | 59/1319 [18:30<5:51:31, 16.74s/it]  5%|▍         | 60/1319 [18:40<5:05:44, 14.57s/it]  5%|▍         | 61/1319 [19:00<5:39:44, 16.20s/it]  5%|▍         | 62/1319 [19:19<5:57:30, 17.06s/it]  5%|▍         | 63/1319 [19:40<6:24:04, 18.35s/it]  5%|▍         | 64/1319 [20:05<7:01:38, 20.16s/it]  5%|▍         | 65/1319 [20:25<7:03:52, 20.28s/it]  5%|▌         | 66/1319 [20:47<7:15:21, 20.85s/it]  5%|▌         | 67/1319 [21:07<7:06:43, 20.45s/it]  5%|▌         | 68/1319 [21:18<6:10:10, 17.75s/it]  5%|▌         | 69/1319 [21:35<5:59:37, 17.26s/it]  5%|▌         | 70/1319 [21:56<6:23:34, 18.43s/it]  5%|▌         | 71/1319 [22:21<7:05:31, 20.46s/it]  5%|▌         | 72/1319 [22:32<6:09:06, 17.76s/it]  6%|▌         | 73/1319 [22:45<5:36:34, 16.21s/it]  6%|▌         | 74/1319 [23:03<5:50:25, 16.89s/it]  6%|▌         | 75/1319 [23:39<7:44:33, 22.41s/it]  6%|▌         | 76/1319 [24:00<7:36:34, 22.04s/it]  6%|▌         | 77/1319 [24:40<9:28:21, 27.46s/it]  6%|▌         | 78/1319 [25:02<8:55:08, 25.87s/it]  6%|▌         | 79/1319 [25:26<8:44:26, 25.38s/it]  6%|▌         | 80/1319 [25:38<7:19:33, 21.29s/it]  6%|▌         | 81/1319 [25:55<6:54:17, 20.08s/it]  6%|▌         | 82/1319 [26:17<7:01:44, 20.46s/it]  6%|▋         | 83/1319 [26:33<6:33:25, 19.10s/it]  6%|▋         | 84/1319 [26:41<5:26:21, 15.86s/it]  6%|▋         | 85/1319 [27:04<6:07:26, 17.87s/it]  7%|▋         | 86/1319 [27:19<5:52:51, 17.17s/it]  7%|▋         | 87/1319 [27:39<6:07:36, 17.90s/it]  7%|▋         | 88/1319 [28:02<6:43:24, 19.66s/it]  7%|▋         | 89/1319 [28:21<6:38:35, 19.44s/it]  7%|▋         | 90/1319 [28:36<6:08:21, 17.98s/it]  7%|▋         | 91/1319 [29:00<6:44:06, 19.74s/it]  7%|▋         | 92/1319 [29:10<5:47:56, 17.01s/it]  7%|▋         | 93/1319 [29:20<5:04:29, 14.90s/it]  7%|▋         | 94/1319 [29:42<5:43:49, 16.84s/it]  7%|▋         | 95/1319 [30:02<6:05:19, 17.91s/it]  7%|▋         | 96/1319 [30:22<6:13:51, 18.34s/it]  7%|▋         | 97/1319 [30:31<5:16:47, 15.55s/it]  7%|▋         | 98/1319 [30:50<5:41:33, 16.78s/it]  8%|▊         | 99/1319 [31:25<7:29:08, 22.09s/it]  8%|▊         | 100/1319 [31:46<7:26:25, 21.97s/it]  8%|▊         | 101/1319 [32:10<7:33:55, 22.36s/it]  8%|▊         | 102/1319 [32:23<6:40:34, 19.75s/it]  8%|▊         | 103/1319 [32:41<6:28:12, 19.16s/it]  8%|▊         | 104/1319 [32:54<5:48:36, 17.22s/it]  8%|▊         | 105/1319 [33:20<6:41:45, 19.86s/it]  8%|▊         | 106/1319 [33:37<6:24:01, 19.00s/it]  8%|▊         | 107/1319 [33:49<5:43:20, 17.00s/it]  8%|▊         | 108/1319 [34:12<6:19:59, 18.83s/it]  8%|▊         | 109/1319 [34:38<7:03:44, 21.01s/it]  8%|▊         | 110/1319 [34:51<6:10:24, 18.38s/it]  8%|▊         | 111/1319 [35:09<6:07:36, 18.26s/it]  8%|▊         | 112/1319 [35:35<6:53:49, 20.57s/it]  9%|▊         | 113/1319 [35:54<6:44:31, 20.13s/it]  9%|▊         | 114/1319 [36:07<6:02:05, 18.03s/it]  9%|▊         | 115/1319 [36:29<6:28:55, 19.38s/it]  9%|▉         | 116/1319 [37:02<7:45:54, 23.24s/it]  9%|▉         | 117/1319 [37:24<7:42:00, 23.06s/it]  9%|▉         | 118/1319 [37:37<6:37:43, 19.87s/it]  9%|▉         | 119/1319 [37:59<6:52:50, 20.64s/it]  9%|▉         | 120/1319 [38:50<9:56:23, 29.84s/it]  9%|▉         | 121/1319 [39:08<8:44:35, 26.27s/it]  9%|▉         | 122/1319 [39:28<8:02:17, 24.17s/it]  9%|▉         | 123/1319 [39:48<7:37:18, 22.94s/it]  9%|▉         | 124/1319 [40:13<7:50:20, 23.62s/it]  9%|▉         | 125/1319 [40:24<6:33:39, 19.78s/it] 10%|▉         | 126/1319 [40:48<6:59:59, 21.12s/it] 10%|▉         | 127/1319 [41:05<6:35:02, 19.88s/it] 10%|▉         | 128/1319 [41:18<5:54:39, 17.87s/it] 10%|▉         | 129/1319 [41:46<6:55:38, 20.96s/it] 10%|▉         | 130/1319 [42:13<7:30:42, 22.74s/it] 10%|▉         | 131/1319 [42:30<6:52:58, 20.86s/it] 10%|█         | 132/1319 [42:38<5:37:31, 17.06s/it] 10%|█         | 132/1319 [42:49<6:25:05, 19.47s/it]
+Traceback (most recent call last):
+  File "/home/jovyan/MemGenforARC/main.py", line 113, in <module>
+    main()
+  File "/home/jovyan/MemGenforARC/main.py", line 110, in main
+    runner.evaluate_with_ltpo()
+  File "/home/jovyan/MemGenforARC/memgen/runner.py", line 528, in evaluate_with_ltpo
+    return evaluate_func(ltpo_optimizer, ltpo_verbose)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/MemGenforARC/memgen/runner.py", line 581, in _static_evaluate_with_ltpo
+    gen_output = self._run_agent_loop_with_ltpo(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/MemGenforARC/memgen/runner.py", line 712, in _run_agent_loop_with_ltpo
+    generated_ids = model.generate(
+                    ^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/MemGenforARC/memgen/model/modeling_memgen.py", line 598, in generate
+    optimized_latents, best_reward, best_step = ltpo_optimizer.optimize(
+                                                ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/MemGenforARC/ltpo/memgen_ltpo.py", line 184, in optimize
+    reward = self.compute_confidence(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/MemGenforARC/ltpo/memgen_ltpo.py", line 102, in compute_confidence
+    probs = torch.softmax(logits, dim=-1)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 46.00 MiB. GPU 0 has a total capacity of 39.49 GiB of which 21.31 MiB is free. Process 237898 has 16.52 GiB memory in use. Process 288406 has 16.10 GiB memory in use. Process 337035 has 6.84 GiB memory in use. Of the allocated memory 15.45 GiB is allocated by PyTorch, and 150.77 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33mpn=1_pl=8_in=5_il=8_20260113-211818[0m at: [34m[0m
+[1;34mwandb[0m: Find logs at: [1;35m../data/memgen/evaluate_ltpo/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-211818/wandb/run-20260113_211851-8ouk7tlx/logs[0m

@@ -1,0 +1,205 @@
+set seed: 42
+2026-01-13 19:18:04,031 [INFO] 
+=====  Running Parameters    =====
+2026-01-13 19:18:04,032 [INFO] {
+    "interaction": {
+        "batch_size": 4,
+        "do_sample": false,
+        "max_obs_length": 512,
+        "max_prompt_length": 4096,
+        "max_response_length": 1024,
+        "max_start_length": 1024,
+        "max_turns": 1,
+        "temperature": 0.0
+    },
+    "log_dir": "/home/jovyan/data/memgen/evaluate/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260113-191804/logs",
+    "ltpo": {
+        "enabled": true,
+        "lr": 0.03,
+        "max_steps": 10,
+        "reward_threshold": -1.0,
+        "sigma": 0.1,
+        "sigma_decay": 0.99,
+        "top_k": 10,
+        "use_auto_grad": true,
+        "verbose": false
+    },
+    "mode": "evaluate",
+    "seed": 42,
+    "train_trigger": false,
+    "train_trigger_method": "grpo",
+    "train_weaver": true,
+    "train_weaver_method": "sft",
+    "trigger": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "bnpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        }
+    },
+    "weaver": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "grpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        },
+        "sft": {
+            "assistant_only_loss": false,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "lr_scheduler_type": "cosine",
+            "max_length": 1024,
+            "num_train_epochs": 2,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 4,
+            "per_device_train_batch_size": 4,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "warmup_ratio": 0.1
+        }
+    }
+}
+2026-01-13 19:18:04,032 [INFO] 
+======  Dataset Attributes  ======
+2026-01-13 19:18:04,033 [INFO] {
+    "grpo": {
+        "val_ratio": 0.1
+    },
+    "mode": "sft",
+    "name": "gsm8k",
+    "sft": {
+        "val_ratio": 0.1
+    }
+}
+2026-01-13 19:18:04,033 [INFO] 
+======  Model Attributes  ======
+2026-01-13 19:18:04,033 [INFO] {
+    "load_model_path": null,
+    "load_trigger_path": null,
+    "load_weaver_path": "/home/jovyan/data/memgen/train/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260110-195742/weaver/weaver_lora",
+    "max_inference_aug_num": 5,
+    "max_prompt_aug_num": 1,
+    "model_name": "HuggingFaceTB/SmolLM3-3B",
+    "trigger": {
+        "active": false,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "HuggingFaceTB/SmolLM3-3B"
+    },
+    "weaver": {
+        "inference_latents_len": 8,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "HuggingFaceTB/SmolLM3-3B",
+        "prompt_latents_len": 8
+    }
+}
+You are using a model of type smollm3 to instantiate a model of type memgen. This is not supported for all configurations of models and can yield errors.
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:01<00:01,  1.60s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:02<00:00,  1.10it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:02<00:00,  1.02s/it]
+2026-01-13 19:18:08,707 [INFO] Loading pre-trained weaver from: /home/jovyan/data/memgen/train/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260110-195742/weaver/weaver_lora
+2026-01-13 19:18:08,707 [INFO] Skipping LoRA adapter loading (trained with buggy code)
+2026-01-13 19:18:08,707 [INFO] Loaded 0 weaver adapter weights from checkpoint (LoRA skipped)
+2026-01-13 19:18:08,742 [INFO] Loaded projections and query_latents from /home/jovyan/data/memgen/train/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260110-195742/weaver/projections.pt
+The following generation flags are not valid and may be ignored: ['temperature']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+2026-01-13 19:18:44,283 [WARNING] Detected kernel version 5.4.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+wandb: Currently logged in as: iamseungpil (gistdslab) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run l82k9xzd
+wandb: Tracking run with wandb version 0.23.0
+wandb: Run data is saved locally in /home/jovyan/data/memgen/evaluate/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260113-191804/wandb/run-20260113_191844-l82k9xzd
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run smollm3_3b_weaver_no_lora
+wandb: ⭐️ View project at https://wandb.ai/gistdslab/memgen-check
+wandb: 🚀 View run at https://wandb.ai/gistdslab/memgen-check/runs/l82k9xzd
+wandb: Detected [huggingface_hub.inference] in use.
+wandb: Use W&B Weave for improved LLM call tracing. Install Weave with `pip install weave` then add `import weave` to the top of your script.
+wandb: For more information, check out the docs at: https://weave-docs.wandb.ai/
+  0%|          | 0/330 [00:00<?, ?it/s]`generation_config` default values have been modified to match model-specific defaults: {'do_sample': True, 'temperature': 0.6, 'top_p': 0.95, 'bos_token_id': 128000}. If this is not desired, please set these values explicitly.
+  0%|          | 1/330 [01:10<6:26:02, 70.40s/it]  1%|          | 2/330 [02:20<6:22:41, 70.00s/it]  1%|          | 3/330 [02:33<3:59:37, 43.97s/it]  1%|          | 4/330 [03:43<4:54:42, 54.24s/it]  2%|▏         | 5/330 [04:51<5:21:43, 59.40s/it]  2%|▏         | 6/330 [05:59<5:36:25, 62.30s/it]  2%|▏         | 7/330 [06:11<4:06:22, 45.77s/it]  2%|▏         | 8/330 [06:41<3:38:47, 40.77s/it]  3%|▎         | 9/330 [07:11<3:19:56, 37.37s/it]  3%|▎         | 10/330 [08:16<4:05:35, 46.05s/it]  3%|▎         | 11/330 [08:54<3:52:07, 43.66s/it]  4%|▎         | 12/330 [09:09<3:04:56, 34.89s/it]  4%|▍         | 13/330 [10:14<3:52:36, 44.03s/it]  4%|▍         | 14/330 [11:19<4:25:06, 50.34s/it]  5%|▍         | 15/330 [11:33<3:26:22, 39.31s/it]  5%|▍         | 16/330 [11:44<2:40:37, 30.69s/it]  5%|▌         | 17/330 [11:55<2:10:05, 24.94s/it]  5%|▌         | 18/330 [13:00<3:12:28, 37.01s/it]  6%|▌         | 19/330 [13:34<3:06:07, 35.91s/it]  6%|▌         | 20/330 [13:43<2:24:28, 27.96s/it]  6%|▋         | 21/330 [14:49<3:22:31, 39.32s/it]  7%|▋         | 22/330 [15:55<4:02:20, 47.21s/it]  7%|▋         | 23/330 [17:01<4:30:18, 52.83s/it]  7%|▋         | 24/330 [18:07<4:50:30, 56.96s/it]  8%|▊         | 25/330 [19:12<5:02:15, 59.46s/it]  8%|▊         | 26/330 [19:37<4:07:44, 48.90s/it]  8%|▊         | 27/330 [20:43<4:32:39, 53.99s/it]  8%|▊         | 28/330 [21:06<3:45:48, 44.86s/it]  9%|▉         | 29/330 [21:40<3:28:30, 41.56s/it]  9%|▉         | 30/330 [22:44<4:01:23, 48.28s/it]  9%|▉         | 31/330 [22:59<3:11:14, 38.38s/it] 10%|▉         | 32/330 [23:42<3:17:20, 39.73s/it] 10%|█         | 33/330 [24:09<2:56:56, 35.74s/it] 10%|█         | 34/330 [24:45<2:58:00, 36.08s/it] 11%|█         | 35/330 [25:52<3:42:31, 45.26s/it] 11%|█         | 36/330 [26:05<2:54:43, 35.66s/it] 11%|█         | 37/330 [26:37<2:48:30, 34.51s/it] 12%|█▏        | 38/330 [26:48<2:13:27, 27.42s/it] 12%|█▏        | 39/330 [27:56<3:12:06, 39.61s/it] 12%|█▏        | 40/330 [28:06<2:28:42, 30.77s/it] 12%|█▏        | 41/330 [28:22<2:06:54, 26.35s/it] 13%|█▎        | 42/330 [29:30<3:05:25, 38.63s/it] 13%|█▎        | 43/330 [30:37<3:46:37, 47.38s/it] 13%|█▎        | 44/330 [30:51<2:58:14, 37.39s/it] 14%|█▎        | 45/330 [32:00<3:41:21, 46.60s/it] 14%|█▍        | 46/330 [33:06<4:09:17, 52.67s/it] 14%|█▍        | 47/330 [34:14<4:29:52, 57.22s/it] 15%|█▍        | 48/330 [34:25<3:24:01, 43.41s/it] 15%|█▍        | 49/330 [34:56<3:05:39, 39.64s/it] 15%|█▌        | 50/330 [36:03<3:43:12, 47.83s/it] 15%|█▌        | 51/330 [37:10<4:08:57, 53.54s/it] 16%|█▌        | 52/330 [38:17<4:26:20, 57.48s/it] 16%|█▌        | 53/330 [38:50<3:51:15, 50.09s/it] 16%|█▋        | 54/330 [39:57<4:14:26, 55.31s/it] 17%|█▋        | 55/330 [40:09<3:13:56, 42.31s/it] 17%|█▋        | 56/330 [41:16<3:46:33, 49.61s/it] 17%|█▋        | 57/330 [41:32<3:00:29, 39.67s/it] 18%|█▊        | 58/330 [42:40<3:37:36, 48.00s/it] 18%|█▊        | 59/330 [43:00<2:59:07, 39.66s/it] 18%|█▊        | 60/330 [44:07<3:35:17, 47.84s/it] 18%|█▊        | 61/330 [45:14<4:00:00, 53.53s/it] 19%|█▉        | 62/330 [46:21<4:17:38, 57.68s/it] 19%|█▉        | 63/330 [47:28<4:28:41, 60.38s/it] 19%|█▉        | 64/330 [47:40<3:23:14, 45.84s/it] 20%|█▉        | 65/330 [48:46<3:49:43, 52.01s/it] 20%|██        | 66/330 [49:54<4:09:25, 56.69s/it] 20%|██        | 67/330 [50:19<3:28:05, 47.47s/it] 21%|██        | 68/330 [51:26<3:52:38, 53.28s/it] 21%|██        | 69/330 [51:38<2:57:08, 40.72s/it] 21%|██        | 70/330 [52:04<2:37:06, 36.26s/it] 22%|██▏       | 71/330 [52:30<2:23:37, 33.27s/it] 22%|██▏       | 72/330 [53:37<3:06:20, 43.34s/it] 22%|██▏       | 73/330 [54:01<2:41:21, 37.67s/it] 22%|██▏       | 74/330 [55:07<3:16:47, 46.12s/it] 23%|██▎       | 75/330 [56:11<3:39:20, 51.61s/it] 23%|██▎       | 76/330 [57:08<3:44:18, 52.99s/it] 23%|██▎       | 77/330 [58:12<3:57:53, 56.42s/it] 24%|██▎       | 78/330 [59:17<4:07:17, 58.88s/it] 24%|██▍       | 79/330 [1:00:22<4:14:42, 60.89s/it] 24%|██▍       | 80/330 [1:01:27<4:18:53, 62.13s/it] 25%|██▍       | 81/330 [1:02:32<4:20:58, 62.89s/it] 25%|██▍       | 82/330 [1:03:36<4:21:52, 63.36s/it] 25%|██▌       | 83/330 [1:04:42<4:23:24, 63.99s/it] 25%|██▌       | 84/330 [1:05:46<4:22:41, 64.07s/it] 26%|██▌       | 85/330 [1:06:07<3:28:24, 51.04s/it]

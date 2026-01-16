@@ -1,0 +1,200 @@
+2026-01-14 10:24:23,325 [INFO] 
+=====  Running Parameters    =====
+2026-01-14 10:24:23,326 [INFO] {
+    "interaction": {
+        "batch_size": 4,
+        "do_sample": false,
+        "max_obs_length": 512,
+        "max_prompt_length": 4096,
+        "max_response_length": 1024,
+        "max_start_length": 1024,
+        "max_turns": 1,
+        "temperature": 1.0
+    },
+    "log_dir": "/home/jovyan/data/memgen/evaluate/gsm8k/Qwen3-8B/pn=0_pl=8_in=0_il=8_20260114-102423/logs",
+    "ltpo": {
+        "enabled": true,
+        "lr": 0.1,
+        "max_steps": 20,
+        "reward_threshold": -1.0,
+        "sigma": 0.2,
+        "sigma_decay": 0.95,
+        "top_k": 10,
+        "use_auto_grad": true,
+        "verbose": false
+    },
+    "mode": "evaluate",
+    "seed": 42,
+    "train_trigger": false,
+    "train_trigger_method": "grpo",
+    "train_weaver": true,
+    "train_weaver_method": "sft",
+    "trigger": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "bnpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        }
+    },
+    "weaver": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "grpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        },
+        "sft": {
+            "assistant_only_loss": false,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "lr_scheduler_type": "cosine",
+            "max_length": 1024,
+            "num_train_epochs": 2,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 4,
+            "per_device_train_batch_size": 4,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "warmup_ratio": 0.1
+        }
+    }
+}
+2026-01-14 10:24:23,326 [INFO] 
+======  Dataset Attributes  ======
+2026-01-14 10:24:23,327 [INFO] {
+    "grpo": {
+        "val_ratio": 0.1
+    },
+    "mode": "sft",
+    "name": "gsm8k",
+    "sft": {
+        "val_ratio": 0.1
+    }
+}
+2026-01-14 10:24:23,327 [INFO] 
+======  Model Attributes  ======
+2026-01-14 10:24:23,327 [INFO] {
+    "load_model_path": null,
+    "load_trigger_path": null,
+    "load_weaver_path": null,
+    "max_inference_aug_num": 0,
+    "max_prompt_aug_num": 0,
+    "model_name": "Qwen/Qwen3-8B",
+    "trigger": {
+        "active": false,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B"
+    },
+    "weaver": {
+        "inference_latents_len": 8,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B",
+        "prompt_latents_len": 8
+    }
+}
+You are using a model of type qwen3 to instantiate a model of type memgen. This is not supported for all configurations of models and can yield errors.
+set seed: 42
+Loading checkpoint shards:   0%|          | 0/5 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 5/5 [00:00<00:00, 102.82it/s]
+2026-01-14 10:24:55,782 [WARNING] Detected kernel version 5.4.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+wandb: Currently logged in as: iamseungpil (gistdslab) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run jb2irhfc
+wandb: Tracking run with wandb version 0.23.0
+wandb: Run data is saved locally in /home/jovyan/data/memgen/evaluate/gsm8k/Qwen3-8B/pn=0_pl=8_in=0_il=8_20260114-102423/wandb/run-20260114_102456-jb2irhfc
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run pn=0_pl=8_in=0_il=8_20260114-102423
+wandb: ⭐️ View project at https://wandb.ai/gistdslab/memgen-check
+wandb: 🚀 View run at https://wandb.ai/gistdslab/memgen-check/runs/jb2irhfc
+wandb: Detected [huggingface_hub.inference] in use.
+wandb: Use W&B Weave for improved LLM call tracing. Install Weave with `pip install weave` then add `import weave` to the top of your script.
+wandb: For more information, check out the docs at: https://weave-docs.wandb.ai/
+  0%|          | 0/330 [00:00<?, ?it/s]`generation_config` default values have been modified to match model-specific defaults: {'do_sample': True, 'temperature': 0.6, 'top_k': 20, 'top_p': 0.95, 'bos_token_id': 151643}. If this is not desired, please set these values explicitly.
+  0%|          | 1/330 [01:49<9:59:13, 109.28s/it]  1%|          | 2/330 [03:31<9:34:14, 105.04s/it]  1%|          | 3/330 [05:14<9:27:01, 104.04s/it]  1%|          | 4/330 [06:57<9:24:31, 103.90s/it]  2%|▏         | 5/330 [08:40<9:20:15, 103.43s/it]  2%|▏         | 6/330 [10:22<9:15:23, 102.85s/it]  2%|▏         | 7/330 [12:04<9:12:11, 102.57s/it]  2%|▏         | 8/330 [13:47<9:10:57, 102.66s/it]  3%|▎         | 9/330 [15:30<9:09:54, 102.79s/it]  3%|▎         | 10/330 [17:13<9:09:48, 103.09s/it]  3%|▎         | 11/330 [18:56<9:07:22, 102.96s/it]  4%|▎         | 12/330 [20:39<9:04:55, 102.82s/it]  4%|▍         | 13/330 [22:21<9:02:17, 102.64s/it]  4%|▍         | 14/330 [24:03<8:59:52, 102.51s/it]  5%|▍         | 15/330 [25:44<8:56:28, 102.18s/it]  5%|▍         | 16/330 [27:26<8:53:16, 101.90s/it]  5%|▌         | 17/330 [29:08<8:51:29, 101.88s/it]  5%|▌         | 18/330 [30:49<8:49:20, 101.80s/it]  6%|▌         | 19/330 [32:32<8:48:36, 101.98s/it]  6%|▌         | 20/330 [34:14<8:47:38, 102.13s/it]  6%|▋         | 21/330 [35:57<8:47:41, 102.46s/it]  7%|▋         | 22/330 [37:41<8:48:41, 102.99s/it]  7%|▋         | 23/330 [39:25<8:47:56, 103.18s/it]  7%|▋         | 24/330 [41:09<8:47:22, 103.41s/it]  8%|▊         | 25/330 [42:51<8:43:24, 102.97s/it]0 [32:27<7:01:24, 83.17s/it]  8%|▊         | 27/330 [34:09<7:28:57, 88.90s/it]  8%|▊         | 28/330 [35:52<7:48:59, 93.18s/it]  9%|▉         | 29/330 [37:35<8:01:47, 96.04s/it]  9%|▉         | 30/330 [39:18<8:10:02, 98.01s/it]  9%|▉         | 31/330 [40:59<8:13:43, 99.08s/it] 10%|▉         | 32/330 [42:42<8:16:49, 100.03s/it] 10%|█         | 33/330 [44:24<8:19:16, 100.86s/it] 10%|█         | 34/330 [46:08<8:21:02, 101.56s/it] 11%|█         | 35/330 [47:51<8:22:39, 102.24s/it] 11%|█         | 36/330 [49:34<8:20:55, 102.23s/it] 11%|█         | 37/330 [51:16<8:19:44, 102.34s/it] 12%|█▏        | 38/330 [52:58<8:18:02, 102.34s/it] 12%|█▏        | 39/330 [54:40<8:15:52, 102.24s/it] 12%|█▏        | 40/330 [56:22<8:12:36, 101.92s/it] 12%|█▏        | 41/330 [58:03<8:09:48, 101.69s/it] 13%|█▎        | 42/330 [59:45<8:08:11, 101.71s/it] 13%|█▎        | 43/330 [1:01:26<8:06:21, 101.68s/it] 13%|█▎        | 44/330 [1:03:08<8:05:34, 101.87s/it] 14%|█▎        | 45/330 [1:04:51<8:04:37, 102.03s/it] 14%|█▍        | 46/330 [1:06:35<8:05:39, 102.61s/it] 14%|█▍        | 47/330 [1:08:19<8:06:04, 103.06s/it] 15%|█▍        | 48/330 [1:10:03<8:05:29, 103.29s/it] 15%|█▍        | 49/330 [1:11:46<8:03:34, 103.25s/it] 15%|█▌        | 50/330 [1:13:28<8:00:14, 102.91s/it]

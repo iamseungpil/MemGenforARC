@@ -1,0 +1,217 @@
+2026-01-16 13:37:19,729 [INFO] 
+=====  Running Parameters    =====
+2026-01-16 13:37:19,730 [INFO] {
+    "interaction": {
+        "batch_size": 4,
+        "do_sample": false,
+        "max_obs_length": 512,
+        "max_prompt_length": 4096,
+        "max_response_length": 1024,
+        "max_start_length": 1024,
+        "max_turns": 1,
+        "temperature": 0.0
+    },
+    "log_dir": "/home/jovyan/data/memgen/evaluate/gsm8k/SmolLM3-3B/pn=0_pl=8_in=5_il=8_20260116-133719/logs",
+    "ltpo": {
+        "enabled": false,
+        "lr": 0.1,
+        "max_steps": 20,
+        "reward_threshold": -1.0,
+        "sigma": 0.2,
+        "sigma_decay": 0.95,
+        "top_k": 10,
+        "use_auto_grad": true,
+        "verbose": false
+    },
+    "mode": "evaluate",
+    "seed": 42,
+    "train_trigger": false,
+    "train_trigger_method": "grpo",
+    "train_weaver": true,
+    "train_weaver_method": "sft",
+    "trigger": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "bnpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        }
+    },
+    "weaver": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "grpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        },
+        "sft": {
+            "assistant_only_loss": false,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "lr_scheduler_type": "cosine",
+            "max_length": 1024,
+            "num_train_epochs": 2,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 4,
+            "per_device_train_batch_size": 4,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "warmup_ratio": 0.1
+        }
+    }
+}
+2026-01-16 13:37:19,730 [INFO] 
+======  Dataset Attributes  ======
+2026-01-16 13:37:19,730 [INFO] {
+    "grpo": {
+        "val_ratio": 0.1
+    },
+    "mode": "sft",
+    "name": "gsm8k",
+    "sft": {
+        "val_ratio": 0.1
+    }
+}
+2026-01-16 13:37:19,730 [INFO] 
+======  Model Attributes  ======
+2026-01-16 13:37:19,731 [INFO] {
+    "load_inference_query_latents": false,
+    "load_model_path": null,
+    "load_trigger_path": null,
+    "load_weaver_path": "/home/jovyan/data/memgen/train/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260110-195742/weaver",
+    "max_inference_aug_num": 5,
+    "max_prompt_aug_num": 0,
+    "model_name": "HuggingFaceTB/SmolLM3-3B",
+    "skip_lora": true,
+    "trigger": {
+        "active": false,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "HuggingFaceTB/SmolLM3-3B"
+    },
+    "weaver": {
+        "inference_latents_len": 8,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "HuggingFaceTB/SmolLM3-3B",
+        "prompt_latents_len": 8
+    }
+}
+'(ReadTimeoutError("HTTPSConnectionPool(host='huggingface.co', port=443): Read timed out. (read timeout=10)"), '(Request ID: 5f184afe-577d-41d6-bda0-6491cee385b6)')' thrown while requesting HEAD https://huggingface.co/HuggingFaceTB/SmolLM3-3B/resolve/main/config.json
+2026-01-16 13:37:29,821 [WARNING] '(ReadTimeoutError("HTTPSConnectionPool(host='huggingface.co', port=443): Read timed out. (read timeout=10)"), '(Request ID: 5f184afe-577d-41d6-bda0-6491cee385b6)')' thrown while requesting HEAD https://huggingface.co/HuggingFaceTB/SmolLM3-3B/resolve/main/config.json
+Retrying in 1s [Retry 1/5].
+2026-01-16 13:37:29,822 [WARNING] Retrying in 1s [Retry 1/5].
+You are using a model of type smollm3 to instantiate a model of type memgen. This is not supported for all configurations of models and can yield errors.
+set seed: 42
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:01<00:01,  1.41s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.21it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.09it/s]
+'(ReadTimeoutError("HTTPSConnectionPool(host='huggingface.co', port=443): Read timed out. (read timeout=10)"), '(Request ID: 4648b6f1-b315-4e33-84d7-3ad17abcb741)')' thrown while requesting HEAD https://huggingface.co/HuggingFaceTB/SmolLM3-3B/resolve/main/custom_generate/generate.py
+2026-01-16 13:37:55,347 [WARNING] '(ReadTimeoutError("HTTPSConnectionPool(host='huggingface.co', port=443): Read timed out. (read timeout=10)"), '(Request ID: 4648b6f1-b315-4e33-84d7-3ad17abcb741)')' thrown while requesting HEAD https://huggingface.co/HuggingFaceTB/SmolLM3-3B/resolve/main/custom_generate/generate.py
+Retrying in 1s [Retry 1/5].
+2026-01-16 13:37:55,347 [WARNING] Retrying in 1s [Retry 1/5].
+2026-01-16 13:38:00,110 [INFO] Loading projections.pt for skip-lora mode from /home/jovyan/data/memgen/train/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260110-195742/weaver/projections.pt
+2026-01-16 13:38:00,160 [INFO] Loaded projections + query_latents from /home/jovyan/data/memgen/train/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260110-195742/weaver/projections.pt (skip-lora mode, no LoRA loaded)
+'(ReadTimeoutError("HTTPSConnectionPool(host='huggingface.co', port=443): Read timed out. (read timeout=10)"), '(Request ID: ffa281be-0b18-40b4-bc8b-c00a50c0c9e5)')' thrown while requesting HEAD https://huggingface.co/datasets/openai/gsm8k/resolve/main/README.md
+2026-01-16 13:38:17,241 [WARNING] '(ReadTimeoutError("HTTPSConnectionPool(host='huggingface.co', port=443): Read timed out. (read timeout=10)"), '(Request ID: ffa281be-0b18-40b4-bc8b-c00a50c0c9e5)')' thrown while requesting HEAD https://huggingface.co/datasets/openai/gsm8k/resolve/main/README.md
+Retrying in 1s [Retry 1/5].
+2026-01-16 13:38:17,242 [WARNING] Retrying in 1s [Retry 1/5].
+The following generation flags are not valid and may be ignored: ['temperature']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+2026-01-16 13:39:01,420 [WARNING] Detected kernel version 5.4.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+wandb: Currently logged in as: iamseungpil (gistdslab) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run 8y380juj
+wandb: Tracking run with wandb version 0.23.0
+wandb: Run data is saved locally in /home/jovyan/data/memgen/evaluate/gsm8k/SmolLM3-3B/pn=0_pl=8_in=5_il=8_20260116-133719/wandb/run-20260116_133902-8y380juj
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run eval_gsm8k_smollm3-3b_random-inference-only
+wandb: ⭐️ View project at https://wandb.ai/gistdslab/memgen_reproduce
+wandb: 🚀 View run at https://wandb.ai/gistdslab/memgen_reproduce/runs/8y380juj
+wandb: Detected [huggingface_hub.inference] in use.
+wandb: Use W&B Weave for improved LLM call tracing. Install Weave with `pip install weave` then add `import weave` to the top of your script.
+wandb: For more information, check out the docs at: https://weave-docs.wandb.ai/
+  0%|          | 0/330 [00:00<?, ?it/s]  0%|          | 1/330 [01:37<8:56:47, 97.89s/it]`generation_config` default values have been modified to match model-specific defaults: {'do_sample': True, 'temperature': 0.6, 'top_p': 0.95, 'bos_token_id': 128000}. If this is not desired, please set these values explicitly.
+  1%|          | 2/330 [03:31<9:46:23, 107.27s/it]  1%|          | 3/330 [05:25<9:59:48, 110.06s/it]  1%|          | 4/330 [07:17<10:02:53, 110.96s/it]  2%|▏         | 5/330 [09:12<10:09:08, 112.46s/it]  2%|▏         | 6/330 [11:05<10:08:36, 112.71s/it]  2%|▏         | 7/330 [12:57<10:05:45, 112.53s/it]  2%|▏         | 8/330 [14:52<10:08:01, 113.30s/it]  3%|▎         | 9/330 [15:25<7:51:19, 88.10s/it]    3%|▎         | 10/330 [17:17<8:29:54, 95.61s/it]  3%|▎         | 11/330 [19:13<9:00:35, 101.68s/it]  4%|▎         | 12/330 [21:09<9:21:51, 106.01s/it]  4%|▍         | 13/330 [23:02<9:31:51, 108.24s/it]  4%|▍         | 14/330 [24:55<9:38:05, 109.76s/it]  5%|▍         | 15/330 [26:50<9:44:30, 111.34s/it]  5%|▍         | 16/330 [28:44<9:46:07, 112.00s/it]  5%|▌         | 17/330 [30:38<9:47:58, 112.71s/it]  5%|▌         | 18/330 [32:33<9:49:04, 113.28s/it]  6%|▌         | 19/330 [34:27<9:48:53, 113.61s/it]  6%|▌         | 20/330 [36:23<9:49:37, 114.12s/it]  6%|▋         | 21/330 [38:16<9:45:51, 113.76s/it]  7%|▋         | 22/330 [40:11<9:46:42, 114.29s/it]  7%|▋         | 23/330 [42:07<9:46:29, 114.62s/it]  7%|▋         | 24/330 [44:00<9:43:08, 114.34s/it]  8%|▊         | 25/330 [45:54<9:40:21, 114.17s/it]  8%|▊         | 26/330 [47:47<9:37:28, 113.98s/it]  8%|▊         | 27/330 [49:42<9:35:40, 114.00s/it]  8%|▊         | 28/330 [51:37<9:35:24, 114.32s/it]  9%|▉         | 29/330 [53:31<9:33:01, 114.22s/it]  9%|▉         | 30/330 [55:23<9:27:41, 113.54s/it]  9%|▉         | 31/330 [57:16<9:25:33, 113.49s/it] 10%|▉         | 32/330 [59:08<9:21:57, 113.15s/it] 10%|█         | 33/330 [1:01:01<9:19:42, 113.07s/it] 10%|█         | 34/330 [1:02:57<9:21:36, 113.84s/it] 11%|█         | 35/330 [1:04:52<9:22:11, 114.34s/it] 11%|█         | 36/330 [1:06:46<9:18:53, 114.06s/it] 11%|█         | 37/330 [1:07:14<7:12:04, 88.48s/it]  12%|█▏        | 38/330 [1:09:07<7:45:31, 95.66s/it] 12%|█▏        | 39/330 [1:11:03<8:13:37, 101.78s/it] 12%|█▏        | 40/330 [1:12:56<8:28:52, 105.29s/it] 12%|█▏        | 41/330 [1:14:52<8:41:45, 108.32s/it] 13%|█▎        | 42/330 [1:16:45<8:47:07, 109.82s/it] 13%|█▎        | 43/330 [1:18:40<8:52:12, 111.26s/it] 13%|█▎        | 44/330 [1:20:33<8:53:30, 111.92s/it] 14%|█▎        | 45/330 [1:22:27<8:53:47, 112.38s/it] 14%|█▍        | 46/330 [1:24:21<8:55:05, 113.05s/it] 14%|█▍        | 47/330 [1:26:17<8:56:21, 113.72s/it] 15%|█▍        | 48/330 [1:28:10<8:53:25, 113.49s/it] 15%|█▍        | 49/330 [1:30:05<8:54:21, 114.10s/it] 15%|█▌        | 50/330 [1:31:59<8:51:50, 113.96s/it] 15%|█▌        | 51/330 [1:33:54<8:51:52, 114.38s/it] 16%|█▌        | 52/330 [1:35:48<8:49:05, 114.19s/it] 16%|█▌        | 53/330 [1:37:42<8:46:44, 114.10s/it] 16%|█▋        | 54/330 [1:39:37<8:46:16, 114.41s/it] 17%|█▋        | 55/330 [1:41:32<8:45:49, 114.72s/it] 17%|█▋        | 56/330 [1:43:24<8:40:25, 113.96s/it] 17%|█▋        | 57/330 [1:45:16<8:35:08, 113.22s/it] 18%|█▊        | 58/330 [1:45:42<6:34:39, 87.06s/it]  18%|█▊        | 59/330 [1:47:37<7:10:49, 95.38s/it] 18%|█▊        | 60/330 [1:49:32<7:36:10, 101.37s/it] 18%|█▊        | 61/330 [1:51:24<7:48:51, 104.58s/it] 19%|█▉        | 62/330 [1:53:19<8:01:16, 107.75s/it] 19%|█▉        | 63/330 [1:55:12<8:05:27, 109.09s/it] 19%|█▉        | 64/330 [1:57:05<8:09:47, 110.48s/it] 20%|█▉        | 65/330 [1:58:58<8:11:06, 111.19s/it] 20%|██        | 66/330 [2:00:51<8:10:53, 111.57s/it] 20%|██        | 67/330 [2:02:43<8:10:17, 111.85s/it] 21%|██        | 68/330 [2:04:37<8:11:08, 112.47s/it] 21%|██        | 69/330 [2:06:30<8:09:45, 112.59s/it] 21%|██        | 70/330 [2:08:22<8:07:45, 112.56s/it] 22%|██▏       | 71/330 [2:10:16<8:07:04, 112.84s/it] 22%|██▏       | 72/330 [2:12:09<8:05:13, 112.84s/it] 22%|██▏       | 73/330 [2:14:03<8:05:02, 113.24s/it] 22%|██▏       | 74/330 [2:15:56<8:03:33, 113.33s/it] 23%|██▎       | 75/330 [2:17:50<8:01:55, 113.39s/it] 23%|██▎       | 76/330 [2:19:43<8:00:00, 113.39s/it] 23%|██▎       | 77/330 [2:21:39<8:01:13, 114.12s/it] 24%|██▎       | 78/330 [2:23:33<7:58:50, 114.01s/it] 24%|██▍       | 79/330 [2:25:26<7:55:55, 113.77s/it] 24%|██▍       | 80/330 [2:27:20<7:53:46, 113.71s/it] 25%|██▍       | 81/330 [2:29:12<7:50:16, 113.32s/it] 25%|██▍       | 82/330 [2:31:04<7:46:42, 112.91s/it] 25%|██▌       | 83/330 [2:32:59<7:47:22, 113.53s/it] 25%|██▌       | 84/330 [2:34:52<7:44:48, 113.37s/it] 26%|██▌       | 85/330 [2:36:45<7:42:40, 113.31s/it] 26%|██▌       | 86/330 [2:37:13<5:56:06, 87.57s/it]  26%|██▋       | 87/330 [2:39:08<6:27:55, 95.78s/it] 27%|██▋       | 88/330 [2:40:06<5:40:42, 84.47s/it] 27%|██▋       | 89/330 [2:41:59<6:13:39, 93.02s/it] 27%|██▋       | 90/330 [2:43:54<6:39:19, 99.83s/it] 28%|██▊       | 91/330 [2:45:48<6:54:24, 104.04s/it] 28%|██▊       | 92/330 [2:47:42<7:03:52, 106.86s/it] 28%|██▊       | 93/330 [2:49:37<7:12:09, 109.41s/it] 28%|██▊       | 94/330 [2:51:33<7:17:39, 111.27s/it] 29%|██▉       | 95/330 [2:53:25<7:16:34, 111.46s/it] 29%|██▉       | 96/330 [2:55:20<7:19:01, 112.57s/it] 29%|██▉       | 97/330 [2:57:13<7:17:49, 112.74s/it] 30%|██▉       | 98/330 [2:59:08<7:19:03, 113.55s/it] 30%|███       | 99/330 [3:01:01<7:16:16, 113.32s/it] 30%|███       | 100/330 [3:01:27<5:33:42, 87.05s/it] 31%|███       | 101/330 [3:03:22<6:04:45, 95.57s/it] 31%|███       | 102/330 [3:05:15<6:22:58, 100.78s/it] 31%|███       | 103/330 [3:06:34<5:55:49, 94.05s/it]  32%|███▏      | 104/330 [3:08:29<6:18:35, 100.51s/it] 32%|███▏      | 105/330 [3:08:46<4:43:17, 75.54s/it]  32%|███▏      | 106/330 [3:10:40<5:24:28, 86.91s/it] 32%|███▏      | 107/330 [3:12:33<5:52:03, 94.72s/it] 33%|███▎      | 108/330 [3:14:29<6:14:00, 101.08s/it] 33%|███▎      | 109/330 [3:16:25<6:28:41, 105.53s/it] 33%|███▎      | 110/330 [3:18:21<6:38:23, 108.65s/it] 34%|███▎      | 111/330 [3:20:12<6:39:57, 109.58s/it] 34%|███▍      | 112/330 [3:22:06<6:42:03, 110.66s/it] 34%|███▍      | 113/330 [3:23:58<6:42:12, 111.21s/it] 35%|███▍      | 114/330 [3:25:53<6:44:36, 112.39s/it] 35%|███▍      | 115/330 [3:27:46<6:42:59, 112.46s/it] 35%|███▌      | 116/330 [3:29:40<6:42:47, 112.93s/it] 35%|███▌      | 117/330 [3:31:32<6:40:37, 112.85s/it] 36%|███▌      | 118/330 [3:33:25<6:38:42, 112.84s/it] 36%|███▌      | 119/330 [3:35:19<6:37:12, 112.95s/it] 36%|███▋      | 120/330 [3:37:12<6:35:46, 113.08s/it] 37%|███▋      | 121/330 [3:39:07<6:36:07, 113.72s/it] 37%|███▋      | 122/330 [3:41:00<6:33:48, 113.60s/it] 37%|███▋      | 123/330 [3:42:56<6:34:10, 114.26s/it] 38%|███▊      | 124/330 [3:44:49<6:30:49, 113.83s/it] 38%|███▊      | 125/330 [3:46:43<6:28:46, 113.79s/it] 38%|███▊      | 126/330 [3:48:38<6:28:08, 114.16s/it] 38%|███▊      | 127/330 [3:50:31<6:25:40, 113.99s/it] 39%|███▉      | 128/330 [3:52:27<6:25:29, 114.50s/it] 39%|███▉      | 129/330 [3:54:21<6:22:33, 114.20s/it] 39%|███▉      | 130/330 [3:56:13<6:18:42, 113.61s/it] 40%|███▉      | 131/330 [3:56:35<4:46:16, 86.31s/it]  40%|████      | 132/330 [3:58:29<5:11:22, 94.36s/it] 40%|████      | 133/330 [4:00:22<5:28:20, 100.00s/it] 41%|████      | 134/330 [4:02:15<5:39:15, 103.86s/it] 41%|████      | 135/330 [4:04:07<5:45:48, 106.40s/it] 41%|████      | 136/330 [4:06:00<5:50:55, 108.53s/it] 42%|████▏     | 137/330 [4:07:56<5:55:52, 110.64s/it] 42%|████▏     | 138/330 [4:09:52<5:59:08, 112.23s/it] 42%|████▏     | 139/330 [4:11:45<5:58:17, 112.55s/it] 42%|████▏     | 140/330 [4:13:40<5:58:09, 113.10s/it] 43%|████▎     | 141/330 [4:15:35<5:58:36, 113.84s/it] 43%|████▎     | 142/330 [4:17:28<5:55:49, 113.56s/it] 43%|████▎     | 143/330 [4:19:21<5:52:55, 113.24s/it] 44%|████▎     | 144/330 [4:21:16<5:53:19, 113.98s/it] 44%|████▍     | 145/330 [4:23:10<5:51:30, 114.01s/it] 44%|████▍     | 146/330 [4:25:04<5:48:51, 113.76s/it] 45%|████▍     | 147/330 [4:26:59<5:48:14, 114.17s/it] 45%|████▍     | 148/330 [4:28:52<5:45:08, 113.78s/it] 45%|████▌     | 149/330 [4:30:44<5:42:22, 113.50s/it] 45%|████▌     | 150/330 [4:31:28<4:37:42, 92.57s/it]  46%|████▌     | 151/330 [4:33:23<4:56:32, 99.40s/it] 46%|████▌     | 152/330 [4:35:16<5:06:26, 103.30s/it] 46%|████▋     | 153/330 [4:37:09<5:13:44, 106.35s/it] 47%|████▋     | 154/330 [4:39:03<5:18:06, 108.44s/it] 47%|████▋     | 155/330 [4:40:59<5:22:47, 110.67s/it] 47%|████▋     | 156/330 [4:42:54<5:25:25, 112.22s/it] 48%|████▊     | 157/330 [4:44:48<5:24:55, 112.69s/it] 48%|████▊     | 158/330 [4:46:41<5:23:12, 112.75s/it] 48%|████▊     | 159/330 [4:48:37<5:23:44, 113.59s/it] 48%|████▊     | 160/330 [4:50:30<5:21:28, 113.46s/it] 49%|████▉     | 161/330 [4:52:24<5:20:29, 113.79s/it] 49%|████▉     | 162/330 [4:54:18<5:18:10, 113.64s/it] 49%|████▉     | 163/330 [4:56:11<5:16:02, 113.55s/it] 50%|████▉     | 164/330 [4:58:06<5:15:39, 114.09s/it] 50%|█████     | 165/330 [5:00:02<5:15:15, 114.64s/it] 50%|█████     | 166/330 [5:01:56<5:12:21, 114.28s/it] 51%|█████     | 167/330 [5:03:49<5:09:39, 113.99s/it] 51%|█████     | 168/330 [5:05:44<5:08:31, 114.27s/it] 51%|█████     | 169/330 [5:07:38<5:06:55, 114.38s/it] 52%|█████▏    | 170/330 [5:09:34<5:05:53, 114.71s/it] 52%|█████▏    | 171/330 [5:11:27<5:03:02, 114.35s/it] 52%|█████▏    | 172/330 [5:13:23<5:01:49, 114.62s/it] 52%|█████▏    | 173/330 [5:13:47<3:48:41, 87.40s/it]  53%|█████▎    | 174/330 [5:15:40<4:07:44, 95.28s/it] 53%|█████▎    | 175/330 [5:17:34<4:20:38, 100.90s/it] 53%|█████▎    | 176/330 [5:19:30<4:30:32, 105.41s/it] 54%|█████▎    | 177/330 [5:21:25<4:35:51, 108.18s/it] 54%|█████▍    | 178/330 [5:23:18<4:37:38, 109.60s/it] 54%|█████▍    | 179/330 [5:25:12<4:39:06, 110.90s/it] 55%|█████▍    | 180/330 [5:27:07<4:40:11, 112.07s/it] 55%|█████▍    | 181/330 [5:27:47<3:44:54, 90.57s/it]  55%|█████▌    | 182/330 [5:29:42<4:01:51, 98.05s/it] 55%|█████▌    | 183/330 [5:31:35<4:11:13, 102.54s/it] 56%|█████▌    | 184/330 [5:33:29<4:17:28, 105.81s/it] 56%|█████▌    | 185/330 [5:35:22<4:20:41, 107.87s/it] 56%|█████▋    | 186/330 [5:37:14<4:21:50, 109.10s/it] 57%|█████▋    | 187/330 [5:39:07<4:23:09, 110.42s/it] 57%|█████▋    | 188/330 [5:41:00<4:23:05, 111.16s/it] 57%|█████▋    | 189/330 [5:42:52<4:21:59, 111.49s/it] 58%|█████▊    | 190/330 [5:44:46<4:21:34, 112.11s/it] 58%|█████▊    | 191/330 [5:46:41<4:21:42, 112.96s/it] 58%|█████▊    | 192/330 [5:48:36<4:21:42, 113.78s/it] 58%|█████▊    | 193/330 [5:50:32<4:21:04, 114.34s/it] 59%|█████▉    | 194/330 [5:52:27<4:19:31, 114.50s/it] 59%|█████▉    | 195/330 [5:54:21<4:17:30, 114.45s/it] 59%|█████▉    | 196/330 [5:56:15<4:14:54, 114.14s/it] 60%|█████▉    | 197/330 [5:58:10<4:13:50, 114.51s/it] 60%|██████    | 198/330 [6:00:03<4:10:56, 114.06s/it] 60%|██████    | 199/330 [6:01:59<4:10:00, 114.51s/it] 61%|██████    | 200/330 [6:03:53<4:08:11, 114.55s/it] 61%|██████    | 201/330 [6:05:46<4:05:17, 114.09s/it] 61%|██████    | 202/330 [6:07:41<4:03:56, 114.34s/it] 62%|██████▏   | 203/330 [6:09:34<4:01:01, 113.87s/it] 62%|██████▏   | 204/330 [6:11:26<3:58:10, 113.41s/it] 62%|██████▏   | 205/330 [6:13:19<3:56:07, 113.34s/it] 62%|██████▏   | 206/330 [6:15:13<3:54:27, 113.45s/it]

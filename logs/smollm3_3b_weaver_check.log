@@ -1,0 +1,235 @@
+set seed: 42
+2026-01-13 14:59:25,644 [INFO] 
+=====  Running Parameters    =====
+2026-01-13 14:59:25,645 [INFO] {
+    "interaction": {
+        "batch_size": 4,
+        "do_sample": false,
+        "max_obs_length": 512,
+        "max_prompt_length": 4096,
+        "max_response_length": 1024,
+        "max_start_length": 1024,
+        "max_turns": 1,
+        "temperature": 0.0
+    },
+    "log_dir": "/home/jovyan/data/memgen/evaluate/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260113-145925/logs",
+    "ltpo": {
+        "enabled": true,
+        "lr": 0.03,
+        "max_steps": 10,
+        "reward_threshold": -1.0,
+        "sigma": 0.1,
+        "sigma_decay": 0.99,
+        "top_k": 10,
+        "use_auto_grad": true,
+        "verbose": false
+    },
+    "mode": "evaluate",
+    "seed": 42,
+    "train_trigger": false,
+    "train_trigger_method": "grpo",
+    "train_weaver": true,
+    "train_weaver_method": "sft",
+    "trigger": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "bnpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        }
+    },
+    "weaver": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "grpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        },
+        "sft": {
+            "assistant_only_loss": false,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "lr_scheduler_type": "cosine",
+            "max_length": 1024,
+            "num_train_epochs": 2,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 4,
+            "per_device_train_batch_size": 4,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "warmup_ratio": 0.1
+        }
+    }
+}
+2026-01-13 14:59:25,645 [INFO] 
+======  Dataset Attributes  ======
+2026-01-13 14:59:25,645 [INFO] {
+    "grpo": {
+        "val_ratio": 0.1
+    },
+    "mode": "sft",
+    "name": "gsm8k",
+    "sft": {
+        "val_ratio": 0.1
+    }
+}
+2026-01-13 14:59:25,645 [INFO] 
+======  Model Attributes  ======
+2026-01-13 14:59:25,645 [INFO] {
+    "load_model_path": null,
+    "load_trigger_path": null,
+    "load_weaver_path": "/home/jovyan/data/memgen/train/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260110-195742/weaver/weaver_lora",
+    "max_inference_aug_num": 5,
+    "max_prompt_aug_num": 1,
+    "model_name": "HuggingFaceTB/SmolLM3-3B",
+    "trigger": {
+        "active": false,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "HuggingFaceTB/SmolLM3-3B"
+    },
+    "weaver": {
+        "inference_latents_len": 8,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "HuggingFaceTB/SmolLM3-3B",
+        "prompt_latents_len": 8
+    }
+}
+You are using a model of type smollm3 to instantiate a model of type memgen. This is not supported for all configurations of models and can yield errors.
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 50.19it/s]
+2026-01-13 14:59:28,277 [INFO] Loading pre-trained weaver from: /home/jovyan/data/memgen/train/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260110-195742/weaver/weaver_lora
+2026-01-13 14:59:28,320 [INFO] Loaded 0 weaver adapter weights from checkpoint
+2026-01-13 14:59:28,363 [INFO] Loaded projections and query_latents from /home/jovyan/data/memgen/train/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260110-195742/weaver/projections.pt
+The following generation flags are not valid and may be ignored: ['temperature']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+2026-01-13 14:59:36,571 [WARNING] Detected kernel version 5.4.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+wandb: Currently logged in as: iamseungpil (gistdslab) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run 6y1d2u5c
+wandb: Tracking run with wandb version 0.23.0
+wandb: Run data is saved locally in /home/jovyan/data/memgen/evaluate/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260113-145925/wandb/run-20260113_145937-6y1d2u5c
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run smollm3_3b_weaver_eval_check
+wandb: ⭐️ View project at https://wandb.ai/gistdslab/memgen-check
+wandb: 🚀 View run at https://wandb.ai/gistdslab/memgen-check/runs/6y1d2u5c
+wandb: Detected [huggingface_hub.inference] in use.
+wandb: Use W&B Weave for improved LLM call tracing. Install Weave with `pip install weave` then add `import weave` to the top of your script.
+wandb: For more information, check out the docs at: https://weave-docs.wandb.ai/
+  0%|          | 0/330 [00:00<?, ?it/s]`generation_config` default values have been modified to match model-specific defaults: {'do_sample': True, 'temperature': 0.6, 'top_p': 0.95, 'bos_token_id': 128000}. If this is not desired, please set these values explicitly.
+  0%|          | 1/330 [01:11<6:30:18, 71.18s/it]  1%|          | 2/330 [02:20<6:24:38, 70.36s/it]  1%|          | 3/330 [02:33<4:00:24, 44.11s/it]  1%|          | 4/330 [03:44<4:56:38, 54.60s/it]W0113 15:03:37.183000 1022078 site-packages/torch/distributed/elastic/agent/server/api.py:719] Received 15 death signal, shutting down workers
+W0113 15:03:37.187000 1022078 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 1022460 closing signal SIGTERM
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1245, in <module>
+    main()
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1241, in main
+    launch_command(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1220, in launch_command
+    deepspeed_launcher(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 906, in deepspeed_launcher
+    distrib_run.run(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 261, in launch_agent
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 711, in run
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 870, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/api.py", line 84, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 1022078 got signal: 15

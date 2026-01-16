@@ -1,0 +1,644 @@
+============================================
+Checkpoint Discovery
+============================================
+  Weaver: /home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/weaver_lora
+============================================
+
+============================================
+Step 2: Evaluate Weaver
+============================================
+Model: Qwen/Qwen3-8B
+Dataset: gsm8k
+Weaver Checkpoint: /home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/weaver_lora
+============================================
+/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/utils/launch.py:447: UserWarning: Port `44326` is already in use. Accelerate will attempt to launch in a standalone-like mode by finding an open port automatically for this session. If this current attempt fails, or for more control in future runs, please specify a different port (e.g., `--main_process_port <your_chosen_port>`) or use `--main_process_port 0` for automatic selection in your launch command or Accelerate config file.
+  warnings.warn(
+W0113 14:19:51.378000 999398 site-packages/torch/distributed/run.py:766] 
+W0113 14:19:51.378000 999398 site-packages/torch/distributed/run.py:766] *****************************************
+W0113 14:19:51.378000 999398 site-packages/torch/distributed/run.py:766] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0113 14:19:51.378000 999398 site-packages/torch/distributed/run.py:766] *****************************************
+set seed: 42
+2026-01-13 14:20:00,760 [INFO] 
+=====  Running Parameters    =====
+2026-01-13 14:20:00,761 [INFO] {
+    "interaction": {
+        "batch_size": 4,
+        "do_sample": false,
+        "max_obs_length": 512,
+        "max_prompt_length": 4096,
+        "max_response_length": 1024,
+        "max_start_length": 1024,
+        "max_turns": 1,
+        "temperature": 0.0
+    },
+    "log_dir": "/home/jovyan/data/memgen/evaluate/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-142000/logs",
+    "ltpo": {
+        "enabled": true,
+        "lr": 0.03,
+        "max_steps": 10,
+        "reward_threshold": -1.0,
+        "sigma": 0.1,
+        "sigma_decay": 0.99,
+        "top_k": 10,
+        "use_auto_grad": true,
+        "verbose": false
+    },
+    "mode": "evaluate",
+    "seed": 42,
+    "train_trigger": false,
+    "train_trigger_method": "grpo",
+    "train_weaver": true,
+    "train_weaver_method": "sft",
+    "trigger": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "bnpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        }
+    },
+    "weaver": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "grpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        },
+        "sft": {
+            "assistant_only_loss": false,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "lr_scheduler_type": "cosine",
+            "max_length": 1024,
+            "num_train_epochs": 2,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 4,
+            "per_device_train_batch_size": 4,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "warmup_ratio": 0.1
+        }
+    }
+}
+2026-01-13 14:20:00,761 [INFO] 
+======  Dataset Attributes  ======
+2026-01-13 14:20:00,761 [INFO] {
+    "grpo": {
+        "val_ratio": 0.1
+    },
+    "mode": "sft",
+    "name": "gsm8k",
+    "sft": {
+        "val_ratio": 0.1
+    }
+}
+2026-01-13 14:20:00,761 [INFO] 
+======  Model Attributes  ======
+2026-01-13 14:20:00,761 [INFO] {
+    "load_model_path": null,
+    "load_trigger_path": null,
+    "load_weaver_path": "/home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/weaver_lora",
+    "max_inference_aug_num": 5,
+    "max_prompt_aug_num": 1,
+    "model_name": "Qwen/Qwen3-8B",
+    "trigger": {
+        "active": false,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B"
+    },
+    "weaver": {
+        "inference_latents_len": 8,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B",
+        "prompt_latents_len": 8
+    }
+}
+set seed: 42
+2026-01-13 14:20:00,798 [INFO] 
+=====  Running Parameters    =====
+2026-01-13 14:20:00,799 [INFO] {
+    "interaction": {
+        "batch_size": 4,
+        "do_sample": false,
+        "max_obs_length": 512,
+        "max_prompt_length": 4096,
+        "max_response_length": 1024,
+        "max_start_length": 1024,
+        "max_turns": 1,
+        "temperature": 0.0
+    },
+    "log_dir": "/home/jovyan/data/memgen/evaluate/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-142000/logs",
+    "ltpo": {
+        "enabled": true,
+        "lr": 0.03,
+        "max_steps": 10,
+        "reward_threshold": -1.0,
+        "sigma": 0.1,
+        "sigma_decay": 0.99,
+        "top_k": 10,
+        "use_auto_grad": true,
+        "verbose": false
+    },
+    "mode": "evaluate",
+    "seed": 42,
+    "train_trigger": false,
+    "train_trigger_method": "grpo",
+    "train_weaver": true,
+    "train_weaver_method": "sft",
+    "trigger": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "bnpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        }
+    },
+    "weaver": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "grpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        },
+        "sft": {
+            "assistant_only_loss": false,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "lr_scheduler_type": "cosine",
+            "max_length": 1024,
+            "num_train_epochs": 2,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 4,
+            "per_device_train_batch_size": 4,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "warmup_ratio": 0.1
+        }
+    }
+}
+2026-01-13 14:20:00,799 [INFO] 
+======  Dataset Attributes  ======
+2026-01-13 14:20:00,799 [INFO] {
+    "grpo": {
+        "val_ratio": 0.1
+    },
+    "mode": "sft",
+    "name": "gsm8k",
+    "sft": {
+        "val_ratio": 0.1
+    }
+}
+2026-01-13 14:20:00,799 [INFO] 
+======  Model Attributes  ======
+2026-01-13 14:20:00,799 [INFO] {
+    "load_model_path": null,
+    "load_trigger_path": null,
+    "load_weaver_path": "/home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/weaver_lora",
+    "max_inference_aug_num": 5,
+    "max_prompt_aug_num": 1,
+    "model_name": "Qwen/Qwen3-8B",
+    "trigger": {
+        "active": false,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B"
+    },
+    "weaver": {
+        "inference_latents_len": 8,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B",
+        "prompt_latents_len": 8
+    }
+}
+You are using a model of type qwen3 to instantiate a model of type memgen. This is not supported for all configurations of models and can yield errors.
+You are using a model of type qwen3 to instantiate a model of type memgen. This is not supported for all configurations of models and can yield errors.
+Loading checkpoint shards:   0%|          | 0/5 [00:00<?, ?it/s]Loading checkpoint shards:   0%|          | 0/5 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 5/5 [00:00<00:00, 99.61it/s]
+Loading checkpoint shards: 100%|██████████| 5/5 [00:00<00:00, 102.43it/s]
+2026-01-13 14:20:03,504 [INFO] Loading pre-trained weaver from: /home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/weaver_lora
+2026-01-13 14:20:03,575 [INFO] Loaded 0 weaver adapter weights from checkpoint
+2026-01-13 14:20:03,635 [INFO] Loaded projections and query_latents from /home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/projections.pt
+2026-01-13 14:20:03,738 [INFO] Loading pre-trained weaver from: /home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/weaver_lora
+2026-01-13 14:20:03,807 [INFO] Loaded 0 weaver adapter weights from checkpoint
+2026-01-13 14:20:03,864 [INFO] Loaded projections and query_latents from /home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/projections.pt
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:999887 [0] NCCL INFO Bootstrap: Using eth0:10.0.38.249<0>
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:999887 [0] NCCL INFO cudaDriverVersion 12090
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:999887 [0] NCCL INFO NCCL version 2.26.2+cuda12.2
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:999888 [1] NCCL INFO cudaDriverVersion 12090
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:999888 [1] NCCL INFO Bootstrap: Using eth0:10.0.38.249<0>
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:999888 [1] NCCL INFO NCCL version 2.26.2+cuda12.2
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:999888 [1] NCCL INFO Comm config Blocking set to 1
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:999887 [0] NCCL INFO Comm config Blocking set to 1
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. Using internal net plugin.
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO NCCL_IB_DISABLE set by environment to 1.
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO NET/Socket : Using [0]eth0:10.0.38.249<0>
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO Using network Socket
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO ncclCommInitRankConfig comm 0x30361270 rank 0 nranks 2 cudaDev 0 nvmlDev 0 busId 49000 commId 0x21215a7f17567c3a - Init START
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. Using internal net plugin.
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO NCCL_IB_DISABLE set by environment to 1.
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO NET/Socket : Using [0]eth0:10.0.38.249<0>
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO Using network Socket
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO ncclCommInitRankConfig comm 0x135554f0 rank 1 nranks 2 cudaDev 1 nvmlDev 1 busId 4d000 commId 0x21215a7f17567c3a - Init START
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO RAS client listening socket at 127.0.0.1<28028>
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO RAS client listening socket at 127.0.0.1<28028>
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO Bootstrap timings total 0.052922 (create 0.000025, send 0.000096, recv 0.000378, ring 0.000060, delay 0.000000)
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO Bootstrap timings total 0.061080 (create 0.000030, send 0.000090, recv 0.008381, ring 0.014442, delay 0.000001)
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO NCCL_P2P_DISABLE set by environment to 1
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO Setting affinity for GPU 0 to 3f,f9000000,00003ff9
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO NCCL_P2P_DISABLE set by environment to 1
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO Setting affinity for GPU 1 to 3f,f9000000,00003ff9
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO comm 0x135554f0 rank 1 nRanks 2 nNodes 1 localRanks 2 localRank 1 MNNVL 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO comm 0x30361270 rank 0 nRanks 2 nNodes 1 localRanks 2 localRank 0 MNNVL 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO Trees [0] -1/-1/-1->1->0 [1] -1/-1/-1->1->0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO P2P Chunksize set to 131072
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO Channel 00/02 : 0 1
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO Channel 01/02 : 0 1
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO Trees [0] 1/-1/-1->0->-1 [1] 1/-1/-1->0->-1
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO P2P Chunksize set to 131072
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO Check P2P Type intraNodeP2pSupport 0 directMode 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001434 [1] NCCL INFO [Proxy Service] Device 1 CPU core 9
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001436 [1] NCCL INFO [Proxy Service UDS] Device 1 CPU core 10
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001435 [0] NCCL INFO [Proxy Service] Device 0 CPU core 13
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001437 [0] NCCL INFO [Proxy Service UDS] Device 0 CPU core 61
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO threadThresholds 8/8/64 | 16/8/64 | 512 | 512
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO 2 coll channels, 2 collnet channels, 0 nvls channels, 2 p2p channels, 2 p2p channels per peer
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO threadThresholds 8/8/64 | 16/8/64 | 512 | 512
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO 2 coll channels, 2 collnet channels, 0 nvls channels, 2 p2p channels, 2 p2p channels per peer
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO CC Off, workFifoBytes 1048576
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO ncclCommInitRankConfig comm 0x135554f0 rank 1 nranks 2 cudaDev 1 nvmlDev 1 busId 4d000 commId 0x21215a7f17567c3a - Init COMPLETE
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1001416 [1] NCCL INFO Init timings - ncclCommInitRankConfig: rank 1 nranks 2 total 0.29 (kernels 0.21, alloc 0.00, bootstrap 0.05, allgathers 0.00, topo 0.02, graphs 0.00, connections 0.00, rest 0.00)
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO ncclCommInitRankConfig comm 0x30361270 rank 0 nranks 2 cudaDev 0 nvmlDev 0 busId 49000 commId 0x21215a7f17567c3a - Init COMPLETE
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999887:1001418 [0] NCCL INFO Init timings - ncclCommInitRankConfig: rank 0 nranks 2 total 0.26 (kernels 0.17, alloc 0.00, bootstrap 0.06, allgathers 0.00, topo 0.02, graphs 0.00, connections 0.00, rest 0.00)
+The following generation flags are not valid and may be ignored: ['temperature']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+The following generation flags are not valid and may be ignored: ['temperature']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+2026-01-13 14:20:35,787 [WARNING] Detected kernel version 5.4.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+wandb: Currently logged in as: iamseungpil (gistdslab) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run q8631k0m
+wandb: Tracking run with wandb version 0.23.0
+wandb: Run data is saved locally in /home/jovyan/data/memgen/evaluate/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-142000/wandb/run-20260113_142036-q8631k0m
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run eval_weaver_Qwen3-8B_20260113
+wandb: ⭐️ View project at https://wandb.ai/gistdslab/memgen_ltpo
+wandb: 🚀 View run at https://wandb.ai/gistdslab/memgen_ltpo/runs/q8631k0m
+wandb: Detected [huggingface_hub.inference] in use.
+wandb: Use W&B Weave for improved LLM call tracing. Install Weave with `pip install weave` then add `import weave` to the top of your script.
+wandb: For more information, check out the docs at: https://weave-docs.wandb.ai/
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/home/jovyan/MemGenforARC/main.py", line 113, in <module>
+[rank1]:     main()
+[rank1]:   File "/home/jovyan/MemGenforARC/main.py", line 107, in main
+[rank1]:     runner.evaluate()
+[rank1]:   File "/home/jovyan/MemGenforARC/memgen/runner.py", line 250, in evaluate
+[rank1]:     return evaluate_func()
+[rank1]:            ^^^^^^^^^^^^^^^
+[rank1]:   File "/home/jovyan/MemGenforARC/memgen/runner.py", line 269, in _static_evaluate
+[rank1]:     model_wrapped = accelerator.prepare_model(model=self.model, evaluation_mode=True)
+[rank1]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/accelerator.py", line 1800, in prepare_model
+[rank1]:     model = model.to(self.device)
+[rank1]:             ^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/transformers/modeling_utils.py", line 4346, in to
+[rank1]:     return super().to(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1355, in to
+[rank1]:     return self._apply(convert)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+[rank1]:     module._apply(fn)
+[rank1]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+[rank1]:     module._apply(fn)
+[rank1]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+[rank1]:     module._apply(fn)
+[rank1]:   [Previous line repeated 7 more times]
+[rank1]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 942, in _apply
+[rank1]:     param_applied = fn(param)
+[rank1]:                     ^^^^^^^^^
+[rank1]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1341, in convert
+[rank1]:     return t.to(
+[rank1]:            ^^^^^
+[rank1]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 32.00 MiB. GPU 1 has a total capacity of 39.49 GiB of which 23.19 MiB is free. Process 3507509 has 10.82 GiB memory in use. Process 3976578 has 16.72 GiB memory in use. Process 3977550 has 11.91 GiB memory in use. Of the allocated memory 11.25 GiB is allocated by PyTorch, and 112.79 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+Traceback (most recent call last):
+  File "/home/jovyan/MemGenforARC/main.py", line 113, in <module>
+    main()
+  File "/home/jovyan/MemGenforARC/main.py", line 107, in main
+    runner.evaluate()
+  File "/home/jovyan/MemGenforARC/memgen/runner.py", line 250, in evaluate
+    return evaluate_func()
+           ^^^^^^^^^^^^^^^
+  File "/home/jovyan/MemGenforARC/memgen/runner.py", line 269, in _static_evaluate
+    model_wrapped = accelerator.prepare_model(model=self.model, evaluation_mode=True)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/accelerator.py", line 1800, in prepare_model
+    model = model.to(self.device)
+            ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/transformers/modeling_utils.py", line 4346, in to
+    return super().to(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1355, in to
+    return self._apply(convert)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+    module._apply(fn)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+    module._apply(fn)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+    module._apply(fn)
+  [Previous line repeated 6 more times]
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 942, in _apply
+    param_applied = fn(param)
+                    ^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1341, in convert
+    return t.to(
+           ^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 96.00 MiB. GPU 0 has a total capacity of 39.49 GiB of which 9.56 MiB is free. Process 3976500 has 9.16 GiB memory in use. Process 3976577 has 17.13 GiB memory in use. Process 3977549 has 7.63 GiB memory in use. Process 3977546 has 5.54 GiB memory in use. Of the allocated memory 7.00 GiB is allocated by PyTorch, and 69.92 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/home/jovyan/MemGenforARC/main.py", line 113, in <module>
+[rank0]:     main()
+[rank0]:   File "/home/jovyan/MemGenforARC/main.py", line 107, in main
+[rank0]:     runner.evaluate()
+[rank0]:   File "/home/jovyan/MemGenforARC/memgen/runner.py", line 250, in evaluate
+[rank0]:     return evaluate_func()
+[rank0]:            ^^^^^^^^^^^^^^^
+[rank0]:   File "/home/jovyan/MemGenforARC/memgen/runner.py", line 269, in _static_evaluate
+[rank0]:     model_wrapped = accelerator.prepare_model(model=self.model, evaluation_mode=True)
+[rank0]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/accelerator.py", line 1800, in prepare_model
+[rank0]:     model = model.to(self.device)
+[rank0]:             ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/transformers/modeling_utils.py", line 4346, in to
+[rank0]:     return super().to(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1355, in to
+[rank0]:     return self._apply(convert)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+[rank0]:     module._apply(fn)
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+[rank0]:     module._apply(fn)
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+[rank0]:     module._apply(fn)
+[rank0]:   [Previous line repeated 6 more times]
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 942, in _apply
+[rank0]:     param_applied = fn(param)
+[rank0]:                     ^^^^^^^^^
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1341, in convert
+[rank0]:     return t.to(
+[rank0]:            ^^^^^
+[rank0]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 96.00 MiB. GPU 0 has a total capacity of 39.49 GiB of which 9.56 MiB is free. Process 3976500 has 9.16 GiB memory in use. Process 3976577 has 17.13 GiB memory in use. Process 3977549 has 7.63 GiB memory in use. Process 3977546 has 5.54 GiB memory in use. Of the allocated memory 7.00 GiB is allocated by PyTorch, and 69.92 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33meval_weaver_Qwen3-8B_20260113[0m at: [34mhttps://wandb.ai/gistdslab/memgen_ltpo/runs/q8631k0m[0m
+[1;34mwandb[0m: Find logs at: [1;35m../data/memgen/evaluate/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-142000/wandb/run-20260113_142036-q8631k0m/logs[0m
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999888:1006471 [1] NCCL INFO comm 0x135554f0 rank 1 nranks 2 cudaDev 1 busId 4d000 - Abort COMPLETE
+[rank0]:[W113 14:20:42.884954134 ProcessGroupNCCL.cpp:1479] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0113 14:20:42.630000 999398 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 999887 closing signal SIGTERM
+E0113 14:20:42.896000 999398 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 1 (pid: 999888) of binary: /home/jovyan/miniconda3/envs/memgen/bin/python
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1245, in <module>
+    main()
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1241, in main
+    launch_command(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1220, in launch_command
+    deepspeed_launcher(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 906, in deepspeed_launcher
+    distrib_run.run(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 270, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+main.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-01-13_14:20:42
+  host      : cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 999888)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+OfMemoryError: CUDA out of memory. Tried to allocate 316.00 MiB. GPU 1 has a total capacity of 39.49 GiB of which 313.19 MiB is free. Process 3507509 has 10.82 GiB memory in use. Process 3976578 has 16.44 GiB memory in use. Process 3977550 has 11.91 GiB memory in use. Of the allocated memory 15.54 GiB is allocated by PyTorch, and 322.14 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999104:1006656 [1] NCCL INFO comm 0x2f0e1300 rank 1 nranks 2 cudaDev 1 busId 4d000 - Abort COMPLETE
+W0113 14:20:44.610000 998470 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 999103 closing signal SIGTERM
+E0113 14:20:44.879000 998470 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 1 (pid: 999104) of binary: /home/jovyan/miniconda3/envs/memgen/bin/python
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1245, in <module>
+    main()
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1241, in main
+    launch_command(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1220, in launch_command
+    deepspeed_launcher(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 906, in deepspeed_launcher
+    distrib_run.run(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 270, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+main.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-01-13_14:20:44
+  host      : cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 999104)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

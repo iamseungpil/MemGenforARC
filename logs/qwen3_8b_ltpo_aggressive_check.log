@@ -1,0 +1,221 @@
+2026-01-13 22:00:07,767 [INFO] 
+=====  Running Parameters    =====
+2026-01-13 22:00:07,768 [INFO] {
+    "interaction": {
+        "batch_size": 1,
+        "do_sample": false,
+        "max_obs_length": 512,
+        "max_prompt_length": 4096,
+        "max_response_length": 1024,
+        "max_start_length": 1024,
+        "max_turns": 1,
+        "temperature": 1.0
+    },
+    "log_dir": "/home/jovyan/data/memgen/evaluate_ltpo/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-220007/logs",
+    "ltpo": {
+        "enabled": true,
+        "lr": 0.1,
+        "max_steps": 20,
+        "reward_threshold": -1.0,
+        "sigma": 0.2,
+        "sigma_decay": 0.95,
+        "top_k": 10,
+        "use_auto_grad": true,
+        "verbose": false
+    },
+    "mode": "evaluate_ltpo",
+    "seed": 42,
+    "train_trigger": false,
+    "train_trigger_method": "grpo",
+    "train_weaver": true,
+    "train_weaver_method": "sft",
+    "trigger": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "bnpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        }
+    },
+    "weaver": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "grpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        },
+        "sft": {
+            "assistant_only_loss": false,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "lr_scheduler_type": "cosine",
+            "max_length": 1024,
+            "num_train_epochs": 2,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 4,
+            "per_device_train_batch_size": 4,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "warmup_ratio": 0.1
+        }
+    }
+}
+2026-01-13 22:00:07,768 [INFO] 
+======  Dataset Attributes  ======
+2026-01-13 22:00:07,768 [INFO] {
+    "grpo": {
+        "val_ratio": 0.1
+    },
+    "mode": "sft",
+    "name": "gsm8k",
+    "sft": {
+        "val_ratio": 0.1
+    }
+}
+2026-01-13 22:00:07,768 [INFO] 
+======  Model Attributes  ======
+2026-01-13 22:00:07,768 [INFO] {
+    "load_model_path": null,
+    "load_trigger_path": null,
+    "load_weaver_path": "/home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/weaver_lora",
+    "max_inference_aug_num": 5,
+    "max_prompt_aug_num": 1,
+    "model_name": "Qwen/Qwen3-8B",
+    "trigger": {
+        "active": false,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B"
+    },
+    "weaver": {
+        "inference_latents_len": 8,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B",
+        "prompt_latents_len": 8
+    }
+}
+'(MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /Qwen/Qwen3-8B/resolve/main/config.json (Caused by NameResolutionError("HTTPSConnection(host=\'huggingface.co\', port=443): Failed to resolve \'huggingface.co\' ([Errno -3] Temporary failure in name resolution)"))'), '(Request ID: ec653674-ba77-4ccc-b102-e5a8e69b4c69)')' thrown while requesting HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+2026-01-13 22:00:08,075 [WARNING] '(MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /Qwen/Qwen3-8B/resolve/main/config.json (Caused by NameResolutionError("HTTPSConnection(host=\'huggingface.co\', port=443): Failed to resolve \'huggingface.co\' ([Errno -3] Temporary failure in name resolution)"))'), '(Request ID: ec653674-ba77-4ccc-b102-e5a8e69b4c69)')' thrown while requesting HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+Retrying in 1s [Retry 1/5].
+2026-01-13 22:00:08,076 [WARNING] Retrying in 1s [Retry 1/5].
+'(MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /Qwen/Qwen3-8B/resolve/main/config.json (Caused by NameResolutionError("HTTPSConnection(host=\'huggingface.co\', port=443): Failed to resolve \'huggingface.co\' ([Errno -3] Temporary failure in name resolution)"))'), '(Request ID: dc2dd75f-6cf6-4966-8be0-e8a4f3c4600c)')' thrown while requesting HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+2026-01-13 22:00:09,083 [WARNING] '(MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /Qwen/Qwen3-8B/resolve/main/config.json (Caused by NameResolutionError("HTTPSConnection(host=\'huggingface.co\', port=443): Failed to resolve \'huggingface.co\' ([Errno -3] Temporary failure in name resolution)"))'), '(Request ID: dc2dd75f-6cf6-4966-8be0-e8a4f3c4600c)')' thrown while requesting HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+Retrying in 2s [Retry 2/5].
+2026-01-13 22:00:09,084 [WARNING] Retrying in 2s [Retry 2/5].
+'(MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /Qwen/Qwen3-8B/resolve/main/config.json (Caused by NameResolutionError("HTTPSConnection(host=\'huggingface.co\', port=443): Failed to resolve \'huggingface.co\' ([Errno -3] Temporary failure in name resolution)"))'), '(Request ID: 040adb16-b12b-4e60-b104-185b5a074f9e)')' thrown while requesting HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+2026-01-13 22:00:11,092 [WARNING] '(MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /Qwen/Qwen3-8B/resolve/main/config.json (Caused by NameResolutionError("HTTPSConnection(host=\'huggingface.co\', port=443): Failed to resolve \'huggingface.co\' ([Errno -3] Temporary failure in name resolution)"))'), '(Request ID: 040adb16-b12b-4e60-b104-185b5a074f9e)')' thrown while requesting HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+Retrying in 4s [Retry 3/5].
+2026-01-13 22:00:11,092 [WARNING] Retrying in 4s [Retry 3/5].
+'(MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /Qwen/Qwen3-8B/resolve/main/config.json (Caused by NameResolutionError("HTTPSConnection(host=\'huggingface.co\', port=443): Failed to resolve \'huggingface.co\' ([Errno -3] Temporary failure in name resolution)"))'), '(Request ID: f631d092-f0ec-4319-ba4f-fc2f58779f0b)')' thrown while requesting HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+2026-01-13 22:00:15,101 [WARNING] '(MaxRetryError('HTTPSConnectionPool(host=\'huggingface.co\', port=443): Max retries exceeded with url: /Qwen/Qwen3-8B/resolve/main/config.json (Caused by NameResolutionError("HTTPSConnection(host=\'huggingface.co\', port=443): Failed to resolve \'huggingface.co\' ([Errno -3] Temporary failure in name resolution)"))'), '(Request ID: f631d092-f0ec-4319-ba4f-fc2f58779f0b)')' thrown while requesting HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+Retrying in 8s [Retry 4/5].
+2026-01-13 22:00:15,102 [WARNING] Retrying in 8s [Retry 4/5].
+You are using a model of type qwen3 to instantiate a model of type memgen. This is not supported for all configurations of models and can yield errors.
+set seed: 42
+Loading checkpoint shards:   0%|          | 0/5 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 5/5 [00:00<00:00, 100.94it/s]
+2026-01-13 22:00:26,868 [INFO] Loading pre-trained weaver from: /home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/weaver_lora
+2026-01-13 22:00:26,868 [INFO] Skipping LoRA adapter loading (trained with buggy code)
+2026-01-13 22:00:26,868 [INFO] Loaded 0 weaver adapter weights from checkpoint (LoRA skipped)
+2026-01-13 22:00:26,924 [INFO] Loaded projections and query_latents from /home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260108-053458/weaver/projections.pt
+2026-01-13 22:00:57,414 [INFO] [LTPO] Starting LTPO-enhanced evaluation with config: {'enabled': True, 'lr': 0.1, 'sigma': 0.2, 'sigma_decay': 0.95, 'max_steps': 20, 'reward_threshold': -1.0, 'top_k': 10, 'use_auto_grad': True, 'verbose': False}
+2026-01-13 22:00:57,418 [WARNING] Detected kernel version 5.4.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+wandb: Currently logged in as: iamseungpil (gistdslab) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run 04l6ey14
+wandb: Tracking run with wandb version 0.23.0
+wandb: Run data is saved locally in /home/jovyan/data/memgen/evaluate_ltpo/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260113-220007/wandb/run-20260113_220057-04l6ey14
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run pn=1_pl=8_in=5_il=8_20260113-220007
+wandb: ⭐️ View project at https://wandb.ai/gistdslab/memgen-check
+wandb: 🚀 View run at https://wandb.ai/gistdslab/memgen-check/runs/04l6ey14
+wandb: Detected [huggingface_hub.inference] in use.
+wandb: Use W&B Weave for improved LLM call tracing. Install Weave with `pip install weave` then add `import weave` to the top of your script.
+wandb: For more information, check out the docs at: https://weave-docs.wandb.ai/
+  0%|          | 0/1319 [00:00<?, ?it/s]  0%|          | 1/1319 [00:15<5:41:07, 15.53s/it]  0%|          | 2/1319 [00:20<3:24:01,  9.30s/it]`generation_config` default values have been modified to match model-specific defaults: {'do_sample': True, 'temperature': 0.6, 'top_k': 20, 'top_p': 0.95, 'bos_token_id': 151643}. If this is not desired, please set these values explicitly.
+  0%|          | 3/1319 [00:40<5:15:29, 14.38s/it]  0%|          | 4/1319 [00:47<4:06:30, 11.25s/it]  0%|          | 5/1319 [01:07<5:17:29, 14.50s/it]  0%|          | 6/1319 [01:26<5:47:36, 15.88s/it]  1%|          | 7/1319 [01:44<6:02:21, 16.57s/it]  1%|          | 8/1319 [02:02<6:15:00, 17.16s/it]  1%|          | 9/1319 [02:34<7:54:14, 21.72s/it]  1%|          | 10/1319 [02:47<6:56:36, 19.10s/it]  1%|          | 11/1319 [03:01<6:22:05, 17.53s/it]  1%|          | 12/1319 [03:13<5:48:18, 15.99s/it]  1%|          | 13/1319 [03:33<6:08:59, 16.95s/it]  1%|          | 14/1319 [04:02<7:27:52, 20.59s/it]  1%|          | 15/1319 [04:21<7:16:22, 20.08s/it]  1%|          | 16/1319 [04:39<7:03:03, 19.48s/it]  1%|▏         | 17/1319 [04:50<6:08:51, 17.00s/it]  1%|▏         | 18/1319 [05:04<5:51:28, 16.21s/it]  1%|▏         | 19/1319 [05:14<5:07:51, 14.21s/it]  2%|▏         | 20/1319 [05:31<5:30:17, 15.26s/it]  2%|▏         | 21/1319 [05:51<5:57:15, 16.51s/it]  2%|▏         | 22/1319 [06:06<5:49:12, 16.15s/it]  2%|▏         | 23/1319 [06:16<5:09:42, 14.34s/it]  2%|▏         | 24/1319 [06:32<5:20:56, 14.87s/it]  2%|▏         | 25/1319 [06:50<5:38:58, 15.72s/it]  2%|▏         | 26/1319 [07:10<6:03:06, 16.85s/it]  2%|▏         | 27/1319 [07:27<6:05:25, 16.97s/it]  2%|▏         | 28/1319 [07:46<6:16:37, 17.50s/it]  2%|▏         | 29/1319 [07:59<5:47:03, 16.14s/it]  2%|▏         | 30/1319 [08:04<4:38:53, 12.98s/it]  2%|▏         | 31/1319 [08:20<4:57:04, 13.84s/it]  2%|▏         | 32/1319 [08:35<5:01:18, 14.05s/it]  3%|▎         | 33/1319 [08:43<4:21:54, 12.22s/it]  3%|▎         | 34/1319 [08:58<4:44:33, 13.29s/it]  3%|▎         | 35/1319 [09:15<5:03:19, 14.17s/it]  3%|▎         | 36/1319 [09:30<5:14:09, 14.69s/it]  3%|▎         | 37/1319 [09:47<5:27:17, 15.32s/it]  3%|▎         | 38/1319 [10:08<6:02:13, 16.97s/it]  3%|▎         | 39/1319 [10:26<6:08:28, 17.27s/it]  3%|▎         | 40/1319 [10:49<6:42:00, 18.86s/it]  3%|▎         | 41/1319 [11:04<6:16:41, 17.68s/it]  3%|▎         | 42/1319 [11:23<6:26:49, 18.17s/it]  3%|▎         | 43/1319 [11:33<5:34:09, 15.71s/it]  3%|▎         | 44/1319 [11:53<6:02:09, 17.04s/it]  3%|▎         | 45/1319 [12:10<6:03:38, 17.13s/it]  3%|▎         | 46/1319 [12:27<6:02:16, 17.08s/it]  4%|▎         | 47/1319 [12:48<6:24:18, 18.13s/it]  4%|▎         | 48/1319 [13:05<6:19:20, 17.91s/it]  4%|▎         | 49/1319 [13:17<5:42:28, 16.18s/it]  4%|▍         | 50/1319 [13:26<4:54:17, 13.91s/it]  4%|▍         | 51/1319 [13:36<4:28:36, 12.71s/it]  4%|▍         | 52/1319 [13:44<4:00:34, 11.39s/it]  4%|▍         | 53/1319 [13:52<3:36:43, 10.27s/it]  4%|▍         | 54/1319 [14:05<3:56:48, 11.23s/it]  4%|▍         | 55/1319 [14:15<3:48:26, 10.84s/it]  4%|▍         | 56/1319 [14:24<3:35:45, 10.25s/it]  4%|▍         | 57/1319 [14:29<3:01:46,  8.64s/it]

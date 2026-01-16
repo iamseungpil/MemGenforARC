@@ -1,0 +1,8 @@
+============================================
+Step 1: Weaver SFT Pretraining
+============================================
+Model: Qwen/Qwen3-8B
+Dataset: gsm8k
+Method: sft
+============================================
+/home/jovyan/miniconda3/bin/python: Error while finding module specification for 'accelerate.commands.launch' (ModuleNotFoundError: No module named 'accelerate')

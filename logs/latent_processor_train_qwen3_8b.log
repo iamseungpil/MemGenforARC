@@ -1,0 +1,428 @@
+set seed: 42
+2026-01-16 18:32:04,041 [INFO] 
+=====  Running Parameters    =====
+2026-01-16 18:32:04,042 [INFO] {
+    "interaction": {
+        "batch_size": 8,
+        "do_sample": false,
+        "max_obs_length": 512,
+        "max_prompt_length": 4096,
+        "max_response_length": 1024,
+        "max_start_length": 1024,
+        "max_turns": 1,
+        "temperature": 1.0
+    },
+    "log_dir": "/home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260116-183204/logs",
+    "ltpo": {
+        "enabled": true,
+        "lr": 0.1,
+        "max_steps": 20,
+        "reward_threshold": -1.0,
+        "sigma": 0.2,
+        "sigma_decay": 0.95,
+        "top_k": 10,
+        "use_auto_grad": true,
+        "verbose": false
+    },
+    "mode": "train",
+    "seed": 42,
+    "train_trigger": false,
+    "train_trigger_method": "grpo",
+    "train_weaver": true,
+    "train_weaver_method": "sft",
+    "trigger": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "bnpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        }
+    },
+    "weaver": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "grpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        },
+        "sft": {
+            "assistant_only_loss": false,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "lr_scheduler_type": "cosine",
+            "max_length": 1024,
+            "num_train_epochs": 2,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 4,
+            "per_device_train_batch_size": 4,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "warmup_ratio": 0.1
+        }
+    }
+}
+2026-01-16 18:32:04,042 [INFO] 
+======  Dataset Attributes  ======
+2026-01-16 18:32:04,042 [INFO] {
+    "grpo": {
+        "val_ratio": 0.1
+    },
+    "mode": "sft",
+    "name": "gsm8k",
+    "sft": {
+        "val_ratio": 0.1
+    }
+}
+2026-01-16 18:32:04,042 [INFO] 
+======  Model Attributes  ======
+2026-01-16 18:32:04,042 [INFO] {
+    "latent_processor": true,
+    "latent_processor_depth": 2,
+    "load_model_path": null,
+    "load_trigger_path": null,
+    "load_weaver_path": null,
+    "max_inference_aug_num": 5,
+    "max_prompt_aug_num": 1,
+    "model_name": "Qwen/Qwen3-8B",
+    "trigger": {
+        "active": false,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen2.5-1.5B-Instruct"
+    },
+    "weaver": {
+        "inference_latents_len": 8,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "Qwen/Qwen3-8B",
+        "prompt_latents_len": 8
+    }
+}
+You are using a model of type qwen3 to instantiate a model of type memgen. This is not supported for all configurations of models and can yield errors.
+Loading checkpoint shards:   0%|          | 0/5 [00:00<?, ?it/s]Loading checkpoint shards:  20%|██        | 1/5 [00:00<00:03,  1.09it/s]Loading checkpoint shards:  40%|████      | 2/5 [00:02<00:03,  1.04s/it]Loading checkpoint shards:  60%|██████    | 3/5 [00:03<00:02,  1.06s/it]Loading checkpoint shards:  80%|████████  | 4/5 [00:04<00:01,  1.01s/it]Loading checkpoint shards: 100%|██████████| 5/5 [00:04<00:00,  1.46it/s]Loading checkpoint shards: 100%|██████████| 5/5 [00:04<00:00,  1.20it/s]
+2026-01-16 18:32:45,652 [INFO] Trainable parameters in the model:
+2026-01-16 18:32:45,652 [INFO]   weaver.prompt_query_latents: 32768 params, shape=torch.Size([8, 4096])
+2026-01-16 18:32:45,652 [INFO]   weaver.inference_query_latents: 32768 params, shape=torch.Size([8, 4096])
+2026-01-16 18:32:45,652 [INFO]   weaver.model.base_model.model.model.layers.0.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,652 [INFO]   weaver.model.base_model.model.model.layers.0.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,652 [INFO]   weaver.model.base_model.model.model.layers.0.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,652 [INFO]   weaver.model.base_model.model.model.layers.0.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.1.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.1.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.1.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.1.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.2.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.2.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.2.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.2.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.3.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.3.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.3.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.3.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.4.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.4.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.4.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,653 [INFO]   weaver.model.base_model.model.model.layers.4.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.5.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.5.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.5.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.5.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.6.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.6.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.6.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.6.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.7.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.7.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.7.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.7.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.8.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.8.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.8.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.8.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.9.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,654 [INFO]   weaver.model.base_model.model.model.layers.9.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.9.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.9.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.10.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.10.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.10.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.10.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.11.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.11.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.11.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.11.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.12.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.12.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.12.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.12.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.13.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.13.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,655 [INFO]   weaver.model.base_model.model.model.layers.13.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.13.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.14.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.14.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.14.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.14.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.15.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.15.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.15.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.15.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.16.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.16.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.16.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.16.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.17.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.17.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.17.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,656 [INFO]   weaver.model.base_model.model.model.layers.17.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.18.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.18.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.18.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.18.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.19.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.19.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.19.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.19.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.20.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.20.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.20.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.20.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.21.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.21.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.21.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.21.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.22.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,657 [INFO]   weaver.model.base_model.model.model.layers.22.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.22.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.22.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.23.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.23.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.23.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.23.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.24.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.24.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.24.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.24.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.25.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.25.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.25.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.25.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.26.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.26.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.26.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,658 [INFO]   weaver.model.base_model.model.model.layers.26.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.27.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.27.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.27.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.27.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.28.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.28.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.28.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.28.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.29.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.29.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.29.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.29.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.30.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.30.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.30.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.30.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,659 [INFO]   weaver.model.base_model.model.model.layers.31.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.31.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.31.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.31.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.32.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.32.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.32.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.32.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.33.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.33.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.33.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.33.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.34.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.34.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.34.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.34.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.35.self_attn.q_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,660 [INFO]   weaver.model.base_model.model.model.layers.35.self_attn.q_proj.lora_B.weaver.weight: 65536 params, shape=torch.Size([4096, 16])
+2026-01-16 18:32:45,661 [INFO]   weaver.model.base_model.model.model.layers.35.self_attn.v_proj.lora_A.weaver.weight: 65536 params, shape=torch.Size([16, 4096])
+2026-01-16 18:32:45,661 [INFO]   weaver.model.base_model.model.model.layers.35.self_attn.v_proj.lora_B.weaver.weight: 16384 params, shape=torch.Size([1024, 16])
+2026-01-16 18:32:45,663 [INFO]   reasoner_to_weaver.weight: 16777216 params, shape=torch.Size([4096, 4096])
+2026-01-16 18:32:45,663 [INFO]   reasoner_to_weaver.bias: 4096 params, shape=torch.Size([4096])
+2026-01-16 18:32:45,663 [INFO]   weaver_to_reasoner.weight: 16777216 params, shape=torch.Size([4096, 4096])
+2026-01-16 18:32:45,663 [INFO]   weaver_to_reasoner.bias: 4096 params, shape=torch.Size([4096])
+2026-01-16 18:32:46,456 [WARNING] Detected kernel version 5.4.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+Before initializing optimizer states
+MA 18.37 GB         Max_MA 18.37 GB         CA 18.71 GB         Max_CA 19 GB 
+CPU Virtual Memory:  used = 182.65 GB, percent = 18.1%
+After initializing optimizer states
+MA 18.37 GB         Max_MA 18.52 GB         CA 18.86 GB         Max_CA 19 GB 
+CPU Virtual Memory:  used = 182.57 GB, percent = 18.1%
+After initializing ZeRO optimizer
+MA 18.37 GB         Max_MA 18.37 GB         CA 18.86 GB         Max_CA 19 GB 
+CPU Virtual Memory:  used = 182.49 GB, percent = 18.1%
+wandb: Currently logged in as: iamseungpil (gistdslab) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run lzgnw2b8
+wandb: Tracking run with wandb version 0.23.0
+wandb: Run data is saved locally in /home/jovyan/MemGenforARC/wandb/run-20260116_183256-lzgnw2b8
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run effortless-mountain-391
+wandb: ⭐️ View project at https://wandb.ai/gistdslab/huggingface
+wandb: 🚀 View run at https://wandb.ai/gistdslab/huggingface/runs/lzgnw2b8
+wandb: Detected [huggingface_hub.inference] in use.
+wandb: Use W&B Weave for improved LLM call tracing. Install Weave with `pip install weave` then add `import weave` to the top of your script.
+wandb: For more information, check out the docs at: https://weave-docs.wandb.ai/
+  0%|          | 0/3364 [00:00<?, ?it/s]`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`.
+  0%|          | 1/3364 [00:09<9:07:52,  9.77s/it]                                                  {'loss': 1.5078, 'grad_norm': 31.890642166137695, 'learning_rate': 0.0, 'num_tokens': 667.0, 'mean_token_accuracy': 0.7758186459541321, 'epoch': 0.0}
+  0%|          | 1/3364 [00:09<9:07:52,  9.77s/it]  0%|          | 2/3364 [00:18<8:30:54,  9.12s/it]                                                  {'loss': 1.5938, 'grad_norm': 25.81636619567871, 'learning_rate': 2.967359050445104e-08, 'num_tokens': 1361.0, 'mean_token_accuracy': 0.780927836894989, 'epoch': 0.0}
+  0%|          | 2/3364 [00:18<8:30:54,  9.12s/it]  0%|          | 3/3364 [00:28<8:50:46,  9.48s/it]                                                  {'loss': 1.7969, 'grad_norm': 50.676090240478516, 'learning_rate': 5.934718100890208e-08, 'num_tokens': 2052.0, 'mean_token_accuracy': 0.7518987059593201, 'epoch': 0.0}
+  0%|          | 3/3364 [00:28<8:50:46,  9.48s/it]  0%|          | 4/3364 [00:38<9:01:58,  9.68s/it]                                                  {'loss': 1.9141, 'grad_norm': 39.12950897216797, 'learning_rate': 8.902077151335312e-08, 'num_tokens': 2784.0, 'mean_token_accuracy': 0.727748692035675, 'epoch': 0.0}
+  0%|          | 4/3364 [00:38<9:01:58,  9.68s/it]  0%|          | 5/3364 [00:47<8:56:15,  9.58s/it]                                                  {'loss': 1.4062, 'grad_norm': 33.91701889038086, 'learning_rate': 1.1869436201780416e-07, 'num_tokens': 3611.0, 'mean_token_accuracy': 0.7811861038208008, 'epoch': 0.0}
+  0%|          | 5/3364 [00:47<8:56:15,  9.58s/it]  0%|          | 6/3364 [00:57<9:03:37,  9.71s/it]                                                  {'loss': 1.3672, 'grad_norm': 23.95366859436035, 'learning_rate': 1.4836795252225522e-07, 'num_tokens': 4404.0, 'mean_token_accuracy': 0.8147321343421936, 'epoch': 0.0}
+  0%|          | 6/3364 [00:57<9:03:37,  9.71s/it]  0%|          | 7/3364 [01:05<8:36:54,  9.24s/it]                                                  {'loss': 1.4531, 'grad_norm': 26.1752872467041, 'learning_rate': 1.7804154302670624e-07, 'num_tokens': 5137.0, 'mean_token_accuracy': 0.7899761199951172, 'epoch': 0.0}
+  0%|          | 7/3364 [01:05<8:36:54,  9.24s/it]  0%|          | 8/3364 [01:16<9:04:20,  9.73s/it]                                                  {'loss': 0.8711, 'grad_norm': 35.35451126098633, 'learning_rate': 2.0771513353115727e-07, 'num_tokens': 6059.0, 'mean_token_accuracy': 0.8724409341812134, 'epoch': 0.0}
+  0%|          | 8/3364 [01:16<9:04:20,  9.73s/it]  0%|          | 9/3364 [01:25<8:55:10,  9.57s/it]                                                  {'loss': 1.1484, 'grad_norm': 26.823226928710938, 'learning_rate': 2.3738872403560833e-07, 'num_tokens': 7017.0, 'mean_token_accuracy': 0.8241379261016846, 'epoch': 0.01}
+  0%|          | 9/3364 [01:25<8:55:10,  9.57s/it]  0%|          | 10/3364 [01:36<9:11:00,  9.86s/it]                                                   {'loss': 1.1562, 'grad_norm': 20.26050567626953, 'learning_rate': 2.6706231454005935e-07, 'num_tokens': 8090.0, 'mean_token_accuracy': 0.8367029428482056, 'epoch': 0.01}
+  0%|          | 10/3364 [01:36<9:11:00,  9.86s/it]  0%|          | 11/3364 [01:44<8:46:46,  9.43s/it]                                                   {'loss': 1.3906, 'grad_norm': 18.838449478149414, 'learning_rate': 2.9673590504451043e-07, 'num_tokens': 8799.0, 'mean_token_accuracy': 0.7647058963775635, 'epoch': 0.01}
+  0%|          | 11/3364 [01:44<8:46:46,  9.43s/it]  0%|          | 12/3364 [01:51<7:55:22,  8.51s/it]                                                   {'loss': 1.7969, 'grad_norm': 29.274616241455078, 'learning_rate': 3.2640949554896146e-07, 'num_tokens': 9431.0, 'mean_token_accuracy': 0.7300000190734863, 'epoch': 0.01}
+  0%|          | 12/3364 [01:51<7:55:22,  8.51s/it]  0%|          | 13/3364 [02:02<8:39:50,  9.31s/it]                                                   {'loss': 1.2109, 'grad_norm': 46.70892333984375, 'learning_rate': 3.560830860534125e-07, 'num_tokens': 10354.0, 'mean_token_accuracy': 0.7996546030044556, 'epoch': 0.01}
+  0%|          | 13/3364 [02:02<8:39:50,  9.31s/it]  0%|          | 14/3364 [02:11<8:42:17,  9.35s/it]                                                   {'loss': 1.2422, 'grad_norm': 39.4041633605957, 'learning_rate': 3.857566765578635e-07, 'num_tokens': 11167.0, 'mean_token_accuracy': 0.8165680766105652, 'epoch': 0.01}
+  0%|          | 14/3364 [02:11<8:42:17,  9.35s/it]  0%|          | 15/3364 [02:20<8:23:22,  9.02s/it]                                                   {'loss': 1.4141, 'grad_norm': 21.064842224121094, 'learning_rate': 4.1543026706231454e-07, 'num_tokens': 11874.0, 'mean_token_accuracy': 0.7995110154151917, 'epoch': 0.01}
+  0%|          | 15/3364 [02:20<8:23:22,  9.02s/it]  0%|          | 16/3364 [02:29<8:23:21,  9.02s/it]                                                   {'loss': 1.6016, 'grad_norm': 26.404016494750977, 'learning_rate': 4.451038575667656e-07, 'num_tokens': 12591.0, 'mean_token_accuracy': 0.7597087621688843, 'epoch': 0.01}
+  0%|          | 16/3364 [02:29<8:23:21,  9.02s/it]  1%|          | 17/3364 [02:38<8:28:20,  9.11s/it]                                                   {'loss': 1.375, 'grad_norm': 23.94462776184082, 'learning_rate': 4.7477744807121665e-07, 'num_tokens': 13320.0, 'mean_token_accuracy': 0.8165137767791748, 'epoch': 0.01}
+  1%|          | 17/3364 [02:38<8:28:20,  9.11s/it]  1%|          | 18/3364 [02:46<8:10:46,  8.80s/it]                                                   {'loss': 1.2656, 'grad_norm': 12.960129737854004, 'learning_rate': 5.044510385756677e-07, 'num_tokens': 14070.0, 'mean_token_accuracy': 0.8256880640983582, 'epoch': 0.01}
+  1%|          | 18/3364 [02:46<8:10:46,  8.80s/it]  1%|          | 19/3364 [02:54<7:55:51,  8.54s/it]                                                   {'loss': 1.2031, 'grad_norm': 11.338626861572266, 'learning_rate': 5.341246290801187e-07, 'num_tokens': 14720.0, 'mean_token_accuracy': 0.8139534592628479, 'epoch': 0.01}
+  1%|          | 19/3364 [02:54<7:55:51,  8.54s/it]  1%|          | 20/3364 [03:04<8:17:43,  8.93s/it]                                                   {'loss': 1.6641, 'grad_norm': 61.38020324707031, 'learning_rate': 5.637982195845697e-07, 'num_tokens': 15460.0, 'mean_token_accuracy': 0.7534883618354797, 'epoch': 0.01}
+  1%|          | 20/3364 [03:04<8:17:43,  8.93s/it]  1%|          | 21/3364 [03:13<8:29:16,  9.14s/it]                                                   {'loss': 1.3594, 'grad_norm': 63.63617706298828, 'learning_rate': 5.934718100890209e-07, 'num_tokens': 16367.0, 'mean_token_accuracy': 0.8044354915618896, 'epoch': 0.01}
+  1%|          | 21/3364 [03:14<8:29:16,  9.14s/it]  1%|          | 22/3364 [03:22<8:10:40,  8.81s/it]                                                   {'loss': 1.2969, 'grad_norm': 16.87699317932129, 'learning_rate': 6.231454005934719e-07, 'num_tokens': 17073.0, 'mean_token_accuracy': 0.8136792182922363, 'epoch': 0.01}
+  1%|          | 22/3364 [03:22<8:10:40,  8.81s/it]  1%|          | 23/3364 [03:29<7:52:55,  8.49s/it]                                                   {'loss': 1.7734, 'grad_norm': 33.81596374511719, 'learning_rate': 6.528189910979229e-07, 'num_tokens': 17672.0, 'mean_token_accuracy': 0.7249190807342529, 'epoch': 0.01}
+  1%|          | 23/3364 [03:29<7:52:55,  8.49s/it]  1%|          | 24/3364 [03:38<8:04:23,  8.70s/it]                                                   {'loss': 1.6797, 'grad_norm': 34.381248474121094, 'learning_rate': 6.82492581602374e-07, 'num_tokens': 18387.0, 'mean_token_accuracy': 0.7469586133956909, 'epoch': 0.01}
+  1%|          | 24/3364 [03:38<8:04:23,  8.70s/it]  1%|          | 25/3364 [03:47<8:00:09,  8.63s/it]                                                   {'loss': 1.1953, 'grad_norm': 24.026193618774414, 'learning_rate': 7.12166172106825e-07, 'num_tokens': 19104.0, 'mean_token_accuracy': 0.8159645199775696, 'epoch': 0.01}
+  1%|          | 25/3364 [03:47<8:00:09,  8.63s/it]  1%|          | 26/3364 [03:57<8:26:15,  9.10s/it]                                                   {'loss': 1.0781, 'grad_norm': 25.53492546081543, 'learning_rate': 7.41839762611276e-07, 'num_tokens': 20067.0, 'mean_token_accuracy': 0.8490878939628601, 'epoch': 0.02}
+  1%|          | 26/3364 [03:57<8:26:15,  9.10s/it]  1%|          | 27/3364 [04:08<8:59:13,  9.70s/it]                                                   {'loss': 1.0547, 'grad_norm': 33.28593826293945, 'learning_rate': 7.71513353115727e-07, 'num_tokens': 21127.0, 'mean_token_accuracy': 0.8078078031539917, 'epoch': 0.02}
+  1%|          | 27/3364 [04:08<8:59:13,  9.70s/it]  1%|          | 28/3364 [04:18<8:53:53,  9.60s/it]                                                   {'loss': 1.1172, 'grad_norm': 26.401376724243164, 'learning_rate': 8.011869436201782e-07, 'num_tokens': 22053.0, 'mean_token_accuracy': 0.8443316221237183, 'epoch': 0.02}
+  1%|          | 28/3364 [04:18<8:53:53,  9.60s/it]  1%|          | 29/3364 [04:28<9:04:54,  9.80s/it]                                                   {'loss': 1.1406, 'grad_norm': 25.466646194458008, 'learning_rate': 8.308605341246291e-07, 'num_tokens': 22938.0, 'mean_token_accuracy': 0.8228070139884949, 'epoch': 0.02}
+  1%|          | 29/3364 [04:28<9:04:54,  9.80s/it]  1%|          | 30/3364 [04:36<8:42:52,  9.41s/it]                                                   {'loss': 1.2266, 'grad_norm': 41.441078186035156, 'learning_rate': 8.605341246290802e-07, 'num_tokens': 23661.0, 'mean_token_accuracy': 0.847533643245697, 'epoch': 0.02}
+  1%|          | 30/3364 [04:36<8:42:52,  9.41s/it]  1%|          | 31/3364 [04:44<8:08:25,  8.79s/it]                                                   {'loss': 1.3047, 'grad_norm': 19.13311195373535, 'learning_rate': 8.902077151335312e-07, 'num_tokens': 24404.0, 'mean_token_accuracy': 0.8101603984832764, 'epoch': 0.02}
+  1%|          | 31/3364 [04:44<8:08:25,  8.79s/it]  1%|          | 32/3364 [04:53<8:12:26,  8.87s/it]                                                   {'loss': 1.5391, 'grad_norm': 37.06128692626953, 'learning_rate': 9.198813056379823e-07, 'num_tokens': 25147.0, 'mean_token_accuracy': 0.7766497731208801, 'epoch': 0.02}
+  1%|          | 32/3364 [04:53<8:12:26,  8.87s/it]  1%|          | 33/3364 [05:02<8:12:28,  8.87s/it]                                                   {'loss': 1.1328, 'grad_norm': 16.077167510986328, 'learning_rate': 9.495548961424333e-07, 'num_tokens': 25898.0, 'mean_token_accuracy': 0.8325892686843872, 'epoch': 0.02}
+  1%|          | 33/3364 [05:02<8:12:28,  8.87s/it]  1%|          | 34/3364 [05:13<8:59:06,  9.71s/it]                                                   {'loss': 1.0469, 'grad_norm': 16.674152374267578, 'learning_rate': 9.792284866468842e-07, 'num_tokens': 26951.0, 'mean_token_accuracy': 0.8270348906517029, 'epoch': 0.02}
+  1%|          | 34/3364 [05:13<8:59:06,  9.71s/it]  1%|          | 35/3364 [05:24<9:09:03,  9.90s/it]                                                   {'loss': 1.1406, 'grad_norm': 16.35666847229004, 'learning_rate': 1.0089020771513354e-06, 'num_tokens': 27847.0, 'mean_token_accuracy': 0.8268551230430603, 'epoch': 0.02}
+  1%|          | 35/3364 [05:24<9:09:03,  9.90s/it]W0116 18:38:25.947000 2290109 site-packages/torch/distributed/elastic/agent/server/api.py:719] Received 15 death signal, shutting down workers
+W0116 18:38:25.950000 2290109 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 2290414 closing signal SIGTERM
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1245, in <module>
+    main()
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1241, in main
+    launch_command(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1220, in launch_command
+    deepspeed_launcher(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 906, in deepspeed_launcher
+    distrib_run.run(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 261, in launch_agent
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 711, in run
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 870, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/api.py", line 84, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 2290109 got signal: 15

@@ -1,0 +1,446 @@
+============================================
+Checkpoint Discovery
+============================================
+  Weaver: /home/jovyan/data/memgen/train/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260110-195742/weaver/weaver_lora
+============================================
+
+============================================
+Step 2: Evaluate Weaver
+============================================
+Model: HuggingFaceTB/SmolLM3-3B
+Dataset: gsm8k
+Weaver Checkpoint: /home/jovyan/data/memgen/train/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260110-195742/weaver/weaver_lora
+============================================
+/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/utils/launch.py:447: UserWarning: Port `44326` is already in use. Accelerate will attempt to launch in a standalone-like mode by finding an open port automatically for this session. If this current attempt fails, or for more control in future runs, please specify a different port (e.g., `--main_process_port <your_chosen_port>`) or use `--main_process_port 0` for automatic selection in your launch command or Accelerate config file.
+  warnings.warn(
+set seed: 42
+2026-01-13 14:20:00,883 [INFO] 
+=====  Running Parameters    =====
+2026-01-13 14:20:00,886 [INFO] {
+    "interaction": {
+        "batch_size": 4,
+        "do_sample": false,
+        "max_obs_length": 512,
+        "max_prompt_length": 4096,
+        "max_response_length": 1024,
+        "max_start_length": 1024,
+        "max_turns": 1,
+        "temperature": 0.0
+    },
+    "log_dir": "/home/jovyan/data/memgen/evaluate/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260113-142000/logs",
+    "ltpo": {
+        "enabled": true,
+        "lr": 0.03,
+        "max_steps": 10,
+        "reward_threshold": -1.0,
+        "sigma": 0.1,
+        "sigma_decay": 0.99,
+        "top_k": 10,
+        "use_auto_grad": true,
+        "verbose": false
+    },
+    "mode": "evaluate",
+    "seed": 42,
+    "train_trigger": false,
+    "train_trigger_method": "grpo",
+    "train_weaver": true,
+    "train_weaver_method": "sft",
+    "trigger": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "bnpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        }
+    },
+    "weaver": {
+        "grpo": {
+            "beta": 0.0,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "loss_type": "grpo",
+            "lr_scheduler_type": "cosine",
+            "max_completion_length": 512,
+            "max_prompt_length": 1024,
+            "num_generations": 8,
+            "num_iterations": 1,
+            "num_train_epochs": 1,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 8,
+            "per_device_train_batch_size": 8,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "temperature": 1.0,
+            "warmup_ratio": 0.1
+        },
+        "sft": {
+            "assistant_only_loss": false,
+            "bf16": true,
+            "eval_steps": 100,
+            "eval_strategy": "epoch",
+            "gradient_accumulation_steps": 1,
+            "gradient_checkpointing": true,
+            "gradient_checkpointing_kwargs": {
+                "use_reentrant": false
+            },
+            "learning_rate": 1e-05,
+            "load_best_model_at_end": true,
+            "logging_steps": 1,
+            "logging_strategy": "steps",
+            "lr_scheduler_type": "cosine",
+            "max_length": 1024,
+            "num_train_epochs": 2,
+            "optim": "adamw_torch",
+            "per_device_eval_batch_size": 4,
+            "per_device_train_batch_size": 4,
+            "remove_unused_columns": false,
+            "report_to": [
+                "wandb"
+            ],
+            "save_steps": 100,
+            "save_strategy": "epoch",
+            "warmup_ratio": 0.1
+        }
+    }
+}
+2026-01-13 14:20:00,886 [INFO] 
+======  Dataset Attributes  ======
+2026-01-13 14:20:00,887 [INFO] {
+    "grpo": {
+        "val_ratio": 0.1
+    },
+    "mode": "sft",
+    "name": "gsm8k",
+    "sft": {
+        "val_ratio": 0.1
+    }
+}
+2026-01-13 14:20:00,887 [INFO] 
+======  Model Attributes  ======
+2026-01-13 14:20:00,888 [INFO] {
+    "load_model_path": null,
+    "load_trigger_path": null,
+    "load_weaver_path": "/home/jovyan/data/memgen/train/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260110-195742/weaver/weaver_lora",
+    "max_inference_aug_num": 5,
+    "max_prompt_aug_num": 1,
+    "model_name": "HuggingFaceTB/SmolLM3-3B",
+    "trigger": {
+        "active": false,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "HuggingFaceTB/SmolLM3-3B"
+    },
+    "weaver": {
+        "inference_latents_len": 8,
+        "lora_config": {
+            "bias": "none",
+            "lora_alpha": 32,
+            "lora_dropout": 0.1,
+            "r": 16,
+            "target_modules": [
+                "q_proj",
+                "v_proj"
+            ],
+            "task_type": "CAUSAL_LM"
+        },
+        "model_name": "HuggingFaceTB/SmolLM3-3B",
+        "prompt_latents_len": 8
+    }
+}
+You are using a model of type smollm3 to instantiate a model of type memgen. This is not supported for all configurations of models and can yield errors.
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 51.23it/s]
+2026-01-13 14:20:03,535 [INFO] Loading pre-trained weaver from: /home/jovyan/data/memgen/train/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260110-195742/weaver/weaver_lora
+2026-01-13 14:20:03,574 [INFO] Loaded 0 weaver adapter weights from checkpoint
+2026-01-13 14:20:03,597 [INFO] Loaded projections and query_latents from /home/jovyan/data/memgen/train/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260110-195742/weaver/projections.pt
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:999884 [0] NCCL INFO Bootstrap: Using eth0:10.0.38.249<0>
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:999884 [0] NCCL INFO cudaDriverVersion 12090
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:999884 [0] NCCL INFO NCCL version 2.26.2+cuda12.2
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:999884 [0] NCCL INFO Comm config Blocking set to 1
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. Using internal net plugin.
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO NCCL_IB_DISABLE set by environment to 1.
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO NET/Socket : Using [0]eth0:10.0.38.249<0>
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Using network Socket
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO ncclCommInitRankConfig comm 0x1626a630 rank 0 nranks 1 cudaDev 0 nvmlDev 0 busId 49000 commId 0x6feb1bb767567df5 - Init START
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO RAS client listening socket at 127.0.0.1<28028>
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Bootstrap timings total 0.000652 (create 0.000026, send 0.000084, recv 0.000287, ring 0.000001, delay 0.000000)
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO NCCL_P2P_DISABLE set by environment to 1
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Setting affinity for GPU 0 to 3f,f9000000,00003ff9
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO comm 0x1626a630 rank 0 nRanks 1 nNodes 1 localRanks 1 localRank 0 MNNVL 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 00/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 01/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 02/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 03/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 04/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 05/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 06/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 07/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 08/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 09/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 10/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 11/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 12/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 13/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 14/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 15/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 16/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 17/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 18/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 19/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 20/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 21/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 22/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 23/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 24/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 25/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 26/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 27/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 28/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 29/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 30/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 31/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 32/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 33/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 34/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 35/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 36/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 37/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 38/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 39/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 40/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 41/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 42/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 43/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 44/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 45/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 46/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 47/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 48/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 49/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 50/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 51/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 52/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 53/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 54/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 55/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 56/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 57/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 58/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 59/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 60/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 61/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 62/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Channel 63/64 : 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Trees [0] -1/-1/-1->0->-1 [1] -1/-1/-1->0->-1 [2] -1/-1/-1->0->-1 [3] -1/-1/-1->0->-1 [4] -1/-1/-1->0->-1 [5] -1/-1/-1->0->-1 [6] -1/-1/-1->0->-1 [7] -1/-1/-1->0->-1 [8] -1/-1/-1->0->-1 [9] -1/-1/-1->0->-1 [10] -1/-1/-1->0->-1 [11] -1/-1/-1->0->-1 [12] -1/-1/-1->0->-1 [13] -1/-1/-1->0->-1 [14] -1/-1/-1->0->-1 [15] -1/-1/-1->0->-1 [16] -1/-1/-1->0->-1 [17] -1/-1/-1->0->-1 [18] -1/-1/-1->0->-1 [19] -1/-1/-1->0->-1 [20] -1/-1/-1->0->-1 [21] -1/-1/-1->0->-1 [22] -1/-1/-1->0->-1 [23] -1/-1/-1->0->-1 [24] -1/-1/-1->0->-1 [25] -1/-1/-1->0->-1 [26] -1/-1/-1->0->-1 [27] -1/-1/-1->0->-1 [28] -1/-1/-1->0->-1 [29] -1/-1/-1->0->-1 [30] -1/-1/-1->0->-1 [31] -1/-1/-1->0->-1 [32] -1/-1/-1->0->-1 [33] -1/-1/-1->0->-1 [34] -1/-1/-1->0->-1 [35] -1/-1/-1->0->-1 [36] -1/-1/-1->0->-1 [37] -1/-1/-1->0->-1 [38] -1/-1/-1->0->-1 [39] -1/-1/-1->0->-1 [40] -1/-1/-1->0->-1 [41] -1/-1/-1->0->-1 [42] -1/-1/-1->0->-1 [43] -1/-1/-1->0->-1 [44] -1/-1/-1->0->-1 [45] -
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO P2P Chunksize set to 524288
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Check P2P Type intraNodeP2pSupport 0 directMode 0
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001430 [0] NCCL INFO [Proxy Service] Device 0 CPU core 69
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001431 [0] NCCL INFO [Proxy Service UDS] Device 0 CPU core 56
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO 64 coll channels, 64 collnet channels, 0 nvls channels, 64 p2p channels, 64 p2p channels per peer
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO CC Off, workFifoBytes 1048576
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO ncclCommInitRankConfig comm 0x1626a630 rank 0 nranks 1 cudaDev 0 nvmlDev 0 busId 49000 commId 0x6feb1bb767567df5 - Init COMPLETE
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1001417 [0] NCCL INFO Init timings - ncclCommInitRankConfig: rank 0 nranks 1 total 0.24 (kernels 0.17, alloc 0.01, bootstrap 0.00, allgathers 0.00, topo 0.04, graphs 0.00, connections 0.02, rest 0.00)
+The following generation flags are not valid and may be ignored: ['temperature']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+2026-01-13 14:20:36,237 [WARNING] Detected kernel version 5.4.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+wandb: Currently logged in as: iamseungpil (gistdslab) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run b1ryje4w
+wandb: Tracking run with wandb version 0.23.0
+wandb: Run data is saved locally in /home/jovyan/data/memgen/evaluate/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260113-142000/wandb/run-20260113_142036-b1ryje4w
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run eval_weaver_SmolLM3-3B_20260113
+wandb: ⭐️ View project at https://wandb.ai/gistdslab/memgen_ltpo
+wandb: 🚀 View run at https://wandb.ai/gistdslab/memgen_ltpo/runs/b1ryje4w
+wandb: Detected [huggingface_hub.inference] in use.
+wandb: Use W&B Weave for improved LLM call tracing. Install Weave with `pip install weave` then add `import weave` to the top of your script.
+wandb: For more information, check out the docs at: https://weave-docs.wandb.ai/
+Traceback (most recent call last):
+  File "/home/jovyan/MemGenforARC/main.py", line 113, in <module>
+    main()
+  File "/home/jovyan/MemGenforARC/main.py", line 107, in main
+    runner.evaluate()
+  File "/home/jovyan/MemGenforARC/memgen/runner.py", line 250, in evaluate
+    return evaluate_func()
+           ^^^^^^^^^^^^^^^
+  File "/home/jovyan/MemGenforARC/memgen/runner.py", line 269, in _static_evaluate
+    model_wrapped = accelerator.prepare_model(model=self.model, evaluation_mode=True)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/accelerator.py", line 1800, in prepare_model
+    model = model.to(self.device)
+            ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/transformers/modeling_utils.py", line 4346, in to
+    return super().to(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1355, in to
+    return self._apply(convert)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+    module._apply(fn)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+    module._apply(fn)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+    module._apply(fn)
+  [Previous line repeated 6 more times]
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 942, in _apply
+    param_applied = fn(param)
+                    ^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1341, in convert
+    return t.to(
+           ^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 44.00 MiB. GPU 0 has a total capacity of 39.49 GiB of which 9.56 MiB is free. Process 3976500 has 9.16 GiB memory in use. Process 3976577 has 17.13 GiB memory in use. Process 3977549 has 7.63 GiB memory in use. Process 3977546 has 5.54 GiB memory in use. Of the allocated memory 4.61 GiB is allocated by PyTorch, and 424.00 KiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/home/jovyan/MemGenforARC/main.py", line 113, in <module>
+[rank0]:     main()
+[rank0]:   File "/home/jovyan/MemGenforARC/main.py", line 107, in main
+[rank0]:     runner.evaluate()
+[rank0]:   File "/home/jovyan/MemGenforARC/memgen/runner.py", line 250, in evaluate
+[rank0]:     return evaluate_func()
+[rank0]:            ^^^^^^^^^^^^^^^
+[rank0]:   File "/home/jovyan/MemGenforARC/memgen/runner.py", line 269, in _static_evaluate
+[rank0]:     model_wrapped = accelerator.prepare_model(model=self.model, evaluation_mode=True)
+[rank0]:                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/accelerator.py", line 1800, in prepare_model
+[rank0]:     model = model.to(self.device)
+[rank0]:             ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/transformers/modeling_utils.py", line 4346, in to
+[rank0]:     return super().to(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1355, in to
+[rank0]:     return self._apply(convert)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+[rank0]:     module._apply(fn)
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+[rank0]:     module._apply(fn)
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 915, in _apply
+[rank0]:     module._apply(fn)
+[rank0]:   [Previous line repeated 6 more times]
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 942, in _apply
+[rank0]:     param_applied = fn(param)
+[rank0]:                     ^^^^^^^^^
+[rank0]:   File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1341, in convert
+[rank0]:     return t.to(
+[rank0]:            ^^^^^
+[rank0]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 44.00 MiB. GPU 0 has a total capacity of 39.49 GiB of which 9.56 MiB is free. Process 3976500 has 9.16 GiB memory in use. Process 3976577 has 17.13 GiB memory in use. Process 3977549 has 7.63 GiB memory in use. Process 3977546 has 5.54 GiB memory in use. Of the allocated memory 4.61 GiB is allocated by PyTorch, and 424.00 KiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33meval_weaver_SmolLM3-3B_20260113[0m at: [34mhttps://wandb.ai/gistdslab/memgen_ltpo/runs/b1ryje4w[0m
+[1;34mwandb[0m: Find logs at: [1;35m../data/memgen/evaluate/gsm8k/SmolLM3-3B/pn=1_pl=8_in=5_il=8_20260113-142000/wandb/run-20260113_142036-b1ryje4w/logs[0m
+[rank0]:[W113 14:20:43.533782715 ProcessGroupNCCL.cpp:1479] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl:999884:1006889 [0] NCCL INFO comm 0x1626a630 rank 0 nranks 1 cudaDev 0 busId 49000 - Abort COMPLETE
+E0113 14:20:45.955000 999436 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 0 (pid: 999884) of binary: /home/jovyan/miniconda3/envs/memgen/bin/python
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1245, in <module>
+    main()
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1241, in main
+    launch_command(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1220, in launch_command
+    deepspeed_launcher(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 906, in deepspeed_launcher
+    distrib_run.run(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 270, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+main.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-01-13_14:20:45
+  host      : cheetah-676973745f6473-ydmwi1-576c587ddf-rlvhl
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 999884)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+  0%|          | 1/330 [01:09<6:22:50, 69.82s/it]  1%|          | 2/330 [02:15<6:09:37, 67.61s/it]  1%|          | 3/330 [02:28<3:50:55, 42.37s/it]  1%|          | 4/330 [03:35<4:42:49, 52.05s/it]  2%|▏         | 5/330 [04:41<5:09:59, 57.23s/it]  2%|▏         | 6/330 [05:48<5:27:32, 60.66s/it]  2%|▏         | 7/330 [06:00<4:00:34, 44.69s/it]  2%|▏         | 8/330 [06:31<3:36:31, 40.35s/it]  3%|▎         | 9/330 [07:03<3:21:02, 37.58s/it]  3%|▎         | 10/330 [08:11<4:10:48, 47.03s/it]  3%|▎         | 11/330 [08:51<3:58:16, 44.82s/it]  4%|▎         | 12/330 [09:06<3:10:12, 35.89s/it]  4%|▍         | 13/330 [10:14<4:00:06, 45.44s/it]  4%|▍         | 14/330 [11:19<4:30:42, 51.40s/it]  5%|▍         | 15/330 [11:32<3:30:09, 40.03s/it]  5%|▍         | 16/330 [11:43<2:43:10, 31.18s/it]  5%|▌         | 17/330 [11:55<2:11:48, 25.27s/it]  5%|▌         | 18/330 [13:00<3:14:29, 37.40s/it]  6%|▌         | 19/330 [13:35<3:09:04, 36.48s/it]  6%|▌         | 20/330 [13:44<2:26:39, 28.38s/it]  6%|▋         | 21/330 [14:50<3:23:42, 39.56s/it]  7%|▋         | 22/330 [15:54<4:01:46, 47.10s/it]  7%|▋         | 23/330 [17:00<4:29:06, 52.60s/it]  7%|▋         | 24/330 [18:07<4:50:03, 56.87s/it]  8%|▊         | 25/330 [19:14<5:04:37, 59.93s/it]  8%|▊         | 26/330 [19:38<4:08:59, 49.14s/it]  8%|▊         | 27/330 [20:43<4:32:46, 54.02s/it]  8%|▊         | 28/330 [21:07<3:46:45, 45.05s/it]  9%|▉         | 29/330 [21:41<3:29:40, 41.80s/it]  9%|▉         | 30/330 [22:46<4:02:56, 48.59s/it]  9%|▉         | 31/330 [23:00<3:11:23, 38.41s/it] 10%|▉         | 32/330 [23:42<3:14:52, 39.24s/it] 10%|█         | 33/330 [24:07<2:53:41, 35.09s/it] 10%|█         | 34/330 [24:42<2:53:16, 35.12s/it] 11%|█         | 35/330 [25:47<3:36:05, 43.95s/it] 11%|█         | 36/330 [26:00<2:49:57, 34.68s/it] 11%|█         | 37/330 [26:34<2:47:57, 34.39s/it] 12%|█▏        | 38/330 [26:45<2:13:42, 27.48s/it] 12%|█▏        | 39/330 [27:52<3:11:33, 39.50s/it] 12%|█▏        | 40/330 [28:02<2:27:51, 30.59s/it] 12%|█▏        | 41/330 [28:18<2:05:46, 26.11s/it] 13%|█▎        | 42/330 [29:24<3:02:52, 38.10s/it] 13%|█▎        | 43/330 [30:31<3:43:08, 46.65s/it] 13%|█▎        | 44/330 [30:44<2:55:31, 36.82s/it] 14%|█▎        | 45/330 [31:51<3:36:35, 45.60s/it] 14%|█▍        | 46/330 [32:56<4:04:00, 51.55s/it] 14%|█▍        | 47/330 [34:02<4:23:54, 55.95s/it] 15%|█▍        | 48/330 [34:13<3:19:27, 42.44s/it] 15%|█▍        | 49/330 [34:43<3:00:45, 38.60s/it] 15%|█▌        | 50/330 [35:48<3:37:34, 46.62s/it] 15%|█▌        | 51/330 [36:54<4:03:20, 52.33s/it]W0113 14:57:56.413000 998481 site-packages/torch/distributed/elastic/agent/server/api.py:719] Received 15 death signal, shutting down workers
+W0113 14:57:56.417000 998481 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 999034 closing signal SIGTERM
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1245, in <module>
+    main()
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1241, in main
+    launch_command(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1220, in launch_command
+    deepspeed_launcher(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/accelerate/commands/launch.py", line 906, in deepspeed_launcher
+    distrib_run.run(args)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 261, in launch_agent
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 711, in run
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 870, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/home/jovyan/miniconda3/envs/memgen/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/api.py", line 84, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 998481 got signal: 15

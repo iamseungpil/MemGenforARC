@@ -3,3 +3,4 @@ BACKUP/
 trainer_output/
 wandb/
 __pycache__/
+Docs/
