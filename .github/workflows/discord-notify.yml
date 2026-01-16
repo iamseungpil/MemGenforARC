@@ -1,0 +1,85 @@
+name: Discord Push Notification
+
+on:
+  push:
+    branches: ['*']
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get commit info
+        id: commit_info
+        run: |
+          # Get changed files
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | head -10 | tr '\n' ', ' | sed 's/,$//')
+          if [ -z "$CHANGED_FILES" ]; then
+            CHANGED_FILES="(initial commit)"
+          fi
+
+          # Count total changed files
+          TOTAL_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | wc -l)
+
+          # Get commit message (first line only)
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+
+          # Get author
+          AUTHOR=$(git log -1 --pretty=%an)
+
+          # Get short SHA
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          # Export to environment
+          echo "changed_files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+          echo "total_files=$TOTAL_FILES" >> $GITHUB_OUTPUT
+          echo "commit_msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
+          echo "author=$AUTHOR" >> $GITHUB_OUTPUT
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+      - name: Send Discord notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+
+          # Build embed JSON
+          curl -H "Content-Type: application/json" \
+            -X POST \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"📦 Push to ${BRANCH}\",
+                \"color\": 5814783,
+                \"fields\": [
+                  {
+                    \"name\": \"📝 Commit\",
+                    \"value\": \"\`${{ steps.commit_info.outputs.short_sha }}\` ${{ steps.commit_info.outputs.commit_msg }}\",
+                    \"inline\": false
+                  },
+                  {
+                    \"name\": \"👤 Author\",
+                    \"value\": \"${{ steps.commit_info.outputs.author }}\",
+                    \"inline\": true
+                  },
+                  {
+                    \"name\": \"📁 Files Changed\",
+                    \"value\": \"${{ steps.commit_info.outputs.total_files }} files\",
+                    \"inline\": true
+                  },
+                  {
+                    \"name\": \"🔗 Changes\",
+                    \"value\": \"${{ steps.commit_info.outputs.changed_files }}\",
+                    \"inline\": false
+                  }
+                ],
+                \"footer\": {
+                  \"text\": \"MemGenforARC\"
+                },
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }" \
+            "$DISCORD_WEBHOOK"
