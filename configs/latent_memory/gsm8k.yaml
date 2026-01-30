@@ -112,7 +112,7 @@ run:
         use_reentrant: False
 
       max_prompt_length: 1024
-      max_completion_length: 512
+      max_completion_length: 1024  # must match run.interaction.max_response_length
       temperature: 1.0
       
       # optimizer configs
@@ -154,7 +154,7 @@ run:
         use_reentrant: False
 
       max_prompt_length: 1024
-      max_completion_length: 512
+      max_completion_length: 1024  # must match run.interaction.max_response_length
       temperature: 1.0
 
       # optimizer configs

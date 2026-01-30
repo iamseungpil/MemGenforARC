@@ -24,24 +24,30 @@ class MemGenOutputWithPast(CausalLMOutputWithPast):
 class MemGenLoraSwitchMixin:
 
     def _insert_lora_adapters(
-        self, 
-        weaver_model: PreTrainedModel, 
-        weaver_lora_config: dict, 
-        trigger_model: PreTrainedModel, 
-        trigger_lora_config: dict
-    ) -> tuple[PeftModel, PeftModel, PeftModel]:
-        
+        self,
+        weaver_model: PreTrainedModel,
+        weaver_lora_config: dict,
+        trigger_model: PreTrainedModel,
+        trigger_lora_config: Optional[dict]
+    ) -> tuple[PeftModel, PeftModel]:
+
         same_model = weaver_model is trigger_model
         weaver_lora_config = LoraConfig(**weaver_lora_config)
-        trigger_lora_config = LoraConfig(**trigger_lora_config)
-        
+
+        # Handle case when trigger_lora_config is None (trigger inactive)
+        if trigger_lora_config is None:
+            # Use weaver config as fallback for trigger (will be inactive anyway)
+            trigger_lora_config = weaver_lora_config
+        else:
+            trigger_lora_config = LoraConfig(**trigger_lora_config)
+
         if same_model:
             peft_model = PeftModel(
                 weaver_model, weaver_lora_config, adapter_name=MemGenWeaver.adapter_name
             )
             peft_model.add_adapter(peft_config=trigger_lora_config, adapter_name=MemGenTrigger.adapter_name)
             return peft_model, peft_model
-        
+
         else:
             weaver_model_with_lora = PeftModel(
                 weaver_model, weaver_lora_config, adapter_name=MemGenWeaver.adapter_name
@@ -59,16 +65,46 @@ class MemGenLoraSwitchMixin:
             fix_model_parameters(self.weaver_to_reasoner)
             fix_model_parameters(self.reasoner_to_weaver)
     
-    def open_component(self, name: Literal["weaver", "trigger"], projection_only: bool = False, skip_lora: bool = False, latent_processor: bool = False):
+    def open_component(self, name: Literal["weaver", "trigger"], projection_only: bool = False, skip_lora: bool = False, latent_processor: bool = False, skip_projection: bool = False, recursive_memory: bool = False, recursive_skip_projection: bool = False):
 
         component = getattr(self, name)
 
-        if projection_only and name == "weaver":
+        if recursive_memory and name == "weaver":
+            # Recursive Memory mode: train recursive_compressor (optionally + projections)
+            # Note: query_latents are INSIDE recursive_compressor, NOT in weaver
+            # 1. Train recursive_compressor (includes prompt_query_latents, inference_query_latents)
+            if hasattr(self, 'recursive_compressor'):
+                open_model_parameters(self.recursive_compressor)
+            # 2. Train projections only if NOT skipping
+            if not recursive_skip_projection:
+                open_model_parameters(self.weaver_to_reasoner)
+                open_model_parameters(self.reasoner_to_weaver)
+            # 3. Keep weaver (LoRA, base model, weaver's query_latents) frozen
+            fix_model_parameters(component)
+        elif projection_only and name == "weaver":
             # Projection-only mode: only train projection layers, skip LoRA and query_latents
             open_model_parameters(self.weaver_to_reasoner)
             open_model_parameters(self.reasoner_to_weaver)
             # Keep everything else frozen
             fix_model_parameters(component)
+        elif skip_projection and name == "weaver":
+            # Skip-Projection mode: train query_latents (and optionally LoRA), but NOT projections
+            # 1. Train query_latents
+            component.prompt_query_latents.requires_grad = True
+            component.inference_query_latents.requires_grad = True
+            # 2. Keep projections frozen (not used in skip_projection mode)
+            fix_model_parameters(self.weaver_to_reasoner)
+            fix_model_parameters(self.reasoner_to_weaver)
+            # 3. LoRA handling depends on skip_lora flag
+            if skip_lora:
+                # Query Latents only (no LoRA, no projections)
+                fix_model_parameters(component.model)
+            else:
+                # Query Latents + LoRA (no projections)
+                fix_model_parameters(component.model.base_model)
+                for p in component.model.named_parameters():
+                    if f"lora_A.{name}" in p[0] or f"lora_B.{name}" in p[0]:
+                        p[1].requires_grad = True
         elif latent_processor and name == "weaver":
             # LatentProcessor mode: train query_latents, projections, and latent_processor (but NOT LoRA)
             # 1. Train projection layers

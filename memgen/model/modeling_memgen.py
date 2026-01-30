@@ -81,27 +81,21 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         self.reasoner = base_model
         self.tokenizer = base_tokenizer
         
-        # projection layers for mapping embeddings between reasoner and weaver
-        # map reasoner input embeddings to weaver input embeddings
+        # Projection layers: map embeddings between reasoner and weaver spaces
         reasoner_hidden_size = self.config.hidden_size
         weaver_hidden_size = weaver_model.base_model.config.hidden_size
-        self.reasoner_to_weaver = nn.Linear(
-            reasoner_hidden_size, weaver_hidden_size
-        )
-        # Map weaver hidden states to reasoner input embeddings
-        self.weaver_to_reasoner = nn.Linear(
-            weaver_hidden_size, reasoner_hidden_size
-        )
-        
-        self.delimiters: list[str] = [",", ".", "\n"]  # delimiters for detecting augmentation points
+        self.reasoner_to_weaver = nn.Linear(reasoner_hidden_size, weaver_hidden_size)
+        self.weaver_to_reasoner = nn.Linear(weaver_hidden_size, reasoner_hidden_size)
 
-        # projection-only mode (no query latents, no LoRA)
+        self.delimiters: list[str] = [",", ".", "\n"]
+
+        # Mode flags (see CLAUDE.md for mode descriptions)
         self.projection_only = config.projection_only
-
-        # skip-lora mode (query latents + projections, no LoRA)
         self.skip_lora = config.skip_lora
+        self.query_projection_only = config.query_projection_only
+        self.skip_projection = config.skip_projection
+        self.output_projection_only = config.output_projection_only
 
-        # latent processor mode (MLP after weaver output, replaces LoRA gradient effect)
         self.latent_processor_enabled = config.latent_processor
         if self.latent_processor_enabled:
             from memgen.model.weaver import LatentProcessor
@@ -109,32 +103,42 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                 hidden_size=weaver_hidden_size,
                 depth=config.latent_processor_depth,
             )
-            logging.info(f"LatentProcessor initialized: hidden_size={weaver_hidden_size}, depth={config.latent_processor_depth}")
+
+        self.recursive_memory = config.recursive_memory
+        if self.recursive_memory:
+            from memgen.model.recursive_memory import WeaverStyleCompressor
+            # Use prompt_latents_len for num_latents (same as weaver)
+            num_latents = config.prompt_latents_len
+            self.recursive_compressor = WeaverStyleCompressor(
+                hidden_size=config.recursive_hidden_size,
+                num_heads=config.recursive_num_heads,
+                attn_rank=config.recursive_attn_rank,
+                mlp_rank=config.recursive_mlp_rank,
+                max_cycles=config.recursive_max_cycles,
+                confidence_threshold=config.recursive_confidence_threshold,
+                top_k=config.recursive_top_k,
+                num_latents=num_latents,
+                two_level=config.recursive_two_level,
+                l_cycles=config.recursive_l_cycles,
+                max_h_cycles=config.recursive_max_h_cycles,
+                full_rank_mlp=config.recursive_full_rank_mlp,
+                bidirectional=config.recursive_bidirectional,
+            )
 
         # postprocess
         self._postprocess_models()
 
     def _postprocess_models(self):
-        # Ensure tokenizer has a pad token
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
             self.tokenizer.padding_side = "left"
-            logging.info(
-                f"Tokenizer has no pad token. Using EOS token ({self.tokenizer.eos_token}) as pad token."
-            )
 
-        # Normalize the tokenizer's chat template
-        # NOTE: GPT-OSS 등 다른 모델 사용 시 CONVERSATION_TEMPLATE 수정 필요
-        # _is_conversation(), _postprocess_assistant_labels()가 <|im_start|> 토큰에 의존함
+        # NOTE: _is_conversation(), _postprocess_assistant_labels() depend on <|im_start|> tokens
         self.tokenizer.chat_template = CONVERSATION_TEMPLATE
 
     def _set_gradient_checkpointing(self, enable: bool = True, gradient_checkpointing_func=None):
-        """Enable/disable gradient checkpointing for internal models.
-
-        This is required for DeepSpeed ZeRO compatibility when using shared parameters.
-        Delegates to the reasoner (base LLM) which already supports gradient checkpointing.
-        """
+        """Required for DeepSpeed ZeRO compatibility with shared parameters."""
         if enable:
             self.reasoner.gradient_checkpointing_enable(
                 gradient_checkpointing_kwargs={"use_reentrant": False}
@@ -148,12 +152,7 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
 
     @contextmanager
     def disable_adapter(self):
-        """
-        Context manager to disable LoRA adapters for reference model computation.
-        This allows GRPO to compute reference logits without creating a separate model copy.
-        Delegates to PEFT's built-in disable_adapter context manager.
-        """
-        # Use PEFT's built-in context manager
+        """Disable LoRA adapters for reference model computation (GRPO)."""
         with self.weaver.model.disable_adapter():
             yield
 
@@ -163,21 +162,20 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         attention_mask: torch.Tensor,
         labels: torch.Tensor,
         **kwargs
-    ) -> torch.Tensor:
-        # preprocess inputs
+    ) -> tuple:
         assert input_ids.shape == attention_mask.shape == labels.shape
 
         tokenizer = self.tokenizer
         reasoner = self.reasoner
         weaver = self.weaver
         delimiters = self.delimiters
-        max_augment_num = self.config.max_inference_aug_num  # Limit the number of inference augmentation points to avoid excessive augmentation
+        max_augment_num = self.config.max_inference_aug_num
         device = self.device
         embeds_dtype = reasoner.get_input_embeddings().weight.dtype
         B, _ = input_ids.shape
         hidden_size = self.config.hidden_size
 
-        # Skip augmentation entirely when max_prompt_aug_num is 0 (pure SFT mode)
+        # Pure SFT mode: no augmentation
         if self.config.max_prompt_aug_num == 0:
             # Simple forward without any augmentation
             position_ids = self._generate_position_ids(attention_mask)
@@ -186,47 +184,105 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                 attention_mask=attention_mask,
                 position_ids=position_ids
             )
-            return reasoner_outputs.logits
+            return reasoner_outputs.logits, None
 
-        # select augment idx
         augmentation_indices = self._select_augment_points_after_delimiter(
             input_ids, labels, delimiters, tokenizer, max_augment_num
         )
 
-        # origin inputs embeds
         inputs_embeds = reasoner.get_input_embeddings()(input_ids)
 
-        # Initialize the start index and empty tensors for accumulating processed segments
         current_start_idx = 0
         current_inputs_embeds = torch.empty((B, 0, hidden_size), device=device, dtype=embeds_dtype)
         current_attention_mask = torch.empty((B, 0), device=device, dtype=attention_mask.dtype)
         current_latents_mask = torch.empty((B, 0), device=device, dtype=torch.bool)
 
-        # Iterate over the selected augmentation points
-        for aug_point_idx in augmentation_indices:
-            # Slice the current segment of original embeddings and attention mask
+        stepwise_enabled = self.recursive_memory and getattr(self.config, 'recursive_stepwise_training', False)
+        intermediate_losses = [] if stepwise_enabled else None
+
+        for aug_loop_idx, aug_point_idx in enumerate(augmentation_indices):
             segment_inputs_embeds = inputs_embeds[:, current_start_idx:aug_point_idx]
             segment_attention_mask = attention_mask[:, current_start_idx:aug_point_idx]
             segment_latents_mask = torch.zeros((B, segment_inputs_embeds.size(1)), device=device, dtype=torch.bool)
 
-            # Concatenate the current segment to the accumulated embeddings and masks
             current_inputs_embeds = torch.cat([current_inputs_embeds, segment_inputs_embeds], dim=1)
             current_attention_mask = torch.cat([current_attention_mask, segment_attention_mask], dim=1)
             current_position_ids = self._generate_position_ids(current_attention_mask)
             current_latents_mask = torch.cat([current_latents_mask, segment_latents_mask], dim=1)
 
-            # Determine whether this point is the end of the prompt (prompt augmentation)
             is_prompt_end_aug = (labels[:, aug_point_idx] != -100).all() and (labels[:, aug_point_idx-1] == -100).all().item()
 
-            # Projection-only mode: skip LoRA and query latents
-            if self.projection_only:
-                # Use projection-only augmentation (no LoRA, no query latents)
+            if self.recursive_memory:
+                if self.config.recursive_skip_projection:
+                    context_for_compressor = current_inputs_embeds
+                else:
+                    context_for_compressor = self.reasoner_to_weaver(current_inputs_embeds)
+
+                latent_inputs_embeds, cycles = self.recursive_compressor(
+                    context=context_for_compressor,
+                    attention_mask=current_attention_mask,
+                    is_prompt=is_prompt_end_aug,
+                    reasoner=self.reasoner if self.config.recursive_confidence_threshold > 0 else None,
+                    verbose=self.config.recursive_verbose_cycles,
+                )
+                if self.config.recursive_verbose_cycles:
+                    logging.debug(f"[forward] RecursiveMemory cycles={cycles}, is_prompt={is_prompt_end_aug}")
+
+                if not self.config.recursive_skip_projection:
+                    latent_inputs_embeds = self.weaver_to_reasoner(latent_inputs_embeds)
+
+                latent_len = latent_inputs_embeds.size(1)
+                attn_mask = torch.ones((B, latent_len), device=device, dtype=current_attention_mask.dtype)
+                pos_ids = None
+
+            elif self.query_projection_only:
+                batch_size = current_inputs_embeds.size(0)
+                if is_prompt_end_aug:
+                    latent_inputs_embeds, attn_mask, pos_ids = weaver.augment_prompt_query_projection(
+                        self.reasoner_to_weaver, self.weaver_to_reasoner,
+                        batch_size, current_attention_mask, current_position_ids
+                    )
+                else:
+                    latent_inputs_embeds, attn_mask, pos_ids = weaver.augment_inference_query_projection(
+                        self.reasoner_to_weaver, self.weaver_to_reasoner,
+                        batch_size, current_attention_mask, current_position_ids
+                    )
+            elif self.projection_only:
                 latent_inputs_embeds, attn_mask, pos_ids = weaver.augment_prompt_projection_only(
                     current_inputs_embeds, current_attention_mask, current_position_ids,
                     self.reasoner_to_weaver, self.weaver_to_reasoner
                 )
+            elif self.skip_projection:
+                if self.skip_lora:
+                    if is_prompt_end_aug:
+                        weaver_hidden_states, attn_mask, pos_ids = weaver.augment_prompt_skip_lora(
+                            current_inputs_embeds, current_attention_mask, current_position_ids
+                        )
+                    else:
+                        weaver_hidden_states, attn_mask, pos_ids = weaver.augment_inference_skip_lora(
+                            current_inputs_embeds, current_attention_mask, current_position_ids
+                        )
+                else:
+                    if is_prompt_end_aug:
+                        weaver_hidden_states, attn_mask, pos_ids = weaver.augment_prompt(
+                            current_inputs_embeds, current_attention_mask, current_position_ids
+                        )
+                    else:
+                        weaver_hidden_states, attn_mask, pos_ids = weaver.augment_inference(
+                            current_inputs_embeds, current_attention_mask, current_position_ids
+                        )
+                latent_inputs_embeds = weaver_hidden_states
+            elif self.output_projection_only:
+                if is_prompt_end_aug:
+                    weaver_hidden_states, attn_mask, pos_ids = weaver.augment_prompt_skip_lora(
+                        current_inputs_embeds, current_attention_mask, current_position_ids
+                    )
+                else:
+                    weaver_hidden_states, attn_mask, pos_ids = weaver.augment_inference_skip_lora(
+                        current_inputs_embeds, current_attention_mask, current_position_ids
+                    )
+                latent_inputs_embeds = self.weaver_to_reasoner(weaver_hidden_states)
             elif self.skip_lora or self.latent_processor_enabled:
-                # Skip-LoRA or LatentProcessor mode: query latents + projections, no LoRA adapter
                 weaver_inputs_embeds = self.reasoner_to_weaver(current_inputs_embeds)
 
                 if is_prompt_end_aug:
@@ -238,17 +294,14 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                         weaver_inputs_embeds, current_attention_mask, current_position_ids
                     )
 
-                # Apply LatentProcessor if enabled (after weaver output, before projection)
                 if self.latent_processor_enabled:
                     weaver_hidden_states = self.latent_processor(weaver_hidden_states)
 
-                # Map weaver hidden states back to reasoner embeddings
                 latent_inputs_embeds = self.weaver_to_reasoner(weaver_hidden_states)
             else:
-                # Original path: map to weaver space, use LoRA + query latents
+                # Full mode: LoRA + query latents + projections
                 weaver_inputs_embeds = self.reasoner_to_weaver(current_inputs_embeds)
 
-                # Depending on type, use weaver to augment prompt or inference
                 if is_prompt_end_aug:
                     weaver_hidden_states, attn_mask, pos_ids = weaver.augment_prompt(
                         weaver_inputs_embeds, current_attention_mask, current_position_ids
@@ -258,19 +311,56 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                         weaver_inputs_embeds, current_attention_mask, current_position_ids
                     )
 
-                # Map weaver hidden states back to reasoner embeddings
                 latent_inputs_embeds = self.weaver_to_reasoner(weaver_hidden_states)
 
-            # Update accumulated embeddings and masks with the newly augmented segment
             current_inputs_embeds = torch.cat([current_inputs_embeds, latent_inputs_embeds], dim=1)
             current_attention_mask = torch.cat([current_attention_mask, attn_mask], dim=1)
             current_start_idx = aug_point_idx
 
-            # Update latent mask for the newly added latent embeddings
             latent_mask = torch.ones((B, latent_inputs_embeds.size(1)), device=device, dtype=torch.bool)
             current_latents_mask = torch.cat([current_latents_mask, latent_mask], dim=1)
 
-        # Process the remaining segment after the last augmentation point
+            # Stepwise training: intermediate loss on the NEXT segment
+            if stepwise_enabled:
+                if aug_loop_idx < len(augmentation_indices) - 1:
+                    lookahead_end = augmentation_indices[aug_loop_idx + 1]
+                else:
+                    lookahead_end = input_ids.shape[1]
+
+                lookahead_embeds = inputs_embeds[:, aug_point_idx:lookahead_end]
+                lookahead_mask = attention_mask[:, aug_point_idx:lookahead_end]
+                lookahead_latent_mask = torch.zeros(
+                    (B, lookahead_embeds.size(1)), device=device, dtype=torch.bool
+                )
+
+                temp_embeds = torch.cat([current_inputs_embeds, lookahead_embeds], dim=1)
+                temp_mask = torch.cat([current_attention_mask, lookahead_mask], dim=1)
+                temp_latent_mask = torch.cat([current_latents_mask, lookahead_latent_mask], dim=1)
+                temp_pos = self._generate_position_ids(temp_mask)
+
+                partial_outputs = reasoner(
+                    inputs_embeds=temp_embeds,
+                    attention_mask=temp_mask,
+                    position_ids=temp_pos,
+                )
+                partial_logits = partial_outputs.logits
+
+                shifted_mask = torch.zeros_like(temp_latent_mask)
+                shifted_mask[:, :-1] = temp_latent_mask[:, 1:]
+                valid = ~shifted_mask
+                valid_partial_logits = partial_logits[valid].view(B, -1, partial_logits.size(2))
+
+                step_labels = labels[:, :lookahead_end].clone()
+                step_labels[:, :aug_point_idx] = -100
+
+                shift_logits_step = valid_partial_logits[..., :-1, :].contiguous()
+                shift_labels_step = step_labels[..., 1:].contiguous()
+                step_loss = nn.CrossEntropyLoss(ignore_index=-100)(
+                    shift_logits_step.view(-1, shift_logits_step.size(-1)),
+                    shift_labels_step.view(-1),
+                )
+                intermediate_losses.append(step_loss)
+
         remaining_inputs_embeds = inputs_embeds[:, current_start_idx:]
         remaining_attention_mask = attention_mask[:, current_start_idx:]
         latent_mask = torch.zeros((B, remaining_attention_mask.size(1)), device=device, dtype=torch.bool)
@@ -287,45 +377,28 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         )
         logits = reasoner_outputs.logits
 
-        # Identify valid positions in logits (positions that should contribute to loss)
         shifted = torch.zeros_like(current_latents_mask)
         shifted[:, :-1] = current_latents_mask[:, 1:]
         valid_mask = ~shifted
 
         valid_logits = logits[valid_mask].view(logits.size(0), -1, logits.size(2))
-        # assert shifted.sum() == current_latents_mask.sum()
-        # assert valid_logits.shape[:2] == input_ids.shape
 
-        return valid_logits
+        stepwise_loss = None
+        if intermediate_losses:
+            stepwise_loss = torch.stack(intermediate_losses).mean()
+
+        return valid_logits, stepwise_loss
     
     def _instructional_forward(
-        self, 
+        self,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
-        labels: torch.Tensor,   
+        labels: torch.Tensor,
         **kwargs
     ) -> tuple[torch.FloatTensor, torch.LongTensor]:
-        """
-        Forward pass for single-turn instructional data (no multi-turn conversation required).
-
-        This method is used for instruction-following tasks (SFT), where the input
-        consists of a single instruction and the corresponding labels. It directly
-        delegates to the single-turn forward method `_forward`.
-
-        Args:
-            input_ids (torch.Tensor): Tensor of shape (batch_size, seq_len) containing input token IDs.
-            attention_mask (torch.Tensor): Tensor indicating padding positions.
-            labels (torch.Tensor): Tensor containing the target labels for supervised fine-tuning.
-            **kwargs: Additional keyword arguments passed to `_forward`.
-
-        Returns:
-            tuple[torch.Tensor, torch.Tensor]: 
-                - logits: The output logits from the model for each input token.
-                - labels: The same as input labels, used for loss computation.
-        """
-        logits = self._forward(input_ids, attention_mask, labels, **kwargs)
-        # For Instruction SFT, labels remain the same as input
-        return logits, labels
+        """Single-turn forward pass for instruction-following SFT."""
+        logits, stepwise_loss = self._forward(input_ids, attention_mask, labels, **kwargs)
+        return logits, labels, stepwise_loss
 
     def _conversational_forward(
         self,
@@ -334,36 +407,17 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         labels: torch.Tensor,
         **kwargs
     ) -> tuple[torch.FloatTensor, torch.LongTensor]:
-        """
-        Forward pass for conversational (multi-turn) data with memory persistence.
-
-        Multi-turn forward is constructed by sequentially calling the single-turn forward
-        for each conversation turn. Memory from turn i-1 IS visible to turn i,
-        enabling the model to accumulate knowledge across turns (consistent with generate()).
-
-        Args:
-            input_ids (torch.Tensor): Input token IDs, shape (1, seq_len). Batch size must be 1.
-            attention_mask (torch.Tensor): Attention mask for input tokens.
-            labels (torch.Tensor): Target labels for supervised fine-tuning (-100 for ignore positions).
-            **kwargs: Additional arguments passed to `_forward`.
-
-        Returns:
-            tuple[torch.Tensor, torch.Tensor]:
-                - all_logits: Logits for the entire sequence, with zeros for unsupervised positions.
-                - all_labels: Labels for the entire sequence, with -100 for unsupervised positions.
-        """
+        """Multi-turn forward with memory persistence across conversation turns."""
         assert input_ids.shape[0] == 1, "Conversational SFT currently only supports batch_size = 1"
         seq_len = input_ids.shape[1]
         vocab_size = self.config.vocab_size
         device = input_ids.device
 
-        # Identify single-turn segments within the conversation based on labels
         label_row = labels[0]
         should_supervise = label_row != -100
         if not should_supervise.any():
             raise ValueError("At least one completion segment is required")
 
-        # Compute the start and end indices of valid supervised segments
         valid_mask = should_supervise.int()
         diff = torch.diff(torch.cat([torch.tensor([0], device=device), valid_mask]))
         valid_starts = (diff == 1).nonzero(as_tuple=True)[0].tolist()  # Transition 0 -> 1
@@ -372,14 +426,12 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             ends.append(seq_len)
         assert len(valid_starts) == len(ends)
 
-        # Build triplets (start of previous segment, start of supervised segment, end of supervised segment)
         triplets = []
         start = 0
         for s, e in zip(valid_starts, ends):
             triplets.append((start, s, e))
             start = e
 
-        # If there are more segments than allowed, randomly select self.max_prompt_aug_num segments
         if len(triplets) <= self.config.max_prompt_aug_num:
             select_turns = [1] * len(triplets)
         else:
@@ -387,31 +439,31 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             selected_indices = set(random.sample(range(triplets_num), self.config.max_prompt_aug_num))
             select_turns = [1 if i in selected_indices else 0 for i in range(triplets_num)]
 
-        # Initialize tensors to store logits and labels for the entire sequence
         all_logits = torch.zeros(1, seq_len, vocab_size, device=device)
         all_labels = torch.full((1, seq_len), -100, device=device)
+        all_stepwise_losses = []
 
-        # Loop over each conversation turn and perform single-turn forward if supervised
         for triplet, should_supervise in zip(triplets, select_turns):
             start, valid_start, end = triplet
             if should_supervise:
                 cur_input_ids = input_ids[0, :end].unsqueeze(0)
                 cur_attention = attention_mask[0, :end].unsqueeze(0)
-                # cur_labels only used for _forward, does not represent the true supervision range
                 cur_labels = labels[0, :end].clone().unsqueeze(0)
-                cur_labels[0, :valid_start] = -100  # Mask tokens before supervision start
+                cur_labels[0, :valid_start] = -100
 
-                # Single-turn forward for the current conversation segment
-                logits = self._forward(cur_input_ids, cur_attention, cur_labels, **kwargs)
-                
-                # Update overall logits and labels with the results of this segment
+                logits, stepwise_loss = self._forward(cur_input_ids, cur_attention, cur_labels, **kwargs)
+
                 all_logits[0, start:end, :] = logits[0, start:end, :]
                 all_labels[0, start:end] = labels[0, start:end]
 
-        # Return logits and labels:
-        # - supervised positions retain computed logits and original labels
-        # - unsupervised positions have logits = 0 and labels = -100
-        return all_logits, all_labels
+                if stepwise_loss is not None:
+                    all_stepwise_losses.append(stepwise_loss)
+
+        combined_stepwise_loss = None
+        if all_stepwise_losses:
+            combined_stepwise_loss = torch.stack(all_stepwise_losses).mean()
+
+        return all_logits, all_labels, combined_stepwise_loss
 
     def forward(
         self,
@@ -421,29 +473,23 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         **kwargs
     ) -> MemGenOutputWithPast:
         tokenizer = self.tokenizer
+        assert labels is not None, "Labels required for training"
 
-        # Ensure labels are provided, required for training the reasoning processor
-        assert labels is not None, "Reasoning Processor requires input labels for training"
-
-        # Determine whether the input is single-turn (instruction) or multi-turn (conversation)
         forward_func = self._instructional_forward
         if self._is_conversation(input_ids, tokenizer):
-            # For conversational data, mask assistant tokens in labels
             labels = self._postprocess_assistant_labels(input_ids, labels, tokenizer)
             forward_func = self._conversational_forward
 
-        batch_size = 1  # Currently process one sequence per batch
+        batch_size = 1
         iter_num = input_ids.size(0) // batch_size
 
-        # Forward pass per batch
-        logits, supervised_labels = [], []
+        logits, supervised_labels, stepwise_losses = [], [], []
         for i in range(iter_num):
             batch_input_ids = input_ids[i * batch_size: (i + 1) * batch_size]
             batch_attention_mask = attention_mask[i * batch_size: (i + 1) * batch_size]
             batch_labels = labels[i * batch_size: (i + 1) * batch_size]
 
-            # Call the appropriate forward function (instruction or conversation)
-            batch_logits, batch_supervised_labels = forward_func(
+            batch_logits, batch_supervised_labels, batch_stepwise_loss = forward_func(
                 input_ids=batch_input_ids,
                 attention_mask=batch_attention_mask,
                 labels=batch_labels,
@@ -451,21 +497,24 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             )
             logits.append(batch_logits)
             supervised_labels.append(batch_supervised_labels)
-        
-        # Concatenate results from all batches
+            if batch_stepwise_loss is not None:
+                stepwise_losses.append(batch_stepwise_loss)
+
         all_logits = torch.concat(logits, dim=0)
         all_labels = torch.concat(supervised_labels, dim=0)
 
-        # Compute causal language modeling loss (shifted by one)
         shift_logits = all_logits[..., :-1, :].contiguous()
         shift_labels = all_labels[..., 1:].contiguous()
-        # assert shift_logits.shape[:-1] == shift_labels.shape
         loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
         loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
 
-        # Return model outputs
+        if stepwise_losses:
+            stepwise_weight = getattr(self.config, 'recursive_stepwise_loss_weight', 0.5)
+            mean_stepwise_loss = torch.stack(stepwise_losses).mean()
+            loss = loss + stepwise_weight * mean_stepwise_loss
+
         outputs = MemGenOutputWithPast(loss=loss, logits=all_logits)
-        outputs.supervised_labels = all_labels  # Positions in input_ids that are supervised
+        outputs.supervised_labels = all_labels
         return outputs
 
     @torch.no_grad()
@@ -484,36 +533,10 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         """
         Generate text with optional latent memory injection and capture.
 
-        Memory Architecture (arc-lang-public style):
-        - Memory flows between instruction generations within a task (refinement loop)
-        - Grid generation uses pure text prompts (no memory injection)
-        - Weaver generates latent memory tokens that augment the reasoning process
-
         Args:
-            input_ids: Input token IDs [B, seq_len]
-            attention_mask: Attention mask [B, seq_len]
-            generation_config: Generation parameters (max_new_tokens, temperature, etc.)
-            return_augmentation_mask: If True, return augmentation positions
-            prev_memory_embeds: Previous memory embeddings to prepend [B, mem_len, hidden_size].
-                Used for instruction refinement where memory from previous turn is carried over.
-                Injected at embedding level only (input_ids stays unchanged).
-            return_memory_embeds: If True, capture and return memory from this generation.
-                Memory is captured from prompt augmentation (i=0) only.
+            prev_memory_embeds: Previous memory to prepend (embedding-level only).
+            return_memory_embeds: If True, capture prompt augmentation memory.
             ltpo_optimizer: Optional LTPO optimizer for test-time latent optimization.
-                When provided, weaver-generated latents are optimized using LTPO before
-                being injected into the reasoner. This improves reasoning quality without
-                additional training.
-            ltpo_verbose: If True, print LTPO optimization progress.
-
-        Returns:
-            - If neither return flag: generated token IDs
-            - If return_augmentation_mask only: (token_ids, augmentation_pos)
-            - If return_memory_embeds only: (token_ids, captured_memory_embeds)
-            - If both: (token_ids, augmentation_pos, captured_memory_embeds)
-
-        Note:
-            Trigger currently doesn't see prev_memory_embeds (acceptable for ARC two-stage
-            where trigger is disabled). This is a known limitation.
         """
         tokenizer = self.tokenizer
         reasoner = self.reasoner
@@ -521,7 +544,6 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         max_augment_num = self.config.max_inference_aug_num
         invalid_token_id = -100
 
-        # preproecess inputs
         input_ids = input_ids.to(self.device)
         attention_mask = attention_mask.to(self.device)
         max_new_tokens = generation_config.max_new_tokens
@@ -533,53 +555,35 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         B, _, hidden_size = inputs_embeds.shape
         device = inputs_embeds.device
 
-        # Handle prev_memory_embeds: prepend to inputs for instruction refinement
-        # IMPORTANT: Memory is injected at embedding level only, not token level.
-        # - inputs_embeds and attention_mask: grow by memory length
-        # - input_ids and current_input_ids: stay unchanged (track actual tokens only)
-        # - prompt_len: stays as original token count (for extracting generated tokens later)
-        # This is intentional: the generation loop tracks tokens separately from embeddings.
+        # Memory injected at embedding level only; input_ids/prompt_len stay unchanged
         if prev_memory_embeds is not None:
             prev_memory_embeds = prev_memory_embeds.to(device=device, dtype=inputs_embeds.dtype)
-            # Prepend previous memory to current inputs (embeds level only)
             inputs_embeds = torch.cat([prev_memory_embeds, inputs_embeds], dim=1)
             memory_attention = torch.ones(
                 prev_memory_embeds.shape[:2], dtype=attention_mask.dtype, device=device
             )
             attention_mask = torch.cat([memory_attention, attention_mask], dim=1)
 
-        # Variable to capture memory for return (only from prompt augmentation)
-        # Initialize with full batch size to maintain alignment
         captured_memory_embeds: Optional[torch.Tensor] = None
         if return_memory_embeds:
-            # Pre-allocate memory tensor for full batch (filled during prompt augmentation)
             latent_len = weaver.prompt_latents_num
             captured_memory_embeds = torch.zeros(
                 (B, latent_len, hidden_size), dtype=inputs_embeds.dtype, device=device
             )
 
-        # --- generation loop ---
         current_inputs_embeds = inputs_embeds
         current_attention_mask = attention_mask
         current_position_ids = self._generate_position_ids(current_attention_mask)
         current_input_ids = input_ids
         current_cache: DynamicCache = None
 
-        # Generation Loop Initialization
         sentence_augment_count = torch.zeros(B, dtype=torch.int, device=device)
-        
-        # NOTE - Whether to call the trigger and insert latent memory before generating the token at this position
-        # - augmentation_pos[b][i] == -100: For the b-th sequence, no augmentation was sampled before generating the i-th token
-        # - augmentation_pos[b][i] == 0: For the b-th sequence, augmentation was sampled before generating the i-th token, but the trigger decided NOT to insert latent memory
-        # - augmentation_pos[b][i] == 1: For the b-th sequence, augmentation was sampled before generating the i-th token, and the trigger decided to insert latent memory
-        augmentation_pos = torch.full((B, max_new_tokens), fill_value=invalid_token_id, device=device) 
+        # augmentation_pos values: -100 = not sampled, 0 = sampled but no insert, 1 = inserted
+        augmentation_pos = torch.full((B, max_new_tokens), fill_value=invalid_token_id, device=device)
 
         for i in range(max_new_tokens):
             
             assert current_inputs_embeds.shape[:2] == current_attention_mask.shape == current_position_ids.shape
-            # NOTE: _should_augment uses current_input_ids (not embeds), so it doesn't see
-            # prev_memory_embeds. This is acceptable for ARC two-stage where trigger is disabled,
-            # but should be addressed if trigger needs to be memory-aware in the future.
             augment_decision = self._should_augment(
                 current_input_ids,
                 sentence_augment_count=sentence_augment_count,
@@ -590,23 +594,90 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             augmentation_pos[:, i] = augment_decision
             augment_indices = torch.where(augment_decision == 1)[0]
 
-            # If there are sentences to augment, apply augmentation; others remain with left padding
             if len(augment_indices) > 0:
-                # Increment the augmentation count for sentences that are being augmented
-                if i != 0:  
+                if i != 0:
                     sentence_augment_count[augment_indices] += 1
 
-                # Select embeddings, attention masks, and position IDs for sentences to be augmented
                 candidate_inputs_embeds = current_inputs_embeds[augment_indices]
                 candidate_attention_mask = current_attention_mask[augment_indices]
                 candidate_position_ids = current_position_ids[augment_indices]
-                
-                # Perform inference augmentation using the weaver
-                weaver_inputs_embeds = self.reasoner_to_weaver(candidate_inputs_embeds)
 
-                # Select augmentation method based on mode
-                if self.skip_lora or self.latent_processor_enabled:
-                    # Skip-LoRA or LatentProcessor mode: query latents + projections, no LoRA adapter
+                if self.recursive_memory:
+                    if self.config.recursive_skip_projection:
+                        context_for_compressor = candidate_inputs_embeds
+                    else:
+                        context_for_compressor = self.reasoner_to_weaver(candidate_inputs_embeds)
+
+                    latent_inputs_embeds, cycles = self.recursive_compressor(
+                        context=context_for_compressor,
+                        attention_mask=candidate_attention_mask,
+                        is_prompt=(i == 0),
+                        reasoner=self.reasoner if self.config.recursive_confidence_threshold > 0 else None,
+                        verbose=self.config.recursive_verbose_cycles,
+                    )
+                    if self.config.recursive_verbose_cycles:
+                        logging.debug(f"[generate] RecursiveMemory cycles={cycles}, step={i}")
+
+                    if not self.config.recursive_skip_projection:
+                        latent_inputs_embeds = self.weaver_to_reasoner(latent_inputs_embeds)
+
+                    latent_len = latent_inputs_embeds.size(1)
+                    attn_mask = torch.ones(
+                        (candidate_inputs_embeds.size(0), latent_len),
+                        device=device, dtype=candidate_attention_mask.dtype
+                    )
+                    weaver_hidden_states = None
+
+                elif self.query_projection_only:
+                    batch_size = candidate_inputs_embeds.size(0)
+                    if i == 0:
+                        latent_inputs_embeds, attn_mask, _ = weaver.augment_prompt_query_projection(
+                            self.reasoner_to_weaver, self.weaver_to_reasoner,
+                            batch_size, candidate_attention_mask, candidate_position_ids
+                        )
+                    else:
+                        latent_inputs_embeds, attn_mask, _ = weaver.augment_inference_query_projection(
+                            self.reasoner_to_weaver, self.weaver_to_reasoner,
+                            batch_size, candidate_attention_mask, candidate_position_ids
+                        )
+                    weaver_hidden_states = None
+                elif self.skip_projection or self.output_projection_only:
+                    weaver_inputs_embeds = candidate_inputs_embeds
+                else:
+                    weaver_inputs_embeds = self.reasoner_to_weaver(candidate_inputs_embeds)
+
+                # Mode-specific augmentation (recursive_memory and query_projection_only handled above)
+                if self.recursive_memory or self.query_projection_only:
+                    pass
+                elif self.skip_projection:
+                    if self.skip_lora:
+                        if i == 0:
+                            weaver_hidden_states, attn_mask, _ = weaver.augment_prompt_skip_lora(
+                                weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
+                            )
+                        else:
+                            weaver_hidden_states, attn_mask, _ = weaver.augment_inference_skip_lora(
+                                weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
+                            )
+                    else:
+                        if i == 0:
+                            weaver_hidden_states, attn_mask, _ = weaver.augment_prompt(
+                                weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
+                            )
+                        else:
+                            weaver_hidden_states, attn_mask, _ = weaver.augment_inference(
+                                weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
+                            )
+                elif self.output_projection_only:
+                    if i == 0:
+                        weaver_hidden_states, attn_mask, _ = weaver.augment_prompt_skip_lora(
+                            weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
+                        )
+                    else:
+                        weaver_hidden_states, attn_mask, _ = weaver.augment_inference_skip_lora(
+                            weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
+                        )
+                elif self.skip_lora or self.latent_processor_enabled:
                     if i == 0:
                         weaver_hidden_states, attn_mask, _ = weaver.augment_prompt_skip_lora(
                             weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
@@ -616,7 +687,6 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                             weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
                         )
                 else:
-                    # Full mode: LoRA + query latents
                     if i == 0:
                         weaver_hidden_states, attn_mask, _ = weaver.augment_prompt(
                             weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
@@ -626,37 +696,35 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                             weaver_inputs_embeds, candidate_attention_mask, candidate_position_ids
                         )
 
-                # Apply LatentProcessor if enabled (after weaver output, before projection)
-                if self.latent_processor_enabled:
+                if self.latent_processor_enabled and not self.query_projection_only and not self.recursive_memory:
                     weaver_hidden_states = self.latent_processor(weaver_hidden_states)
 
-                # Capture memory from prompt augmentation for return (both modes)
                 if i == 0 and return_memory_embeds and captured_memory_embeds is not None:
-                    # Fill memory at correct batch indices (only augmented samples get memory)
-                    # Non-augmented samples keep zero memory from pre-allocation
-                    mem_embeds = self.weaver_to_reasoner(weaver_hidden_states).detach()
+                    if self.recursive_memory or self.query_projection_only:
+                        mem_embeds = latent_inputs_embeds.detach()
+                    elif self.skip_projection:
+                        mem_embeds = weaver_hidden_states.detach()
+                    else:
+                        mem_embeds = self.weaver_to_reasoner(weaver_hidden_states).detach()
                     captured_memory_embeds[augment_indices] = mem_embeds
 
                 # Convert weaver hidden states to reasoner space
-                latent_inputs_embeds = self.weaver_to_reasoner(weaver_hidden_states)
+                if self.recursive_memory or self.query_projection_only:
+                    pass  # Already in reasoner space
+                elif self.skip_projection:
+                    latent_inputs_embeds = weaver_hidden_states
+                else:
+                    latent_inputs_embeds = self.weaver_to_reasoner(weaver_hidden_states)
 
-                # === LTPO Optimization ===
-                # When trigger decides to augment (augment_decision == 1), optimize
-                # latent embeddings using LTPO before injection into reasoner.
-                # LTPO operates in reasoner space for confidence computation.
                 if ltpo_optimizer is not None:
-                    # Build full embeddings for LTPO confidence computation
-                    # latent_inputs_embeds will be at the end of candidate_inputs_embeds
                     temp_full_embeds = torch.cat([candidate_inputs_embeds, latent_inputs_embeds], dim=1)
                     temp_full_mask = torch.cat([candidate_attention_mask, attn_mask], dim=1)
 
-                    # Determine latent positions
                     latent_len = latent_inputs_embeds.size(1)
                     seq_len = temp_full_embeds.size(1)
                     latent_start_idx = seq_len - latent_len
                     latent_end_idx = seq_len
 
-                    # Optimize latent embeddings in reasoner space
                     optimized_latents, best_reward, best_step = ltpo_optimizer.optimize(
                         latents_hidden_states=latent_inputs_embeds,
                         inputs_embeds=temp_full_embeds,
@@ -669,26 +737,20 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                     if ltpo_verbose:
                         logging.info(f"[LTPO] Step {i}: best_reward={best_reward:.4f}, best_step={best_step}")
 
-                    # Use optimized latent embeddings (already in reasoner space)
                     latent_inputs_embeds = optimized_latents
-                # === End LTPO Optimization ===
 
                 candidate_inputs_embeds = torch.cat([candidate_inputs_embeds, latent_inputs_embeds], dim=1)
                 candidate_attention_mask = torch.cat([candidate_attention_mask, attn_mask], dim=1)
-                
-                # Create a single merged tensor for all sequences
+
                 new_len = candidate_inputs_embeds.size(1)
                 merged_inputs_embeds = torch.zeros((B, new_len, hidden_size), device=device, dtype=current_inputs_embeds.dtype)
                 merged_attention_mask = torch.zeros((B, new_len), device=device, dtype=current_attention_mask.dtype)
                    
-                # Directly place augmented and non-augmented sequences
                 merged_inputs_embeds[augment_indices] = candidate_inputs_embeds
                 merged_attention_mask[augment_indices] = candidate_attention_mask
-                
-                # Non-augmented sequences now include both -100 and 0
+
                 non_augment_indices = torch.where(augment_decision != 1)[0]
                 if len(non_augment_indices) > 0:
-                    # dynamic left padding
                     non_aug_inputs_embeds = current_inputs_embeds[non_augment_indices]
                     non_aug_attention_mask = current_attention_mask[non_augment_indices]
                     pad_len = weaver.prompt_latents_num if i == 0 else weaver.inference_latents_num
@@ -704,9 +766,7 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                 current_position_ids = self._generate_position_ids(current_attention_mask)
                 current_cache = None  
 
-            # Check if all sequences have reached the maximum number of augmentations
             if (sentence_augment_count >= max_augment_num).all():
-                # Adjust the remaining generation length
                 generation_config = GenerationConfig(
                     do_sample=False,
                     pad_token_id=pad_token_id,
@@ -714,9 +774,7 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                     use_cache=False,
                     max_new_tokens=max_new_tokens-i
                 )
-                # Add logits processor to handle nan/inf
                 logits_processor = LogitsProcessorList([NanInfLogitsProcessor()])
-                # Perform generation for the remaining tokens using the reasoner
                 generated = reasoner.generate(
                     inputs_embeds=current_inputs_embeds,
                     attention_mask=current_attention_mask,
@@ -724,7 +782,7 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                     logits_processor=logits_processor
                 )
                 current_input_ids = torch.cat([current_input_ids, generated], dim=1)
-                break            
+                break
 
             if current_cache is not None:
                 assert current_inputs_embeds.size(1) == current_cache.get_seq_length() + 1
@@ -753,15 +811,12 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             )
             current_cache = outputs.past_key_values
 
-            # If all sequences in the batch have already generated an EOS token, stop early
             if (current_input_ids[:, -1] == eos_token_id).all():
-                break  
+                break
 
-            # This is needed to properly delete outputs.logits which may be very large for first iteration
-            # Otherwise a reference to outputs is kept which keeps the logits alive in the next iteration
+            # Delete outputs to free logits memory (can be large on first iteration)
             del outputs
 
-        # postprocess
         new_generated_len = current_input_ids.size(1) - prompt_len
         augmentation_pos = augmentation_pos[:, :new_generated_len]
         
@@ -770,7 +825,6 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             augmentation_pos
         )
 
-        # Handle different return combinations
         if return_memory_embeds and return_augmentation_mask:
             return (current_input_ids, augmentation_pos, captured_memory_embeds)
         elif return_memory_embeds:
@@ -812,12 +866,49 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         latent_processor = config_dict.get("latent_processor", False)
         latent_processor_depth = config_dict.get("latent_processor_depth", 2)
 
+        # Query-projection only mode (query latents + projections, NO weaver LLM)
+        query_projection_only = config_dict.get("query_projection_only", False)
+
+        # Skip-projection mode (query latents + LLM, NO projections)
+        skip_projection = config_dict.get("skip_projection", False)
+
+        # Output-projection-only mode (skip input projection, keep output projection)
+        output_projection_only = config_dict.get("output_projection_only", False)
+
+        # Recursive memory mode (WeaverStyleCompressor)
+        recursive_memory_config = config_dict.get("recursive_memory", {})
+        recursive_memory = recursive_memory_config.get("enabled", False)
+
+        # Map yaml keys to MemGenConfig parameter names with defaults
+        _recursive_defaults = {
+            "weaver_style": True,
+            "hidden_size": 4096,
+            "num_heads": 8,
+            "attn_rank": 64,
+            "mlp_rank": 128,
+            "max_cycles": 10,
+            "confidence_threshold": -1.0,
+            "top_k": 10,
+            "verbose_cycles": False,
+            "skip_projection": False,
+            "two_level": False,
+            "l_cycles": 6,
+            "max_h_cycles": 5,
+            "stepwise_training": False,
+            "stepwise_loss_weight": 0.5,
+            "full_rank_mlp": False,
+            "bidirectional": False,
+        }
+        recursive_params = {
+            f"recursive_{key}": recursive_memory_config.get(key, default)
+            for key, default in _recursive_defaults.items()
+        }
+
         # 构造 MemGenConfig
         from transformers import AutoConfig
         memgen_config = AutoConfig.from_pretrained(model_name)
         memgen_config = MemGenConfig.from_pretrained(
             model_name,
-
             max_prompt_aug_num=max_prompt_aug_num,
             max_inference_aug_num=max_inference_aug_num,
             # weaver
@@ -827,13 +918,17 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             # trigger
             trigger_active=trigger_active,
             trigger_lora_config=trigger_lora_config_dict,
-            # projection-only mode
+            # mode flags
             projection_only=projection_only,
-            # skip-lora mode
             skip_lora=skip_lora,
-            # latent_processor mode
             latent_processor=latent_processor,
-            latent_processor_depth=latent_processor_depth
+            latent_processor_depth=latent_processor_depth,
+            query_projection_only=query_projection_only,
+            skip_projection=skip_projection,
+            output_projection_only=output_projection_only,
+            # recursive memory
+            recursive_memory=recursive_memory,
+            **recursive_params,
         )
 
         # Ensure _name_or_path is set for TRL GRPOTrainer compatibility
@@ -946,10 +1041,21 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         """
         from pathlib import Path
 
-        # Check for latent_processor checkpoint first (projections + query_latents + latent_processor, no LoRA)
+        rm_path = Path(weaver_path) / "recursive_memory.pt"
+        if rm_path.exists():
+            data = torch.load(str(rm_path), map_location='cpu')
+            if hasattr(self, 'recursive_compressor') and 'recursive_compressor' in data:
+                self.recursive_compressor.load_state_dict(data['recursive_compressor'])
+            proj_path = Path(weaver_path) / "projections.pt"
+            if proj_path.exists():
+                proj_data = torch.load(str(proj_path), map_location='cpu')
+                self.reasoner_to_weaver.load_state_dict(proj_data['reasoner_to_weaver'])
+                self.weaver_to_reasoner.load_state_dict(proj_data['weaver_to_reasoner'])
+            logging.info(f"Loaded recursive_memory checkpoint from {rm_path}")
+            return
+
         lp_path = Path(weaver_path) / "latent_processor.pt"
         if lp_path.exists():
-            logging.info(f"Loading latent_processor checkpoint from {lp_path}")
             data = torch.load(str(lp_path), map_location='cpu')
             self.reasoner_to_weaver.load_state_dict(data['reasoner_to_weaver'])
             self.weaver_to_reasoner.load_state_dict(data['weaver_to_reasoner'])
@@ -961,14 +1067,11 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             )
             if hasattr(self, 'latent_processor') and 'latent_processor' in data:
                 self.latent_processor.load_state_dict(data['latent_processor'])
-                logging.info(f"Loaded latent_processor MLP from {lp_path}")
-            logging.info(f"Loaded projections + query_latents + latent_processor from {lp_path}")
-            return  # Skip LoRA adapter loading
+            logging.info(f"Loaded latent_processor checkpoint from {lp_path}")
+            return
 
-        # Check for skip-lora checkpoint (projections + query_latents, no LoRA)
         skip_lora_path = Path(weaver_path) / "skip_lora.pt"
         if skip_lora_path.exists():
-            logging.info(f"Loading skip-lora checkpoint from {skip_lora_path}")
             data = torch.load(str(skip_lora_path), map_location='cpu')
             self.reasoner_to_weaver.load_state_dict(data['reasoner_to_weaver'])
             self.weaver_to_reasoner.load_state_dict(data['weaver_to_reasoner'])
@@ -978,26 +1081,51 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             self.weaver.inference_query_latents.data = data['inference_query_latents'].to(
                 self.weaver.inference_query_latents.device
             )
-            logging.info(f"Loaded projections + query_latents from {skip_lora_path} (skip-lora mode)")
-            return  # Skip LoRA adapter loading
+            logging.info(f"Loaded skip-lora checkpoint from {skip_lora_path}")
+            return
 
-        # Check for projection-only checkpoint (no LoRA, no query_latents)
+        skip_proj_path = Path(weaver_path) / "skip_projection.pt"
+        if skip_proj_path.exists():
+            data = torch.load(str(skip_proj_path), map_location='cpu')
+            self.weaver.prompt_query_latents.data = data['prompt_query_latents'].to(
+                self.weaver.prompt_query_latents.device
+            )
+            self.weaver.inference_query_latents.data = data['inference_query_latents'].to(
+                self.weaver.inference_query_latents.device
+            )
+            logging.info(f"Loaded skip-projection checkpoint from {skip_proj_path}")
+
+            if not self.skip_lora:
+                lora_path = Path(weaver_path) / "weaver_lora"
+                if lora_path.exists():
+                    adapter_path = lora_path / "adapter_model.bin"
+                    if adapter_path.exists():
+                        adapter_weights = torch.load(str(adapter_path), map_location='cpu')
+                        converted_weights = {}
+                        for k, v in adapter_weights.items():
+                            if "lora_A.weight" in k:
+                                new_key = k.replace("lora_A.weight", "lora_A.weaver.weight")
+                                converted_weights[new_key] = v
+                            elif "lora_B.weight" in k:
+                                new_key = k.replace("lora_B.weight", "lora_B.weaver.weight")
+                                converted_weights[new_key] = v
+                            else:
+                                converted_weights[k] = v
+                        self.weaver.model.load_state_dict(converted_weights, strict=False)
+                        logging.info(f"Loaded weaver LoRA from {lora_path}")
+            return
+
         proj_only_path = Path(weaver_path) / "projections_only.pt"
         if proj_only_path.exists():
-            # Projection-only mode: load only projection layers (no LoRA, no query latents)
-            logging.info(f"Loading projection-only checkpoint from {proj_only_path}")
             proj_data = torch.load(str(proj_only_path), map_location='cpu')
             self.reasoner_to_weaver.load_state_dict(proj_data['reasoner_to_weaver'])
             self.weaver_to_reasoner.load_state_dict(proj_data['weaver_to_reasoner'])
-            logging.info(f"Loaded projection layers from {proj_only_path} (projection-only mode)")
-            return  # Skip adapter and query latents loading
+            logging.info(f"Loaded projection-only checkpoint from {proj_only_path}")
+            return
 
-        # Check for existing projections.pt (full checkpoint with projections + query_latents)
-        # This can be used in skip_lora mode to load projections without LoRA
+        # skip_lora mode can reuse projections.pt without loading LoRA
         proj_path = Path(weaver_path) / "projections.pt"
         if proj_path.exists() and self.skip_lora:
-            # Skip-LoRA mode with existing projections.pt: load without LoRA
-            logging.info(f"Loading projections.pt for skip-lora mode from {proj_path}")
             data = torch.load(str(proj_path), map_location='cpu')
             self.reasoner_to_weaver.load_state_dict(data['reasoner_to_weaver'])
             self.weaver_to_reasoner.load_state_dict(data['weaver_to_reasoner'])
@@ -1007,109 +1135,70 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             self.weaver.inference_query_latents.data = data['inference_query_latents'].to(
                 self.weaver.inference_query_latents.device
             )
-            logging.info(f"Loaded projections + query_latents from {proj_path} (skip-lora mode, no LoRA loaded)")
-            return  # Skip LoRA adapter loading
+            logging.info(f"Loaded projections.pt for skip-lora mode from {proj_path}")
+            return
 
-        # PEFT saves adapters in subdirectories when multiple adapters exist
-        # Check multiple possible paths for adapter
         adapter_path = Path(weaver_path) / "weaver" / "adapter_model.bin"
         if not adapter_path.exists():
-            # Also check weaver_lora/ directory (alternative naming)
             adapter_path = Path(weaver_path) / "weaver_lora" / "adapter_model.bin"
         if not adapter_path.exists():
             raise FileNotFoundError(f"Weaver adapter not found. Checked: {Path(weaver_path)}/weaver/, {Path(weaver_path)}/weaver_lora/")
 
-        logging.info(f"Loading pre-trained weaver from: {weaver_path}")
-
-        # SKIP LoRA loading - the 0108 checkpoint's LoRA was trained with buggy code
-        # Only load projections + query_latents which achieved 88.96% accuracy
-        # TODO: Retrain LoRA with fixed code and re-enable this section
-        logging.info(f"Skipping LoRA adapter loading (trained with buggy code)")
+        pretrained_weights = torch.load(str(adapter_path), map_location='cpu')
+        weaver_state = self.weaver.model.state_dict()
         loaded_count = 0
+        for key, value in pretrained_weights.items():
+            if key in weaver_state:
+                target_key = key
+            elif "lora_" in key and key.endswith(".weight"):
+                target_key = key.replace(".weight", ".weaver.weight")
+            else:
+                target_key = key
+            if target_key in weaver_state:
+                if weaver_state[target_key].shape == value.shape:
+                    weaver_state[target_key] = value.to(weaver_state[target_key].dtype)
+                    loaded_count += 1
+        self.weaver.model.load_state_dict(weaver_state, strict=True)
+        logging.info(f"Loaded {loaded_count} weaver LoRA weights from {weaver_path}")
 
-        # Original LoRA loading code (disabled):
-        # pretrained_weights = torch.load(str(adapter_path), map_location='cpu')
-        # weaver_state = self.weaver.model.state_dict()
-        # for key, value in pretrained_weights.items():
-        #     if key in weaver_state:
-        #         target_key = key
-        #     elif "lora_" in key and key.endswith(".weight"):
-        #         target_key = key.replace(".weight", ".weaver.weight")
-        #     else:
-        #         target_key = key
-        #     if target_key in weaver_state:
-        #         if weaver_state[target_key].shape == value.shape:
-        #             weaver_state[target_key] = value.to(weaver_state[target_key].dtype)
-        #             loaded_count += 1
-        # self.weaver.model.load_state_dict(weaver_state, strict=True)
-
-        logging.info(f"Loaded {loaded_count} weaver adapter weights from checkpoint (LoRA skipped)")
-
-        # Load projections.pt (saved by runner.py)
         proj_path = Path(weaver_path).parent / "projections.pt"
         if not proj_path.exists():
             raise FileNotFoundError(f"projections.pt not found: {proj_path}")
 
         proj_data = torch.load(str(proj_path), map_location='cpu')
 
-        # Projection layers (conditional)
         if load_projections:
             self.reasoner_to_weaver.load_state_dict(proj_data['reasoner_to_weaver'])
             self.weaver_to_reasoner.load_state_dict(proj_data['weaver_to_reasoner'])
-            logging.info(f"Loaded projection layers from {proj_path}")
-        else:
-            logging.info(f"Skipping projection layers (load_projections=False)")
 
-        # Prompt query latents (conditional)
         if load_prompt_query_latents:
             self.weaver.prompt_query_latents.data = proj_data['prompt_query_latents'].to(self.weaver.prompt_query_latents.device)
-            logging.info(f"Loaded prompt_query_latents from {proj_path}")
-        else:
-            logging.info(f"Skipping prompt_query_latents (random)")
 
-        # Inference query latents (conditional)
         if load_inference_query_latents:
             self.weaver.inference_query_latents.data = proj_data['inference_query_latents'].to(self.weaver.inference_query_latents.device)
-            logging.info(f"Loaded inference_query_latents from {proj_path}")
-        else:
-            logging.info(f"Skipping inference_query_latents (random)")
+
+        logging.info(
+            f"Loaded projections.pt from {proj_path} "
+            f"(projections={load_projections}, prompt_latents={load_prompt_query_latents}, "
+            f"inference_latents={load_inference_query_latents})"
+        )
 
     def _load_pretrained_trigger(self, trigger_path: str):
-        """
-        Load pre-trained trigger adapter weights from a checkpoint.
-
-        Args:
-            trigger_path: Path to the trigger adapter checkpoint directory
-                         (should contain adapter_model.bin)
-        """
+        """Load pre-trained trigger adapter weights (LoRA key: lora_A.trigger.weight)."""
         from pathlib import Path
 
-        # PEFT saves adapters in subdirectories when multiple adapters exist
         adapter_path = Path(trigger_path) / "trigger" / "adapter_model.bin"
         if not adapter_path.exists():
             raise FileNotFoundError(f"Trigger adapter not found: {adapter_path}")
 
-        logging.info(f"Loading pre-trained trigger from: {trigger_path}")
-
-        # Load the pre-trained weights
         pretrained_weights = torch.load(str(adapter_path), map_location='cpu')
-
-        # Get current trigger state dict
         trigger_state = self.trigger.model.state_dict()
 
-        # Map pretrained weights to trigger state dict
-        # PEFT adds adapter name to LoRA keys when using named adapters
-        # Saved: base_model.model.model.layers.X.self_attn.q_proj.lora_A.weight
-        # State: base_model.model.model.layers.X.self_attn.q_proj.lora_A.trigger.weight
-        # We need to transform saved keys by inserting ".trigger" before ".weight"
         loaded_count = 0
         for key, value in pretrained_weights.items():
-            # Try direct match first
             if key in trigger_state:
                 target_key = key
-            # Transform key: insert ".trigger" before ".weight" for LoRA keys
             elif "lora_" in key and key.endswith(".weight"):
-                # e.g., "...lora_A.weight" -> "...lora_A.trigger.weight"
                 target_key = key.replace(".weight", ".trigger.weight")
             else:
                 target_key = key
@@ -1120,10 +1209,6 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                     loaded_count += 1
                 else:
                     logging.warning(f"Shape mismatch for {target_key}: expected {trigger_state[target_key].shape}, got {value.shape}")
-            else:
-                logging.debug(f"Key not found in state_dict: {key} (transformed to: {target_key})")
 
-        # Load the updated state dict
         self.trigger.model.load_state_dict(trigger_state, strict=True)
-
-        logging.info(f"Loaded {loaded_count} trigger adapter weights from checkpoint")
+        logging.info(f"Loaded {loaded_count} trigger adapter weights from {trigger_path}")

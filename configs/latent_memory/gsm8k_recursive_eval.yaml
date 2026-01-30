@@ -1,0 +1,71 @@
+# GSM8K Evaluation Configuration for Recursive Memory
+# Evaluates trained recursive_memory checkpoint
+
+model:
+  model_name: Qwen/Qwen3-8B
+  load_model_path: null
+  load_weaver_path: /home/jovyan/data/memgen/train/gsm8k/Qwen3-8B/pn=1_pl=8_in=5_il=8_20260119-221824/weaver
+  load_trigger_path: null
+
+  max_prompt_aug_num: 1
+  max_inference_aug_num: 5
+
+  # Recursive Memory mode with LTPO-style confidence-based early stopping
+  recursive_memory:
+    enabled: true
+    weaver_style: true
+    hidden_size: 4096
+    num_heads: 8
+    attn_rank: 64
+    mlp_rank: 128
+    max_cycles: 10  # Maximum cycles (will early stop if confident)
+    confidence_threshold: 0.5  # Lower = more confident, stop when conf <= threshold
+    top_k: 10
+
+  weaver:
+    model_name: Qwen/Qwen3-8B
+    prompt_latents_len: 8
+    inference_latents_len: 8
+    lora_config:
+      r: 16
+      lora_alpha: 32
+      target_modules: ["q_proj", "v_proj"]
+      lora_dropout: 0.1
+      bias: "none"
+      task_type: "CAUSAL_LM"
+
+  trigger:
+    model_name: Qwen/Qwen3-8B
+    active: false
+    lora_config:
+      r: 16
+      lora_alpha: 32
+      target_modules: ["q_proj", "v_proj"]
+      lora_dropout: 0.1
+      bias: "none"
+      task_type: "CAUSAL_LM"
+
+dataset:
+  name: gsm8k
+  mode: sft
+  sft:
+    val_ratio: 0.1
+
+run:
+  seed: 42
+  mode: evaluate
+  train_weaver: false
+  train_trigger: false
+
+  ltpo:
+    enabled: false
+
+  interaction:
+    max_turns: 1
+    max_start_length: 1024
+    max_prompt_length: 4096
+    max_response_length: 1024
+    max_obs_length: 512
+    do_sample: false
+    temperature: 0.0
+    batch_size: 8

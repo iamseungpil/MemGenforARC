@@ -246,3 +246,69 @@ class MemGenWeaver(nn.Module):
         memory_position_ids = last_position_ids.unsqueeze(1) + latents_relative_positions + 1
 
         return memory_tokens, memory_mask, memory_position_ids
+
+    def augment_prompt_query_projection(
+        self,
+        reasoner_to_weaver: nn.Linear,
+        weaver_to_reasoner: nn.Linear,
+        batch_size: int,
+        attention_mask: torch.Tensor,
+        position_ids: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Query Latents + Projection only (NO weaver LLM forward).
+        Uses learned prompt_query_latents directly through projections.
+        """
+        latents = self.prompt_query_latents.unsqueeze(0).expand(batch_size, -1, -1)
+        n_latents = latents.size(1)
+
+        # Apply projections only (skip LLM entirely)
+        weaver_space = reasoner_to_weaver(latents)
+        memory_tokens = weaver_to_reasoner(weaver_space)
+
+        # Create attention mask
+        memory_mask = torch.ones(
+            batch_size, n_latents,
+            dtype=attention_mask.dtype,
+            device=attention_mask.device
+        )
+
+        # Create position ids
+        last_position_ids = position_ids.max(dim=1)[0]
+        latents_relative_positions = torch.arange(n_latents, device=position_ids.device)
+        memory_position_ids = last_position_ids.unsqueeze(1) + latents_relative_positions + 1
+
+        return memory_tokens, memory_mask, memory_position_ids
+
+    def augment_inference_query_projection(
+        self,
+        reasoner_to_weaver: nn.Linear,
+        weaver_to_reasoner: nn.Linear,
+        batch_size: int,
+        attention_mask: torch.Tensor,
+        position_ids: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Query Latents + Projection only for inference (NO weaver LLM forward).
+        Uses learned inference_query_latents directly through projections.
+        """
+        latents = self.inference_query_latents.unsqueeze(0).expand(batch_size, -1, -1)
+        n_latents = latents.size(1)
+
+        # Apply projections only (skip LLM entirely)
+        weaver_space = reasoner_to_weaver(latents)
+        memory_tokens = weaver_to_reasoner(weaver_space)
+
+        # Create attention mask
+        memory_mask = torch.ones(
+            batch_size, n_latents,
+            dtype=attention_mask.dtype,
+            device=attention_mask.device
+        )
+
+        # Create position ids
+        last_position_ids = position_ids.max(dim=1)[0]
+        latents_relative_positions = torch.arange(n_latents, device=position_ids.device)
+        memory_position_ids = last_position_ids.unsqueeze(1) + latents_relative_positions + 1
+
+        return memory_tokens, memory_mask, memory_position_ids

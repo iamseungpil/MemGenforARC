@@ -1,0 +1,101 @@
+# GSM8K Training Configuration for Recursive Memory (Skip Projection)
+# Trains ONLY recursive_compressor (~7.9M params), NO projections
+
+model:
+  model_name: Qwen/Qwen3-8B
+  load_model_path: null
+  load_weaver_path: null
+  load_trigger_path: null
+
+  max_prompt_aug_num: 1
+  max_inference_aug_num: 5
+
+  # Recursive Memory mode with SKIP projection
+  recursive_memory:
+    enabled: true
+    skip_projection: true      # Train ONLY recursive_compressor, no projections
+    weaver_style: true
+    hidden_size: 4096
+    num_heads: 8
+    attn_rank: 64
+    mlp_rank: 128
+    max_cycles: 10             # Fixed 10 cycles (no early stop)
+    confidence_threshold: -1.0 # Disabled (no early stop during training)
+    top_k: 10
+    verbose_cycles: false
+
+  weaver:
+    model_name: Qwen/Qwen3-8B
+    prompt_latents_len: 8
+    inference_latents_len: 8
+    lora_config:
+      r: 16
+      lora_alpha: 32
+      target_modules: ["q_proj", "v_proj"]
+      lora_dropout: 0.1
+      bias: "none"
+      task_type: "CAUSAL_LM"
+
+  trigger:
+    model_name: Qwen/Qwen3-8B
+    active: false
+    lora_config:
+      r: 16
+      lora_alpha: 32
+      target_modules: ["q_proj", "v_proj"]
+      lora_dropout: 0.1
+      bias: "none"
+      task_type: "CAUSAL_LM"
+
+dataset:
+  name: gsm8k
+  mode: sft
+  sft:
+    val_ratio: 0.1
+
+run:
+  seed: 42
+  mode: train
+  train_weaver: true
+  train_weaver_method: sft
+  train_trigger: false
+
+  weaver:
+    sft:
+      num_train_epochs: 2
+      per_device_train_batch_size: 4
+      per_device_eval_batch_size: 4
+      gradient_accumulation_steps: 1
+      gradient_checkpointing: true
+      gradient_checkpointing_kwargs:
+        use_reentrant: false
+      optim: adamw_torch
+      lr_scheduler_type: cosine
+      warmup_ratio: 0.1
+      learning_rate: 1e-4
+      logging_strategy: steps
+      logging_steps: 1
+      eval_strategy: epoch
+      eval_steps: 100
+      save_strategy: epoch
+      save_steps: 100
+      assistant_only_loss: false
+      max_length: 1024
+      remove_unused_columns: false
+      load_best_model_at_end: true
+      bf16: true
+      report_to:
+        - wandb
+
+  ltpo:
+    enabled: false
+
+  interaction:
+    max_turns: 1
+    max_start_length: 1024
+    max_prompt_length: 4096
+    max_response_length: 1024
+    max_obs_length: 512
+    do_sample: false
+    temperature: 0.0
+    batch_size: 8

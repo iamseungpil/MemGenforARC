@@ -27,6 +27,9 @@ MemGen은 자가 진화 AI 에이전트를 위한 latent memory 프레임워크�
 | 12 | `runner.py` | projections 저장 - `_save_weaver_projections()` 추가, `projections.pt` 저장 |
 | 13 | 여러 파일 | Projection-Only 모드 추가 - `model.projection_only: true` |
 | 14 | `modeling_utils.py` | `max_prompt_aug_num=0` 무시 버그 - `_should_augment()`에서 `generate()` 시 prompt aug 항상 실행됨 → 체크 추가 |
+| 15 | `recursive_memory.py` | **LowRankLinear zero init → grad_norm=0** - `nn.init.zeros_(self.up.weight)`는 LoRA 전용 초기화. Standalone low-rank에서는 `output = up(down(x))` → up이 0이면 output=0, gradient=0. **해결**: `nn.init.xavier_uniform_(self.up.weight)`로 변경. LoRA는 `base + alpha*lora`이므로 zero init OK, standalone은 불가. |
+| 16 | `modeling_memgen.py` | **Stepwise training loss 범위 수정** - `step_labels = labels[:, :lookahead_end]`가 위치 0부터 loss 계산 → 이전 segment가 중복 포함됨. **해결**: `.clone()` 후 `step_labels[:, :aug_point_idx] = -100`으로 다음 segment만 loss 계산. 마지막 aug point는 스킵하지 않음 (final loss가 전체를 커버하므로 모든 stepwise가 동일하게 보조 신호). Per-delimiter backward는 `retain_graph=True` 필요 + HF Trainer 충돌로 불가, 누적 후 단일 backward가 수학적으로 동일. |
+| 17 | `recursive_memory.py` | **_compress_cycle residual + post-norm** - 원래 `rms_norm(self.self_attn(combined))`로 residual 없이 z를 매 cycle 덮어씀. 1차 수정: pre-norm residual (`x + f(norm(x))`). 2차 수정: post-norm residual (`norm(x + f(x))`) — 동일 weight를 10+ cycle 반복하는 recursive 구조에서 magnitude drift 방지. TinyRecursiveModel과 동일 패턴. |
 
 ---
 
@@ -38,6 +41,20 @@ MemGen은 자가 진화 AI 에이전트를 위한 latent memory 프레임워크�
 - `modeling_utils.py`: `open_component()` skip_lora 파라미터
 - `runner.py`: `_save_skip_lora_checkpoint()`
 - `configuration_memgen.py`: `skip_lora` config
+
+### LatentProcessor 관련 코드
+- `weaver.py`: `LatentProcessor` 클래스 정의
+- `modeling_memgen.py`: `latent_processor_enabled` 초기화, forward/generate 분기
+- `modeling_utils.py`: `open_component()` latent_processor 파라미터
+- `runner.py`: `_save_latent_processor_checkpoint()`
+- `configuration_memgen.py`: `latent_processor`, `latent_processor_depth` config
+
+### Recursive Memory 관련 코드
+- `memgen/model/recursive_memory.py`: `WeaverStyleCompressor` 전체 (LowRank layers, two-level cycle)
+- `modeling_memgen.py`: `recursive_memory` 분기 (forward, generate), stepwise training 로직
+- `modeling_utils.py`: `open_component()` recursive_memory 파라미터
+- `runner.py`: `_save_recursive_memory_checkpoint()`, recursive memory 로깅
+- `configuration_memgen.py`: `recursive_*` config 전체 (memory, two_level, stepwise)
 
 ### LTPO 관련 코드
 - `ltpo/memgen_ltpo.py` 전체
@@ -51,20 +68,75 @@ MemGen은 자가 진화 AI 에이전트를 위한 latent memory 프레임워크�
 
 ---
 
-## 🔧 세 가지 학습/추론 모드
+## 🔧 학습/추론 모드
 
-| 모드 | LoRA | Query Latents | Projections | Config | 파라미터 |
-|------|------|---------------|-------------|--------|----------|
-| **Full** | ✅ | ✅ | ✅ | (기본값) | ~42.6M |
-| **Skip-LoRA** | ❌ disabled | ✅ | ✅ | `skip_lora: true` | ~33.6M |
-| **Projection-Only** | ❌ | ❌ | ✅ | `projection_only: true` | ~33.5M |
+### Weaver-based 모드 (기존)
+
+| 모드 | LoRA | Query Latents | Projections | LatentProcessor | Config | 파라미터 |
+|------|------|---------------|-------------|-----------------|--------|----------|
+| **Full** | ✅ | ✅ | ✅ | ❌ | (기본값) | ~42.6M |
+| **Skip-LoRA** | ❌ disabled | ✅ | ✅ | ❌ | `skip_lora: true` | ~33.6M |
+| **LatentProcessor** | ❌ | ✅ | ✅ | ✅ MLP | `latent_processor: true` | ~33.6M + MLP |
+| **Projection-Only** | ❌ | ❌ | ✅ | ❌ | `projection_only: true` | ~33.5M |
+
+### Recursive Memory 모드 (WeaverStyleCompressor)
+
+Weaver LLM을 사용하지 않고, Low-Rank Causal Self-Attention + SwiGLU로 memory 생성.
+
+| 옵션 | 설명 | Config |
+|------|------|--------|
+| **기본** | 10 cycles 고정, projection 포함 | `recursive_memory.enabled: true` |
+| **skip_projection** | projection 없이 compressor만 | `recursive_memory.skip_projection: true` |
+| **two_level** | H-cycle(max 5) × L-cycle(6) 구조 | `recursive_memory.two_level: true` |
+| **stepwise_training** | 각 aug point마다 intermediate loss | `recursive_memory.stepwise_training: true` |
+
+```yaml
+# Recursive Memory 전체 config
+model:
+  recursive_memory:
+    enabled: true
+    skip_projection: true        # projection 없이 (~7.9M params)
+    weaver_style: true
+    hidden_size: 4096
+    num_heads: 8
+    attn_rank: 64
+    mlp_rank: 128
+    num_latents: 8               # memory token 수 (query latents)
+    max_cycles: 10               # single-level 시 cycle 수
+    confidence_threshold: -1.0   # >0: early stop 활성화
+    top_k: 10
+    verbose_cycles: false
+    # Two-level cycle
+    two_level: false             # H-cycle/L-cycle 구조
+    l_cycles: 6                  # 내부 루프 반복 (고정)
+    max_h_cycles: 5              # 외부 루프 최대 반복
+    # Stepwise training
+    stepwise_training: false     # 각 aug point별 intermediate loss
+    stepwise_loss_weight: 0.5    # intermediate loss 가중치
+    # MLP / Attention options
+    full_rank_mlp: false         # nn.Linear 대체 (~16.8M)
+    bidirectional: false         # TRM-style bidirectional attention
+```
+
+- **파라미터**: skip_projection 시 ~7.9M, projection 포함 시 ~41.5M
+- **Weaver LLM 미사용**: reasoner 공간에서 직접 compression
+- **체크포인트**: `recursive_memory.pt` (+ `projections.pt` if not skip_projection)
+
+### LatentProcessor 모드
+- **목적**: LoRA 대신 MLP로 latent 후처리 (gradient modulation 효과 대체)
+- **구조**: `x + MLP(x)` residual 연결, depth 조절 가능
+- **설정**: `latent_processor: true`, `latent_processor_depth: 2`
+- **위치**: `weaver.py:LatentProcessor` 클래스
 
 ### 체크포인트 파일
 | 파일 | 내용 | 모드 |
 |------|------|------|
 | `projections.pt` | Projections + Query Latents | Full, Skip-LoRA |
 | `skip_lora.pt` | Projections + Query Latents | Skip-LoRA 전용 |
+| `latent_processor.pt` | Projections + Query Latents + MLP | LatentProcessor 전용 |
 | `projections_only.pt` | Projections Only | Projection-Only |
+| `skip_projection.pt` | Query Latents Only (projection 없음) | Skip-Projection |
+| `recursive_memory.pt` | WeaverStyleCompressor weights (query_latents 포함) | Recursive Memory |
 | `weaver_lora/` | LoRA Adapter | Full |
 
 ---
@@ -112,6 +184,7 @@ python main.py --cfg-path configs/latent_memory/<dataset>.yaml
 ### 핵심 컴포넌트
 - **MemGenModel** (`modeling_memgen.py`): reasoner + weaver + trigger
 - **MemGenWeaver** (`weaver.py`): `augment_prompt()`, `augment_inference()`
+- **WeaverStyleCompressor** (`recursive_memory.py`): Low-Rank Causal Self-Attn + SwiGLU 기반 memory 압축 (Weaver LLM 대체)
 - **MemGenTrigger** (`trigger.py`): 메모리 삽입 결정 (binary classifier)
 - **MemGenRunner** (`runner.py`): 학습/평가 orchestration
 
@@ -194,7 +267,38 @@ python -c "from memgen.runner import MemGenRunner; from data.arc.env import ARCE
 
 | 기능 | 파일 |
 |------|------|
+| Recursive Memory compressor | `memgen/model/recursive_memory.py` |
 | LTPO optimizer | `ltpo/memgen_ltpo.py` |
 | GRPO reward | `memgen/trainer/weaver_grpo_trainer.py` |
 | Binary reward | `data/arc/env.py` |
 | LoRA 키 변환 | `modeling_memgen.py:_load_pretrained_weaver` |
+| Recursive Memory 문서 | `docs/recursive_memory_complete.md` |
+
+---
+
+## 폴더 구조 (2026-01-16 재정리)
+
+```
+/home/jovyan/MemGenWorkspace/
+├── _shared/                    # 공유 리소스 (31GB)
+│   └── MemGen_reproduce/       # 체크포인트/실험 결과
+├── master/                     # master branch (e162d08)
+├── 996ef8fd/                   # 특정 커밋 스냅샷 (detached HEAD)
+├── ltpo_sub/                   # 현재 작업 (이 폴더, ltpo_sub branch)
+└── memgen_reproduce/           # 실험 재현용 (996ef8fd, detached HEAD)
+```
+
+**작업 디렉토리**: `/home/jovyan/MemGenWorkspace/ltpo_sub`
+
+### 각 폴더별 용도
+| 폴더 | 브랜치/커밋 | 용도 |
+|------|------------|------|
+| `ltpo_sub` | ltpo_sub | 현재 개발 작업 |
+| `master` | master | 최신 안정 버전 참조 |
+| `996ef8fd` | 996ef8f (detached) | 특정 시점 스냅샷 |
+| `memgen_reproduce` | 996ef8f (detached) | 실험 재현용 환경 |
+| `_shared/MemGen_reproduce` | - | 공유 체크포인트 (31GB) |
+
+### 주의사항
+- `configs/latent_memory/arc.yaml`의 `data_path`는 환경에 맞게 수동 업데이트 필요
+- 각 폴더는 독립적인 git clone (코드 충돌 없음)

@@ -177,11 +177,39 @@ class MemGenRunner:
         self.model.fix_component("trigger")
         projection_only = self.model.config.projection_only
         skip_lora = self.model.config.skip_lora
+        skip_projection = self.model.config.skip_projection
         latent_processor = self.model.config.latent_processor
-        self.model.open_component("weaver", projection_only=projection_only, skip_lora=skip_lora, latent_processor=latent_processor)
+        recursive_memory = self.model.config.recursive_memory
+        recursive_skip_projection = self.model.config.recursive_skip_projection
+        self.model.open_component("weaver", projection_only=projection_only, skip_lora=skip_lora, latent_processor=latent_processor, skip_projection=skip_projection, recursive_memory=recursive_memory, recursive_skip_projection=recursive_skip_projection)
 
-        if projection_only:
+        if recursive_memory:
+            # Check for two-level cycle structure
+            recursive_two_level = self.model.config.recursive_two_level
+            if recursive_two_level:
+                l_cycles = self.model.config.recursive_l_cycles
+                max_h_cycles = self.model.config.recursive_max_h_cycles
+                cycle_info = f"two_level (L={l_cycles}, H={max_h_cycles}, max_ops={l_cycles * max_h_cycles})"
+            else:
+                max_cycles = self.model.config.recursive_max_cycles
+                cycle_info = f"single_level (max_cycles={max_cycles})"
+
+            # Stepwise training info
+            stepwise_info = ""
+            if getattr(self.model.config, 'recursive_stepwise_training', False):
+                sw_weight = self.model.config.recursive_stepwise_loss_weight
+                stepwise_info = f", stepwise_training (weight={sw_weight})"
+
+            if recursive_skip_projection:
+                logging.info(f"Recursive Memory mode ({cycle_info}, skip_projection{stepwise_info}): training recursive_compressor ONLY (no projections)")
+            else:
+                logging.info(f"Recursive Memory mode ({cycle_info}{stepwise_info}): training recursive_compressor + projections")
+        elif projection_only:
             logging.info("Projection-only mode enabled: training only projection layers")
+        elif skip_projection and skip_lora:
+            logging.info("Skip-projection mode enabled: training query_latents only (no LoRA, no projections)")
+        elif skip_projection:
+            logging.info("Skip-projection mode enabled: training query_latents + LoRA (no projections)")
         elif latent_processor:
             logging.info("LatentProcessor mode enabled: training query_latents, projections, and latent_processor (no LoRA)")
         elif skip_lora:
@@ -197,9 +225,15 @@ class MemGenRunner:
         os.makedirs(output_dir, exist_ok=True)
 
         # Save checkpoint based on mode
-        if projection_only:
+        if recursive_memory:
+            # Recursive Memory: save query_latents + recursive_compressor (no projections, no LoRA)
+            self._save_recursive_memory_checkpoint(output_dir)
+        elif projection_only:
             # Projection-only: save only projection layers
             self._save_projection_only_checkpoint(output_dir)
+        elif skip_projection:
+            # Skip-Projection: save query_latents (and optionally LoRA if not skip_lora)
+            self._save_skip_projection_checkpoint(output_dir)
         elif latent_processor:
             # LatentProcessor: save projections + query_latents + latent_processor (no LoRA adapter)
             self._save_latent_processor_checkpoint(output_dir)
@@ -326,6 +360,65 @@ class MemGenRunner:
             logging.info(f"Saved latent_processor checkpoint to {lp_path}")
         except Exception as e:
             logging.warning(f"Failed to save latent_processor checkpoint: {e}")
+
+    def _save_skip_projection_checkpoint(self, output_dir: str):
+        """
+        Save checkpoint for skip-projection mode (no projection layers).
+
+        Saves:
+        - If skip_lora=True: query_latents only (skip_projection.pt) - ~64K params
+        - If skip_lora=False: query_latents + LoRA (weaver_lora/ + skip_projection.pt) - ~9M params
+        """
+        try:
+            skip_lora = self.model.config.skip_lora
+
+            # 1. Save query latents (common for both modes)
+            skip_proj_path = os.path.join(output_dir, "skip_projection.pt")
+            torch.save({
+                'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
+                'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
+            }, skip_proj_path)
+            logging.info(f"Saved skip-projection query_latents to {skip_proj_path}")
+
+            # 2. Save LoRA only if skip_lora is False
+            if not skip_lora:
+                weaver_lora_path = os.path.join(output_dir, "weaver_lora")
+                self.model.weaver.model.save_pretrained(weaver_lora_path, safe_serialization=False)
+                logging.info(f"Saved weaver LoRA to {weaver_lora_path}")
+        except Exception as e:
+            logging.warning(f"Failed to save skip-projection checkpoint: {e}")
+
+    def _save_recursive_memory_checkpoint(self, output_dir: str):
+        """
+        Save checkpoint for recursive_memory mode (WeaverStyleCompressor).
+
+        Saves:
+        - recursive_memory.pt: recursive_compressor state_dict (includes query_latents)
+        - projections.pt: reasoner_to_weaver + weaver_to_reasoner projections (if not skip_projection)
+        """
+        try:
+            # Save recursive_compressor (includes prompt_query_latents, inference_query_latents)
+            rm_path = os.path.join(output_dir, "recursive_memory.pt")
+            checkpoint = {
+                # Note: query_latents are inside recursive_compressor, not weaver
+                'recursive_compressor': self.model.recursive_compressor.state_dict(),
+            }
+            torch.save(checkpoint, rm_path)
+            logging.info(f"Saved recursive_memory checkpoint to {rm_path}")
+
+            # Save projections only if NOT skipping
+            if not self.model.config.recursive_skip_projection:
+                proj_path = os.path.join(output_dir, "projections.pt")
+                proj_checkpoint = {
+                    'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
+                    'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
+                }
+                torch.save(proj_checkpoint, proj_path)
+                logging.info(f"Saved projections to {proj_path}")
+            else:
+                logging.info("Skipped saving projections (recursive_skip_projection=True)")
+        except Exception as e:
+            logging.warning(f"Failed to save recursive_memory checkpoint: {e}")
 
 
     # ===== train trigger =====
@@ -559,6 +652,13 @@ class MemGenRunner:
         weaver_sft_config = weaver_config.get("sft", dict())
         self.weaver_sft_training_args = SFTConfig(**weaver_sft_config)
         self.weaver_sft_training_args.output_dir = os.path.join(self.working_dir, "weaver")
+
+        # Disable auto save for recursive_memory mode (shared tensors crash)
+        # We manually save in _save_recursive_memory_checkpoint() after training
+        if self.config.get("model", {}).get("recursive_memory", {}).get("enabled", False):
+            self.weaver_sft_training_args.save_strategy = "no"
+            self.weaver_sft_training_args.load_best_model_at_end = False
+            logging.info("Recursive Memory mode: disabled auto-save (save_strategy='no')")
 
         # parse weaver grpo training args (only if using grpo)
         weaver_grpo_config = weaver_config.get("grpo", dict())
