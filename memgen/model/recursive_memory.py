@@ -109,6 +109,8 @@ class WeaverStyleCompressor(nn.Module):
         full_rank_mlp: bool = False,
         # Bidirectional attention (like TRM, instead of causal)
         bidirectional: bool = False,
+        # TRM-style context update (z_H=context, z_L=z)
+        context_update: bool = False,
     ):
         super().__init__()
         self.hidden_size = hidden_size
@@ -121,6 +123,9 @@ class WeaverStyleCompressor(nn.Module):
         self.two_level = two_level
         self.l_cycles = l_cycles
         self.max_h_cycles = max_h_cycles
+
+        # TRM-style context update
+        self.context_update = context_update
 
         self.prompt_query_latents = nn.Parameter(torch.randn(num_latents, hidden_size) * 0.02)
         self.inference_query_latents = nn.Parameter(torch.randn(num_latents, hidden_size) * 0.02)
@@ -135,7 +140,16 @@ class WeaverStyleCompressor(nn.Module):
 
         mlp_type = "FullRank" if full_rank_mlp else "LowRankSwiGLU"
         attn_type = "Bidirectional" if bidirectional else "Causal"
-        if two_level:
+        if context_update:
+            logger.info(
+                "WeaverStyleCompressor: context_update (TRM-style), l=%d, h=%d, "
+                "total_depth=%d, grad_depth=%d, latents=%d, mlp=%s, attn=%s",
+                l_cycles, max_h_cycles,
+                l_cycles * max_h_cycles + max_h_cycles,
+                l_cycles + 1,
+                num_latents, mlp_type, attn_type,
+            )
+        elif two_level:
             logger.info(
                 "WeaverStyleCompressor: two_level, l=%d, h=%d, latents=%d, mlp=%s, attn=%s",
                 l_cycles, max_h_cycles, num_latents, mlp_type, attn_type,
@@ -203,6 +217,9 @@ class WeaverStyleCompressor(nn.Module):
         query_latents = self.prompt_query_latents if is_prompt else self.inference_query_latents
         z = query_latents.unsqueeze(0).expand(B, -1, -1).clone()
 
+        if self.context_update:
+            return self._forward_context_update(z, context, attention_mask, reasoner, verbose)
+
         if self.two_level:
             return self._forward_two_level(z, context, attention_mask, reasoner, verbose)
 
@@ -260,6 +277,67 @@ class WeaverStyleCompressor(nn.Module):
             logger.info(
                 "[WeaverStyle TwoLevel] Reached max_h_cycles=%d (total ops: %d)",
                 self.max_h_cycles, self.max_h_cycles * self.l_cycles,
+            )
+
+        return z, (self.max_h_cycles, self.l_cycles)
+
+    def _forward_context_update(
+        self,
+        z: torch.Tensor,
+        context: torch.Tensor,
+        attention_mask: torch.Tensor,
+        reasoner: Optional[nn.Module],
+        verbose: bool,
+    ) -> Tuple[torch.Tensor, Tuple[int, int]]:
+        """
+        TRM-style two-level context update.
+
+        z = z_L (fast, updated every L-cycle)
+        context_state = z_H (slow, updated every H-cycle)
+        frozen_context = input_embeddings (frozen, injected)
+
+        Flow per H-step:
+          L-cycles: z = _compress_cycle(context_state + frozen_context, z)
+          H-update: [z, context_state] -> attn -> extract context_state -> MLP
+
+        Gradient: only last H-cycle.
+        """
+        frozen_context = context
+        context_state = torch.zeros_like(context)
+
+        def _run_one_h_step(z_cur, cs_cur):
+            # --- L-cycles: update z (fast) ---
+            for _ in range(self.l_cycles):
+                z_cur = self._compress_cycle(cs_cur + frozen_context, z_cur)
+
+            # --- H-update: update context_state (slow) ---
+            # TRM: z_H = L_level(z_H, z_L) -> concat [z, cs], attn, extract cs
+            combined = torch.cat([z_cur, cs_cur], dim=1)
+            combined = rms_norm(combined + self.self_attn(combined))
+            cs_cur = combined[:, z_cur.size(1):]
+            # MLP on context_state (TRM applies MLP to all tokens)
+            cs_cur = rms_norm(cs_cur + self.mlp(cs_cur))
+
+            return z_cur, cs_cur
+
+        # H_cycles - 1: no gradient (TRM pattern)
+        if self.max_h_cycles > 1:
+            with torch.no_grad():
+                for h in range(self.max_h_cycles - 1):
+                    z, context_state = _run_one_h_step(z, context_state)
+                    if verbose:
+                        logger.info(
+                            "[ContextUpdate] H-step %d/%d (no_grad), L-ops=%d",
+                            h + 1, self.max_h_cycles, (h + 1) * self.l_cycles,
+                        )
+
+        # Last H-cycle: with gradient
+        z, context_state = _run_one_h_step(z, context_state)
+        if verbose:
+            logger.info(
+                "[ContextUpdate] H-step %d/%d (grad), total=%d L-ops + %d H-ops",
+                self.max_h_cycles, self.max_h_cycles,
+                self.max_h_cycles * self.l_cycles, self.max_h_cycles,
             )
 
         return z, (self.max_h_cycles, self.l_cycles)

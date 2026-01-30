@@ -54,6 +54,7 @@ class MemGenConfig(PretrainedConfig):
         recursive_stepwise_loss_weight: float = 0.5,  # Weight for intermediate losses (final loss = 1.0)
         recursive_full_rank_mlp: bool = False,  # Replace LowRankSwiGLU with nn.Linear (W2R-style, ~16.8M)
         recursive_bidirectional: bool = False,  # Bidirectional attention (like TRM) instead of causal
+        recursive_context_update: bool = False,  # TRM-style context update (z_H=context, z_L=z)
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -98,3 +99,4 @@ class MemGenConfig(PretrainedConfig):
         self.recursive_stepwise_loss_weight = recursive_stepwise_loss_weight
         self.recursive_full_rank_mlp = recursive_full_rank_mlp
         self.recursive_bidirectional = recursive_bidirectional
+        self.recursive_context_update = recursive_context_update

@@ -1,4 +1,4 @@
-# Recursive Memory 변경 사항 (2026-01-30)
+# Recursive Memory 변경 사항 (2026-01-30, updated)
 
 ## 개요
 
@@ -79,6 +79,7 @@ recursive_two_level: bool = False
 recursive_stepwise_training: bool = False
 recursive_full_rank_mlp: bool = False     # nn.Linear 대체 (~16.8M)
 recursive_bidirectional: bool = False     # TRM-style 양방향 attention
+recursive_context_update: bool = False   # TRM-style context update (z_H=context, z_L=z)
 ```
 
 기타 mode 플래그: `query_projection_only`, `skip_projection`, `output_projection_only`
@@ -154,6 +155,7 @@ model:
     two_level: false             # H-cycle × L-cycle 구조
     stepwise_training: false     # 각 aug point별 intermediate loss
     confidence_threshold: -1.0   # >0: early stopping 활성화
+    context_update: false        # true: TRM-style context update (z_H=context, z_L=z)
 ```
 
 ---
@@ -168,5 +170,6 @@ model:
 | Post-norm | LowRankSwiGLU | Causal | 79.23% | ~7.9M |
 | Post-norm | FullRank | Bidirectional | 평가 중 | ~16.8M |
 | Post-norm | LowRankSwiGLU | Bidirectional | 학습 중 | ~7.9M |
+| Post-norm (context_update) | LowRankSwiGLU | Bidirectional | 학습 예정 | ~7.9M |
 
 Baseline: Skip-LoRA = 88.93% (33.63M params)

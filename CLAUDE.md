@@ -89,6 +89,7 @@ Weaver LLM을 사용하지 않고, Low-Rank Causal Self-Attention + SwiGLU로 me
 | **skip_projection** | projection 없이 compressor만 | `recursive_memory.skip_projection: true` |
 | **two_level** | H-cycle(max 5) × L-cycle(6) 구조 | `recursive_memory.two_level: true` |
 | **stepwise_training** | 각 aug point마다 intermediate loss | `recursive_memory.stepwise_training: true` |
+| **context_update** | TRM-style context update (z_H=context, z_L=z) | `recursive_memory.context_update: true` |
 
 ```yaml
 # Recursive Memory 전체 config
@@ -116,6 +117,7 @@ model:
     # MLP / Attention options
     full_rank_mlp: false         # nn.Linear 대체 (~16.8M)
     bidirectional: false         # TRM-style bidirectional attention
+    context_update: false        # TRM-style context update (z_H=context, z_L=z)
 ```
 
 - **파라미터**: skip_projection 시 ~7.9M, projection 포함 시 ~41.5M

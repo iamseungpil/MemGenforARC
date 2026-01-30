@@ -123,6 +123,7 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                 max_h_cycles=config.recursive_max_h_cycles,
                 full_rank_mlp=config.recursive_full_rank_mlp,
                 bidirectional=config.recursive_bidirectional,
+                context_update=config.recursive_context_update,
             )
 
         # postprocess
@@ -898,6 +899,7 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             "stepwise_loss_weight": 0.5,
             "full_rank_mlp": False,
             "bidirectional": False,
+            "context_update": False,
         }
         recursive_params = {
             f"recursive_{key}": recursive_memory_config.get(key, default)
