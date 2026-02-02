@@ -469,17 +469,27 @@ runs/gsm8k/<Model>/
 #### sweep 실행
 
 ```bash
-# 기본 (30 trials)
+# 기본: GPU 1개, agent 1개, 30 trials
 bash runs/gsm8k/SmolLM3-3B/sweep_recursive_memory.sh
 
 # trial 수 지정
 bash runs/gsm8k/SmolLM3-3B/sweep_recursive_memory.sh --count 10
 
-# GPU 지정
-CUDA_VISIBLE_DEVICES=1 bash runs/gsm8k/Qwen3-8B/sweep_recursive_memory.sh
+# GPU 1개에 agent 2개 (GPU 여유 있을 때, 병렬 탐색)
+bash runs/gsm8k/SmolLM3-3B/sweep_recursive_memory.sh --agents-per-gpu 2
+
+# GPU 2개, 각 1개 agent
+bash runs/gsm8k/SmolLM3-3B/sweep_recursive_memory.sh --gpus 0,1
+
+# GPU 2개 × agent 2개 = 4개 병렬
+bash runs/gsm8k/SmolLM3-3B/sweep_recursive_memory.sh --gpus 0,1 --agents-per-gpu 2
+
+# 기존 sweep에 agent 추가 (새 sweep 생성 안 함)
+bash runs/gsm8k/SmolLM3-3B/sweep_recursive_memory.sh --sweep-id gistdslab/RecursiveMem/<id>
 ```
 
 `sweep_recursive_memory.sh`가 sweep 생성 + agent 실행을 한 번에 수행. sweep ID 수동 관리 불필요.
+복수 agent는 같은 sweep을 공유하며 wandb 서버가 파라미터를 중복 없이 분배.
 
 #### sweep 파라미터 변경
 
