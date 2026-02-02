@@ -1,0 +1,114 @@
+# ============================================================================
+# wandb sweep: Recursive Memory (Qwen3-8B, GSM8K)
+# ============================================================================
+# Usage:
+#   cd MemGenforARC/
+#   wandb sweep runs/gsm8k/Qwen3-8B/sweep_recursive_memory.yaml
+#   wandb agent <entity>/<project>/<sweep_id>
+#
+# method: bayes (Bayesian opt), grid (전수 탐색), random (무작위)
+# 활성 파라미터만 sweep 대상. 주석 해제로 추가 가능.
+# ============================================================================
+
+name: sweep_recursive_memory_gsm8k_qwen3
+program: runs/gsm8k/Qwen3-8B/_sweep_agent.sh
+project: RecursiveMem
+entity: gistdslab
+method: bayes
+metric:
+  name: eval/loss       # HF Trainer가 epoch 끝에 로깅하는 validation loss
+  goal: minimize
+
+command:
+  - ${env}              # wandb가 설정하는 환경변수 (WANDB_RUN_ID 등)
+  - bash
+  - ${program}          # 아래 agent 스크립트 경로
+  - ${args}             # 파라미터를 --key=value 형태로 전달
+
+parameters:
+  # ===========================================================================
+  # Cycle / Training
+  # ===========================================================================
+  max_cycles:
+    # compression cycle 반복 횟수. 높을수록 더 많이 압축 시도
+    values: [3, 5, 10]
+  learning_rate:
+    # 학습률. recursive memory (~7.9M params)는 비교적 높은 lr 가능
+    values: [1e-4, 5e-5, 1e-5]
+  num_train_epochs:
+    # 학습 epoch 수
+    values: [2, 3]
+
+  # ===========================================================================
+  # Architecture toggles
+  # ===========================================================================
+  bidirectional:
+    # true: 양방향 attention (모든 토큰이 서로 참조)
+    # false: causal attention (이전 토큰만 참조, default)
+    values: [true, false]
+  context_update:
+    # true: TRM-style context update — z_H=context(slow), z_L=z(fast)로 분리
+    # false: 단순 cycle 반복 (default)
+    values: [true, false]
+  full_rank_mlp:
+    # true: nn.Linear full-rank MLP (~16.8M)
+    # false: LowRankSwiGLU — low-rank factorized SwiGLU (default, ~7.9M)
+    values: [true, false]
+
+  # ===========================================================================
+  # Architecture (numeric) — 주석 해제로 활성화
+  # ===========================================================================
+  # attn_rank:
+  #   # self-attention의 low-rank 차원. 높을수록 표현력↑, 파라미터↑
+  #   values: [32, 64, 128]
+  # mlp_rank:
+  #   # SwiGLU MLP의 low-rank 차원. 높을수록 표현력↑, 파라미터↑
+  #   values: [64, 128, 256]
+  # num_latents:
+  #   # memory token 수 (= prompt_latents_len = inference_latents_len)
+  #   # 높을수록 더 많은 정보 저장 가능하지만 연산량 증가
+  #   values: [4, 8, 16]
+
+  # ===========================================================================
+  # Stepwise training — 주석 해제로 활성화
+  # ===========================================================================
+  # stepwise_training:
+  #   # true: 각 augmentation point마다 intermediate loss 추가 (보조 학습 신호)
+  #   # false: 최종 loss만 사용 (default)
+  #   values: [true, false]
+  # stepwise_loss_weight:
+  #   # intermediate loss의 가중치 (stepwise_training=true일 때만 유효)
+  #   values: [0.3, 0.5, 0.7]
+
+  # ===========================================================================
+  # Two-level cycle — 주석 해제로 활성화
+  # 주의: two_level=true이면 max_cycles 무시, l_cycles × max_h_cycles로 동작
+  # ===========================================================================
+  # two_level:
+  #   # true: H-cycle(외부) × L-cycle(내부) 2단계 구조
+  #   # false: single-level cycle (default)
+  #   values: [true, false]
+  # l_cycles:
+  #   # 내부 루프 반복 횟수 (two_level=true일 때만 유효)
+  #   values: [4, 6, 8]
+  # max_h_cycles:
+  #   # 외부 루프 최대 반복 횟수 (two_level=true일 때만 유효)
+  #   values: [3, 5]
+
+  # ===========================================================================
+  # Projection / Augmentation — 주석 해제로 활성화
+  # ===========================================================================
+  # skip_projection:
+  #   # true: compressor만 학습 (~7.9M params)
+  #   # false: reasoner↔weaver projection도 학습 (~41.5M params)
+  #   values: [true, false]
+  # max_inference_aug_num:
+  #   # inference 시 augmentation point 수. 높을수록 memory 삽입 빈번
+  #   values: [3, 5, 10]
+
+  # ===========================================================================
+  # Training hyperparams — 주석 해제로 활성화
+  # ===========================================================================
+  # batch_size:
+  #   # per-device batch size. GPU 메모리에 따라 조절
+  #   values: [2, 4, 8]

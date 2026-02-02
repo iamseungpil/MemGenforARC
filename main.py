@@ -47,7 +47,7 @@ def parse_args():
 
 def build_working_dir(config: Config) -> str:
 
-    # parent dir: /data/memgen/<train/evaluate>/<dataset_name>/<reasoner_model_name>
+    # parent dir: ~/data/memgen/<train/evaluate>/<dataset_name>/<reasoner_model_name>
     mode = config.run_cfg.mode
     dataset_name = config.dataset_cfg.name
 
@@ -61,13 +61,22 @@ def build_working_dir(config: Config) -> str:
     # Use ~/data folder for all outputs (checkpoints, logs, etc.)
     parent_dir = os.path.join(os.path.expanduser("~/data/memgen"), mode, dataset_name, model_name)
 
-    # name: <prompt_aug_num>_<prompt_latents_len>_<inference_aug_num>_<inference_latents_len>_<timestamp>
+    # Build subdir: pn=<N>_pl=<N>_in=<N>_il=<N>_<timestamp>
     max_prompt_aug_num = config.model_cfg.max_prompt_aug_num
     prompt_latents_len = config.model_cfg.weaver.prompt_latents_len
     max_inference_aug_num = config.model_cfg.max_inference_aug_num
     inference_latents_len = config.model_cfg.weaver.inference_latents_len
-    time = datetime.now().strftime("%Y%m%d-%H%M%S")
-    working_dir = f"pn={max_prompt_aug_num}_pl={prompt_latents_len}_in={max_inference_aug_num}_il={inference_latents_len}_{time}"
+
+    experiment_dir = os.environ.get("EXPERIMENT_DIR")
+    experiment_subdir = os.environ.get("EXPERIMENT_SUBDIR")
+
+    if experiment_dir and experiment_subdir:
+        # New format: <experiment_name>/<config_params>_<timestamp>
+        working_dir = os.path.join(experiment_dir, experiment_subdir)
+    else:
+        # Fallback: legacy flat format
+        time = datetime.now().strftime("%Y%m%d-%H%M%S")
+        working_dir = f"pn={max_prompt_aug_num}_pl={prompt_latents_len}_in={max_inference_aug_num}_il={inference_latents_len}_{time}"
 
     return os.path.join(parent_dir, working_dir)
 

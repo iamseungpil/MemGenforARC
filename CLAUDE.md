@@ -81,7 +81,53 @@ MemGen은 자가 진화 AI 에이전트를 위한 latent memory 프레임워크�
 
 ### Recursive Memory 모드 (WeaverStyleCompressor)
 
-Weaver LLM을 사용하지 않고, Low-Rank Causal Self-Attention + SwiGLU로 memory 생성.
+Weaver LLM을 **완전히 대체**. Low-Rank Causal Self-Attention + SwiGLU로 memory 생성.
+
+**⚠️ 핵심: Weaver LLM은 recursive_memory 모드에서 전혀 호출되지 않음**
+- `weaver.augment_prompt()`, `weaver.augment_inference()` 호출 안 됨
+- Weaver의 query_latents도 미사용 — WeaverStyleCompressor가 자체 query_latents 보유
+- Weaver LLM + LoRA는 초기화만 되고 forward에 참여하지 않음 (frozen)
+
+#### 훈련 시 코드 흐름
+
+1. **`runner.py`**: `open_component("weaver", recursive_memory=True)` 호출
+2. **`modeling_utils.py:72-83`**: recursive_compressor만 `requires_grad=True`, weaver 전체 frozen
+3. **`modeling_memgen.py:216-238`**: forward에서 `if self.recursive_memory:` 분기 → weaver 건너뛰고 `self.recursive_compressor()` 직접 호출
+
+```
+# Forward 흐름 (modeling_memgen.py:216-238)
+각 augmentation point에서:
+  context → (선택) reasoner_to_weaver 프로젝션 →
+  recursive_compressor(context, is_prompt) → latent_embeds →
+  (선택) weaver_to_reasoner 역프로젝션 →
+  [기존 시퀀스 + latent_embeds] 연결 → reasoner → logits → loss
+```
+
+#### 학습 가능 파라미터
+
+| 컴포넌트 | 학습 | 비고 |
+|----------|:---:|------|
+| `recursive_compressor` (Self-Attn + MLP + query_latents) | ✅ | 핵심 학습 대상 |
+| `reasoner_to_weaver` / `weaver_to_reasoner` | ✅/❌ | `skip_projection=False`일 때만 |
+| Weaver LLM + LoRA + Weaver query_latents | ❌ | 전부 frozen, 미호출 |
+| Reasoner | ❌ | frozen |
+
+#### WeaverStyleCompressor 내부 (`recursive_memory.py`)
+
+```python
+# 자체 query_latents (weaver와 별개)
+self.prompt_query_latents = nn.Parameter(...)     # prompt용
+self.inference_query_latents = nn.Parameter(...)  # inference용
+
+def _compress_cycle(context, z):
+    combined = cat([context, z])                   # [컨텍스트, 잠재토큰]
+    combined = rms_norm(combined + self_attn(combined))  # post-norm residual
+    z = combined[:, -num_latents:]                 # 잠재 토큰 추출
+    z = rms_norm(z + mlp(z))                       # post-norm MLP
+    return z
+```
+
+#### 옵션
 
 | 옵션 | 설명 | Config |
 |------|------|--------|
@@ -121,8 +167,9 @@ model:
 ```
 
 - **파라미터**: skip_projection 시 ~7.9M, projection 포함 시 ~41.5M
-- **Weaver LLM 미사용**: reasoner 공간에서 직접 compression
+- **Weaver LLM 미사용**: forward/generate 모두 weaver 호출 없음, reasoner 공간에서 직접 compression
 - **체크포인트**: `recursive_memory.pt` (+ `projections.pt` if not skip_projection)
+- **auto-save 비활성**: shared tensor 충돌 방지로 `save_strategy="no"`, `_save_recursive_memory_checkpoint()`로 수동 저장
 
 ### LatentProcessor 모드
 - **목적**: LoRA 대신 MLP로 latent 후처리 (gradient modulation 효과 대체)
@@ -278,29 +325,248 @@ python -c "from memgen.runner import MemGenRunner; from data.arc.env import ARCE
 
 ---
 
-## 폴더 구조 (2026-01-16 재정리)
+## 폴더 구조 (2026-02-02 업데이트)
 
 ```
-/home/jovyan/MemGenWorkspace/
-├── _shared/                    # 공유 리소스 (31GB)
-│   └── MemGen_reproduce/       # 체크포인트/실험 결과
-├── master/                     # master branch (e162d08)
-├── 996ef8fd/                   # 특정 커밋 스냅샷 (detached HEAD)
-├── ltpo_sub/                   # 현재 작업 (이 폴더, ltpo_sub branch)
-└── memgen_reproduce/           # 실험 재현용 (996ef8fd, detached HEAD)
+/home/hjkim/projects/RecursiveMem/
+├── MemGenforARC/               # 메인 작업 디렉토리 (git repo)
+├── MemGenforARC_crossattn/     # Cross-attention 변형 브랜치
+├── MemGenforARC_old/           # 이전 버전 스냅샷
+├── MemGenforARC_self_attn/     # Self-attention 변형 브랜치
+├── Sbatch/                     # SLURM 배치 스크립트 및 로그
+└── recursive_memory_visual.md  # Recursive Memory 시각화 문서
 ```
 
-**작업 디렉토리**: `/home/jovyan/MemGenWorkspace/ltpo_sub`
+**작업 디렉토리**: `/home/hjkim/projects/RecursiveMem/MemGenforARC`
 
 ### 각 폴더별 용도
-| 폴더 | 브랜치/커밋 | 용도 |
-|------|------------|------|
-| `ltpo_sub` | ltpo_sub | 현재 개발 작업 |
-| `master` | master | 최신 안정 버전 참조 |
-| `996ef8fd` | 996ef8f (detached) | 특정 시점 스냅샷 |
-| `memgen_reproduce` | 996ef8f (detached) | 실험 재현용 환경 |
-| `_shared/MemGen_reproduce` | - | 공유 체크포인트 (31GB) |
+| 폴더 | 용도 |
+|------|------|
+| `MemGenforARC` | 메인 개발 작업 (이 폴더) |
+| `MemGenforARC_crossattn` | Cross-attention 실험 변형 |
+| `MemGenforARC_old` | 이전 버전 참조용 |
+| `MemGenforARC_self_attn` | Self-attention 실험 변형 |
+| `Sbatch` | SLURM 배치 작업 스크립트/로그 |
+
+### 실험 스크립트 구조
+
+```
+MemGenforARC/
+├── experiments/gsm8k_pipeline/       # 순수 실행 로직 (모델, config, accelerate launch)
+│   ├── common.sh
+│   ├── Qwen3-8B/
+│   │   ├── 01_weaver_pretrain.sh
+│   │   ├── 01_recursive_memory_train.sh
+│   │   ├── 02_eval_weaver.sh
+│   │   ├── 02_weaver_grpo.sh
+│   │   ├── 03~05_...
+│   │   └── 07_ltpo_sweep.sh
+│   └── SmolLM3-3B/
+│       ├── 00_vanilla_eval.sh, 00b_base_sft.sh, 00c_eval_base_sft.sh
+│       ├── 01_weaver_pretrain.sh
+│       ├── 01_recursive_memory_train.sh
+│       ├── 02_eval_weaver.sh
+│       ├── 02_eval_recursive_memory.sh
+│       ├── 03~05_...
+│       └── run_all.sh
+│
+└── runs/                             # Wrapper: EXPERIMENT_DIR 설정 → experiments/ 호출
+    └── gsm8k/SmolLM3-3B/
+        ├── train_recursive_memory.sh       → 01_recursive_memory_train.sh 호출
+        ├── eval_recursive_memory.sh        → 02_eval_recursive_memory.sh 호출
+        └── train_eval_recursive_memory.sh  → 01_ 실행 → stdout에서 checkpoint 파싱 → 02_ 호출
+```
+
+- **experiments/**: 하이퍼파라미터, 모델, config만 담당. 단독 실행 가능 (fallback 경로 사용)
+- **runs/**: EXPERIMENT_NAME 환경변수 설정 후 experiments/ 호출. sbatch 변환 시 이 레벨에서 `#SBATCH` 헤더 추가
+- **번호 규칙**: 같은 번호에 여러 스크립트 가능 (01_weaver_pretrain + 01_recursive_memory_train)
+
+### wandb sweep 구조
+
+```
+runs/gsm8k/
+├── SmolLM3-3B/
+│   ├── sweep_recursive_memory.yaml   # sweep 설정 (파라미터, method, metric)
+│   └── sweep_recursive_memory.sh     # sweep agent 스크립트 (train + eval)
+└── Qwen3-8B/
+    ├── sweep_recursive_memory.yaml
+    └── sweep_recursive_memory.sh
+
+Sbatch/
+├── sweep_recursive_memory_gsm8k_smollm3.sbatch  # SLURM 제출용 (laal_rtx6000)
+└── sweep_recursive_memory_gsm8k_qwen3.sbatch    # SLURM 제출용 (laal_a6000)
+```
+
+#### sweep 파라미터 (활성/비활성)
+
+| 파라미터 | 값 | 활성 | 설명 |
+|----------|-----|:---:|------|
+| `max_cycles` | [3, 5, 10] | ✅ | compression cycle 반복 횟수 |
+| `learning_rate` | [1e-4, 5e-5, 1e-5] | ✅ | 학습률 |
+| `num_train_epochs` | [2, 3] | ✅ | 학습 epoch 수 |
+| `bidirectional` | [true, false] | ✅ | 양방향 vs causal attention |
+| `context_update` | [true, false] | ✅ | TRM-style context update |
+| `full_rank_mlp` | [true, false] | ✅ | nn.Linear full-rank vs LowRankSwiGLU |
+| `attn_rank` | [32, 64, 128] | ❌ | self-attention low-rank 차원 |
+| `mlp_rank` | [64, 128, 256] | ❌ | SwiGLU MLP low-rank 차원 |
+| `num_latents` | [4, 8, 16] | ❌ | memory token 수 |
+| `stepwise_training` | [true, false] | ❌ | intermediate loss |
+| `stepwise_loss_weight` | [0.3, 0.5, 0.7] | ❌ | intermediate loss 가중치 |
+| `two_level` | [true, false] | ❌ | H-cycle × L-cycle 구조 |
+| `l_cycles` | [4, 6, 8] | ❌ | 내부 루프 반복 |
+| `max_h_cycles` | [3, 5] | ❌ | 외부 루프 최대 반복 |
+| `skip_projection` | [true, false] | ❌ | compressor만 학습 |
+| `max_inference_aug_num` | [3, 5, 10] | ❌ | inference augmentation 수 |
+| `batch_size` | [2, 4, 8] | ❌ | per-device batch size |
+
+비활성 파라미터는 YAML에서 주석 해제로 활성화.
+
+#### wandb run 이름 규칙
+
+wandb agent는 run을 미리 생성하여 자동 이름을 부여함 (예: `worthy-sweep-1`).
+커스텀 이름은 **HF TrainingArguments의 `run_name`** 으로 설정:
+
+```bash
+# sweep_recursive_memory.sh 내부
+export WANDB_RUN_NAME="mc${MAX_CYCLES}_lr${LEARNING_RATE}_ep${NUM_EPOCHS}_bi${BIDIRECTIONAL}_cu${CONTEXT_UPDATE}_frm${FULL_RANK_MLP}_${TIMESTAMP}"
+
+# training 옵션에 전달 → wandb.init(name=...) 에 반영됨
+python -m accelerate.commands.launch ... main.py \
+  --options ... \
+  run.weaver.sft.run_name ${WANDB_RUN_NAME}
+```
+
+결과: `mc5_lr1e-05_ep2_bifalse_cufalse_frmfalse_260202_101500_job37191`
+
+**주의**: `WANDB_RUN_NAME` 환경변수만으로는 안 됨. wandb agent가 스크립트 실행 전에 run을 미리 생성하므로, 반드시 `run.weaver.sft.run_name`으로 HF Trainer에 전달해야 함.
+
+#### sweep agent 흐름
+
+각 trial마다 `sweep_recursive_memory.sh`가 호출됨:
+1. wandb agent가 `--key=value` 형태로 파라미터 전달
+2. 파라미터 파싱 → EXPERIMENT_DIR/EXPERIMENT_SUBDIR 설정
+3. **[1/2] Training**: accelerate launch + SHARED_OPTIONS + training hyperparams
+4. **Checkpoint 검증**: `${WEAVER_PATH}/recursive_memory.pt` 존재 확인
+5. **[2/2] Eval**: 동일 SHARED_OPTIONS + `model.load_weaver_path`로 평가
+
+모델별 고정값:
+| | SmolLM3-3B | Qwen3-8B |
+|---|---|---|
+| hidden_size | 2048 | 4096 |
+| num_heads | 16 | 8 |
+| conda env | memgen_grpo | memgen |
+| port | 29540 | 29541 |
+
+#### sweep 파일 구조
+
+```
+runs/gsm8k/<Model>/
+├── sweep_recursive_memory.yaml    # sweep 설정 (파라미터, method, metric)
+├── sweep_recursive_memory.sh      # 실행 진입점 (sweep 생성 + agent 자동 실행)
+└── _sweep_agent.sh                # agent가 매 trial마다 호출하는 스크립트 (직접 실행 X)
+```
+
+#### sweep 실행
+
+```bash
+# 기본 (30 trials)
+bash runs/gsm8k/SmolLM3-3B/sweep_recursive_memory.sh
+
+# trial 수 지정
+bash runs/gsm8k/SmolLM3-3B/sweep_recursive_memory.sh --count 10
+
+# GPU 지정
+CUDA_VISIBLE_DEVICES=1 bash runs/gsm8k/Qwen3-8B/sweep_recursive_memory.sh
+```
+
+`sweep_recursive_memory.sh`가 sweep 생성 + agent 실행을 한 번에 수행. sweep ID 수동 관리 불필요.
+
+#### sweep 파라미터 변경
+
+`sweep_recursive_memory.yaml`만 수정하면 됨. 다음 실행 시 새 sweep이 자동 생성됨.
+
+```yaml
+# 파라미터 추가: 주석 해제
+num_latents:
+  values: [4, 8, 16]
+
+# 파라미터 값 변경
+max_cycles:
+  values: [5, 10, 20]   # 기존 [3, 5, 10]에서 변경
+
+# 파라미터 비활성화: 주석 처리
+# bidirectional:
+#   values: [true, false]
+```
+
+`_sweep_agent.sh`는 모든 파라미터를 이미 파싱하므로 YAML만 수정하면 됨.
 
 ### 주의사항
 - `configs/latent_memory/arc.yaml`의 `data_path`는 환경에 맞게 수동 업데이트 필요
-- 각 폴더는 독립적인 git clone (코드 충돌 없음)
+
+---
+
+## 실험 디렉토리 형식 (EXPERIMENT_DIR 패턴)
+
+### 새 형식 (2단계 구조)
+
+```
+~/data/memgen/train/<dataset>/<model>/<experiment_name>/pn=<N>_pl=<N>_in=<N>_il=<N>_<YYMMDD_HHMMSS>[_job<SLURM_ID>]/weaver/
+```
+
+- 1단계: `<experiment_name>` — 실험 이름으로 그룹핑 (시간 없음)
+- 2단계: `pn=<N>_pl=<N>_in=<N>_il=<N>_<timestamp>` — config + 실행 시간으로 구분
+
+### 예시
+```
+~/data/memgen/train/gsm8k/SmolLM3-3B/recursive_memory_gsm8k_smollm3/pn=1_pl=8_in=5_il=8_260202_153000_job37001/weaver/
+~/data/memgen/train/gsm8k/SmolLM3-3B/recursive_memory_gsm8k_smollm3_1cycle/pn=1_pl=8_in=5_il=8_260202_160000_job37002/weaver/
+~/data/memgen/train/kodcode/SmolLM3-3B/recursive_memory_kodcode_smollm3/pn=1_pl=8_in=5_il=8_260202_170000_job37003/weaver/
+```
+
+### 기존 형식 (fallback, 환경변수 미설정 시)
+```
+~/data/memgen/train/<dataset>/<model>/pn=<N>_pl=<N>_in=<N>_il=<N>_<YYYYMMDD-HHMMSS>/weaver/
+```
+
+### 사용 방법
+
+#### sbatch 스크립트에서
+```bash
+# 파라미터 정의
+MODEL_SHORT="SmolLM3-3B"
+DATASET_NAME="gsm8k"
+MAX_PROMPT_AUG_NUM=1
+PROMPT_LATENTS_LEN=8
+MAX_INFERENCE_AUG_NUM=5
+INFERENCE_LATENTS_LEN=8
+
+# EXPERIMENT_DIR 패턴 설정
+TIMESTAMP=$(date +%y%m%d_%H%M%S)
+if [ -n "${SLURM_JOB_ID:-}" ]; then
+  TIMESTAMP="${TIMESTAMP}_job${SLURM_JOB_ID}"
+fi
+export EXPERIMENT_DIR="${BASE_EXPERIMENT_NAME}"
+export EXPERIMENT_SUBDIR="pn=${MAX_PROMPT_AUG_NUM}_pl=${PROMPT_LATENTS_LEN}_in=${MAX_INFERENCE_AUG_NUM}_il=${INFERENCE_LATENTS_LEN}_${TIMESTAMP}"
+
+# 결정적 체크포인트 경로 조립
+CHECKPOINT_DIR="${HOME}/data/memgen/train/${DATASET_NAME}/${MODEL_SHORT}/${EXPERIMENT_DIR}/${EXPERIMENT_SUBDIR}"
+LOAD_WEAVER_PATH="${CHECKPOINT_DIR}/weaver"
+```
+
+#### main.py
+- `EXPERIMENT_DIR` + `EXPERIMENT_SUBDIR` 환경변수가 둘 다 설정되면 2단계 형식 사용
+- 없으면 기존 형식(pn=...) fallback
+
+### Sbatch 로그 네이밍 규칙
+```
+~/projects/RecursiveMem/Sbatch/logs/<job_name>/<job_name>_YYMMDD_<job_id>.out
+```
+
+### sbatch 실행 방법
+```bash
+# 디렉토리 생성 후 sbatch 제출 (반드시!)
+mkdir -p ~/projects/RecursiveMem/Sbatch/logs/<job_name> && sbatch script.sbatch
+```
+
+**주의**: SLURM은 `--output` 디렉토리가 미리 존재해야 함. 없으면 job 실패.
