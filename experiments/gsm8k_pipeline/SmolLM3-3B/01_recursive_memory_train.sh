@@ -88,7 +88,6 @@ python -m accelerate.commands.launch \
   --options \
   model.model_name ${MODEL_NAME} \
   model.weaver.model_name ${MODEL_NAME} \
-  model.trigger.model_name ${MODEL_NAME} \
   model.recursive_memory.hidden_size ${RECURSIVE_HIDDEN_SIZE} \
   model.recursive_memory.num_heads ${RECURSIVE_NUM_HEADS} \
   run.weaver.sft.num_train_epochs ${NUM_EPOCHS} \

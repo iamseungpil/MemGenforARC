@@ -278,7 +278,6 @@ if self.recursive_memory:
 ```yaml
 recursive_memory:
   enabled: true                    # Recursive memory 활성화
-  weaver_style: true               # WeaverStyle 사용 (현재 유일한 옵션)
   hidden_size: 4096                # Compressor hidden size
   num_heads: 8                     # Self-attention heads
   attn_rank: 64                    # Attention low-rank dimension

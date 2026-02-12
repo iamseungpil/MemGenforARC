@@ -86,7 +86,6 @@ python -m accelerate.commands.launch \
   --options \
   model.model_name ${MODEL_NAME} \
   model.weaver.model_name ${MODEL_NAME} \
-  model.trigger.model_name ${MODEL_NAME} \
   model.load_weaver_path "${LOAD_WEAVER_PATH}" \
   model.recursive_memory.hidden_size ${RECURSIVE_HIDDEN_SIZE} \
   model.recursive_memory.num_heads ${RECURSIVE_NUM_HEADS} \

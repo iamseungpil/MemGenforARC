@@ -1,145 +1,18 @@
 from dataclasses import dataclass
-from typing import Optional, Literal
+from typing import Optional
 
-from peft import PeftModel, LoraConfig
 import torch
 import torch.nn.functional as F
 from transformers import PreTrainedTokenizerBase
 from transformers.generation.utils import GenerationMixin
 from transformers.modeling_outputs import CausalLMOutputWithPast
-from transformers.modeling_utils import PreTrainedModel
 
-from memgen.model.trigger import MemGenTrigger
-from memgen.model.weaver import MemGenWeaver
-from memgen.utils import (
-    CONVERSATION_TEMPLATE,
-    fix_model_parameters,
-    open_model_parameters
-)
+from memgen.utils import CONVERSATION_TEMPLATE
+
 
 @dataclass
 class MemGenOutputWithPast(CausalLMOutputWithPast):
     supervised_labels: Optional[torch.LongTensor] = None
-
-class MemGenLoraSwitchMixin:
-
-    def _insert_lora_adapters(
-        self,
-        weaver_model: PreTrainedModel,
-        weaver_lora_config: dict,
-        trigger_model: PreTrainedModel,
-        trigger_lora_config: Optional[dict]
-    ) -> tuple[PeftModel, PeftModel]:
-
-        same_model = weaver_model is trigger_model
-        weaver_lora_config = LoraConfig(**weaver_lora_config)
-
-        # Handle case when trigger_lora_config is None (trigger inactive)
-        if trigger_lora_config is None:
-            # Use weaver config as fallback for trigger (will be inactive anyway)
-            trigger_lora_config = weaver_lora_config
-        else:
-            trigger_lora_config = LoraConfig(**trigger_lora_config)
-
-        if same_model:
-            peft_model = PeftModel(
-                weaver_model, weaver_lora_config, adapter_name=MemGenWeaver.adapter_name
-            )
-            peft_model.add_adapter(peft_config=trigger_lora_config, adapter_name=MemGenTrigger.adapter_name)
-            return peft_model, peft_model
-
-        else:
-            weaver_model_with_lora = PeftModel(
-                weaver_model, weaver_lora_config, adapter_name=MemGenWeaver.adapter_name
-            )
-            trigger_model_with_lora = PeftModel(
-                trigger_model, trigger_lora_config, adapter_name=MemGenTrigger.adapter_name
-            )
-            return weaver_model_with_lora, trigger_model_with_lora
-    
-    def fix_component(self, name: Literal["weaver", "trigger"]):
-
-        component = getattr(self, name)
-        fix_model_parameters(component)
-        if name == "weaver":
-            fix_model_parameters(self.weaver_to_reasoner)
-            fix_model_parameters(self.reasoner_to_weaver)
-    
-    def open_component(self, name: Literal["weaver", "trigger"], projection_only: bool = False, skip_lora: bool = False, latent_processor: bool = False, skip_projection: bool = False, recursive_memory: bool = False, recursive_skip_projection: bool = False):
-
-        component = getattr(self, name)
-
-        if recursive_memory and name == "weaver":
-            # Recursive Memory mode: train recursive_compressor (optionally + projections)
-            # Note: query_latents are INSIDE recursive_compressor, NOT in weaver
-            # 1. Train recursive_compressor (includes prompt_query_latents, inference_query_latents)
-            if hasattr(self, 'recursive_compressor'):
-                open_model_parameters(self.recursive_compressor)
-            # 2. Train projections only if NOT skipping
-            if not recursive_skip_projection:
-                open_model_parameters(self.weaver_to_reasoner)
-                open_model_parameters(self.reasoner_to_weaver)
-            # 3. Keep weaver (LoRA, base model, weaver's query_latents) frozen
-            fix_model_parameters(component)
-        elif projection_only and name == "weaver":
-            # Projection-only mode: only train projection layers, skip LoRA and query_latents
-            open_model_parameters(self.weaver_to_reasoner)
-            open_model_parameters(self.reasoner_to_weaver)
-            # Keep everything else frozen
-            fix_model_parameters(component)
-        elif skip_projection and name == "weaver":
-            # Skip-Projection mode: train query_latents (and optionally LoRA), but NOT projections
-            # 1. Train query_latents
-            component.prompt_query_latents.requires_grad = True
-            component.inference_query_latents.requires_grad = True
-            # 2. Keep projections frozen (not used in skip_projection mode)
-            fix_model_parameters(self.weaver_to_reasoner)
-            fix_model_parameters(self.reasoner_to_weaver)
-            # 3. LoRA handling depends on skip_lora flag
-            if skip_lora:
-                # Query Latents only (no LoRA, no projections)
-                fix_model_parameters(component.model)
-            else:
-                # Query Latents + LoRA (no projections)
-                fix_model_parameters(component.model.base_model)
-                for p in component.model.named_parameters():
-                    if f"lora_A.{name}" in p[0] or f"lora_B.{name}" in p[0]:
-                        p[1].requires_grad = True
-        elif latent_processor and name == "weaver":
-            # LatentProcessor mode: train query_latents, projections, and latent_processor (but NOT LoRA)
-            # 1. Train projection layers
-            open_model_parameters(self.weaver_to_reasoner)
-            open_model_parameters(self.reasoner_to_weaver)
-            # 2. Train query_latents
-            component.prompt_query_latents.requires_grad = True
-            component.inference_query_latents.requires_grad = True
-            # 3. Train latent_processor
-            if hasattr(self, 'latent_processor'):
-                open_model_parameters(self.latent_processor)
-            # 4. Keep LoRA and base model frozen
-            fix_model_parameters(component.model)
-        elif skip_lora and name == "weaver":
-            # Skip-LoRA mode: train query_latents and projections, but NOT LoRA
-            # 1. Train projection layers
-            open_model_parameters(self.weaver_to_reasoner)
-            open_model_parameters(self.reasoner_to_weaver)
-            # 2. Train query_latents
-            component.prompt_query_latents.requires_grad = True
-            component.inference_query_latents.requires_grad = True
-            # 3. Keep LoRA and base model frozen
-            fix_model_parameters(component.model)
-        else:
-            # Original mode: train LoRA, query_latents, and projections
-            open_model_parameters(component)
-            if name == "weaver":
-                open_model_parameters(self.weaver_to_reasoner)
-                open_model_parameters(self.reasoner_to_weaver)
-
-            fix_model_parameters(component.model.base_model)
-
-            for p in component.model.named_parameters():
-                if f"lora_A.{name}" in p[0] or f"lora_B.{name}" in p[0]:
-                    p[1].requires_grad = True
 
 
 class MemGenGenerationMixin(GenerationMixin):
@@ -180,7 +53,7 @@ class MemGenGenerationMixin(GenerationMixin):
     def _is_conversation(self, input_ids: torch.Tensor, tokenizer) -> bool:
         if len(input_ids.shape) != 2:
             raise ValueError("input_ids must be a 2D tensor of shape (batch_size, seq_len)")
-        
+
         seq = input_ids[0].tolist()
 
         # Encode the special tokens to obtain their ID sequences
@@ -209,7 +82,7 @@ class MemGenGenerationMixin(GenerationMixin):
                 f"Got:\n{chat_template}\n\n"
                 "Please ensure that you are using a compatible conversation template."
             )
-        
+
         # Encode the token sequence for "<|im_start|>assistant\n"
         pattern_ids: list[int] = tokenizer.encode("<|im_start|>assistant\n", add_special_tokens=False)
 
@@ -243,11 +116,11 @@ class MemGenGenerationMixin(GenerationMixin):
                 if decoded_inputs[i].endswith(aug_str):
                     ends_with_augment_str = True
                     break
-            
+
             augmentation_decisions[i] = ends_with_augment_str
-        
+
         return augmentation_decisions
-    
+
     def _select_augment_points_after_delimiter(
         self,
         input_ids: torch.Tensor,
@@ -274,7 +147,7 @@ class MemGenGenerationMixin(GenerationMixin):
                 # Assume check_ends_with_delimiter is defined
                 if any(self._check_ends_with_delimiter(batch_tokens_before_i, tokenizer, delimiters)):
                     inference_augment_idx.append(i)
-        
+
         # Use the first prompt augmentation point if multiple are detected
         # (This can happen in multi-turn data or when labels have complex patterns)
         if len(prompt_augment_idx) == 0:
@@ -289,77 +162,59 @@ class MemGenGenerationMixin(GenerationMixin):
         final_points = prompt_augment_idx[:1]  # Use only the first one
 
         # Limit the number of inference augmentation points to max_num
-        if len(inference_augment_idx) > max_num: 
+        if len(inference_augment_idx) > max_num:
             inference_augment_idx = inference_augment_idx[:max_num]
 
         final_points.extend(inference_augment_idx)
-        
+
         if len(final_points) == 0:
             raise RuntimeError("No valid augmentation points found")
-        
+
         final_points.sort()
         return final_points
 
     @torch.no_grad()
     def _should_augment(
-        self, 
-        input_ids: torch.LongTensor, 
-        sentence_augment_count: torch.LongTensor, 
-        do_sample: bool,
-        temperature: float,
+        self,
+        input_ids: torch.LongTensor,
+        sentence_augment_count: torch.LongTensor,
         is_prompt: bool = False
     ) -> torch.LongTensor:
-            
+        """
+        Determine whether to augment at current position.
+
+        Without trigger, always augment at:
+        - Prompt end (is_prompt=True)
+        - Delimiter positions (for inference augmentation)
+        """
         tokenizer = self.tokenizer
         delimiters = self.delimiters
-        trigger = self.trigger
         max_augment_num = self.config.max_inference_aug_num
 
         batch_size = input_ids.size(0)
-        
+
         if is_prompt:
             # Skip prompt augmentation if max_prompt_aug_num == 0
             if self.config.max_prompt_aug_num == 0:
                 return torch.full((batch_size,), -100, dtype=torch.long, device=input_ids.device)
+            # Always augment at prompt end
+            return torch.ones((batch_size,), dtype=torch.long, device=input_ids.device)
 
-            attention_mask = (input_ids != tokenizer.pad_token_id).long()
-            position_ids = self._generate_position_ids(attention_mask)
-            aug_vector = torch.zeros((batch_size,), dtype=torch.long, device=input_ids.device)
-            trigger_indices = (aug_vector != -100).nonzero(as_tuple=True)[0]
-
-        else:  
-            attention_mask = (input_ids != tokenizer.pad_token_id).long()
-            position_ids = self._generate_position_ids(attention_mask)
+        else:
+            # For inference: augment at delimiter positions
             aug_vector = torch.full((batch_size,), -100, dtype=torch.long, device=input_ids.device)
             ends_with_delimiters = self._check_ends_with_delimiter(input_ids, tokenizer, delimiters).squeeze(1)
-            aug_vector[ends_with_delimiters] = 0
+            aug_vector[ends_with_delimiters] = 1  # Always augment at delimiters
             over_limit = (sentence_augment_count >= max_augment_num)
             aug_vector[over_limit] = -100
-            trigger_indices = (aug_vector != -100).nonzero(as_tuple=True)[0]
 
-        if trigger_indices.numel() > 0:
-            trigger_logits = trigger(
-                input_ids=input_ids[trigger_indices],
-                attention_mask=attention_mask[trigger_indices],
-                position_ids=position_ids[trigger_indices]
-            )
-            last_token_logits = trigger_logits[:, -1]  # [batch, 2]
-
-            next_tokens = self._get_next_token(
-                last_token_logits,
-                do_sample=do_sample,
-                temperature=temperature
-            ).view(-1)
-
-            aug_vector[trigger_indices] = next_tokens
-
-        return aug_vector
+            return aug_vector
 
 
     @torch.no_grad()
     def _append_one_step(
         self,
-        reasoner_outputs, 
+        reasoner_outputs,
         current_inputs_embeds: torch.Tensor,
         current_attention_mask: torch.Tensor,
         current_position_ids: torch.Tensor,
@@ -368,26 +223,26 @@ class MemGenGenerationMixin(GenerationMixin):
         temperature: float
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         B = current_inputs_embeds.size(0)
-        
+
         # Append next token
         next_token_logits = reasoner_outputs.logits[:, -1]
         next_token_ids = self._get_next_token(next_token_logits, do_sample=do_sample, temperature=temperature)
         current_input_ids = torch.cat([current_input_ids, next_token_ids], dim=1)
-        
+
         # Append next token embeds
         next_token_embeds = self.reasoner.get_input_embeddings()(next_token_ids)
         current_inputs_embeds = torch.cat([current_inputs_embeds, next_token_embeds], dim=1)
-        
+
         # Append attention mask
         attn_mask = torch.ones((B, 1), dtype=current_attention_mask.dtype, device=current_attention_mask.device)
         current_attention_mask = torch.cat([current_attention_mask, attn_mask], dim=1)
-        
+
         # Append position ids
         next_position_id = current_position_ids[:, -1:] + 1
         current_position_ids = torch.cat([current_position_ids, next_position_id], dim=1)
 
         return current_inputs_embeds, current_attention_mask, current_position_ids, current_input_ids
-    
+
 
     @torch.no_grad()
     def _left_pad(
@@ -397,24 +252,24 @@ class MemGenGenerationMixin(GenerationMixin):
         position_ids: torch.LongTensor,
         pad_num: int
     ) -> tuple[torch.FloatTensor, torch.LongTensor, torch.LongTensor]:
-        
+
         if input_embeds is not None:
             B, L, D = input_embeds.shape
             pad_embeds = torch.zeros((B, pad_num, D), dtype=input_embeds.dtype, device=input_embeds.device)
             input_embeds = torch.cat([pad_embeds, input_embeds], dim=1)  # [B, pad_num + L, D]
-        
+
         if attention_mask is not None:
             B = attention_mask.size(0)
             pad_mask = torch.zeros((B, pad_num), dtype=attention_mask.dtype, device=attention_mask.device)
             attention_mask = torch.cat([pad_mask, attention_mask], dim=1)  # [B, pad_num + L]
-        
+
         if position_ids is not None:
             B = position_ids.size(0)
             pad_pos = torch.zeros((B, pad_num), dtype=position_ids.dtype, device=position_ids.device)
             position_ids = torch.cat([pad_pos, position_ids], dim=1)  # [B, pad_num + L]
 
         return input_embeds, attention_mask, position_ids
-    
+
     @torch.no_grad()
     def _left_clip_pad_tokens(
         self, inputs_embeds: torch.FloatTensor, attention_mask: torch.LongTensor, position_ids: torch.LongTensor
@@ -431,7 +286,7 @@ class MemGenGenerationMixin(GenerationMixin):
                 first_nonpad_idx.append(L)
             else:
                 first_nonpad_idx.append(nonzero[0].item())
-        
+
         # Determine the minimum number of left-padding tokens across the batch
         min_pad = min(first_nonpad_idx)
 
@@ -445,11 +300,10 @@ class MemGenGenerationMixin(GenerationMixin):
         position_ids = position_ids[:, min_pad:]
 
         return inputs_embeds, attention_mask, position_ids
-    
+
     @torch.no_grad()
     def _check_generate(self, input_ids: torch.LongTensor, augmentation_pos: torch.LongTensor):
-        """检查 augmentation_pos[b][i] == 1 的位置, input_ids[b][:i] (不包括第 i 位) 对应的字符串是否以 delimiters 结尾
-        """
+        """Check augmentation positions match delimiter endings."""
         delimiters = self.delimiters
         tokenizer = self.tokenizer
 
@@ -459,16 +313,16 @@ class MemGenGenerationMixin(GenerationMixin):
         for b in range(B):
             for i in range(1, L):
                 is_augment_point = augmentation_pos[b, i].item()
-                
+
                 if is_augment_point == -100:
                     continue
 
                 if is_augment_point == 1 or is_augment_point == 0:
                     prefix_input_ids = input_ids[b, :i].unsqueeze(0)
-                    
+
                     ends_with_delimiter = self._check_ends_with_delimiter(
                         prefix_input_ids, tokenizer, delimiters
-                    ).item() 
+                    ).item()
 
                     if not ends_with_delimiter:
                         # Changed from error to warning - delimiter check can be too strict

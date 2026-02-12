@@ -1,30 +1,32 @@
-# GSM8K Evaluation Configuration for Recursive Memory
-# Evaluates trained recursive_memory checkpoint
+# GSM8K Evaluation Configuration for Recursive Memory (SmolLM3-3B, fixed 10 cycles)
+# Based on gsm8k_recursive_eval.yaml with SmolLM3-3B dimensions:
+# - model: HuggingFaceTB/SmolLM3-3B
+# - hidden_size: 2048, num_heads: 16
+# - confidence_threshold: -1.0 (no early stop, fixed 10 cycles)
 
 model:
-  model_name: Qwen/Qwen3-8B
+  model_name: HuggingFaceTB/SmolLM3-3B
   load_model_path: null
-  load_weaver_path: null  # Set via --options model.load_weaver_path
+  load_weaver_path: null
 
   max_prompt_aug_num: 1
   max_inference_aug_num: 5
 
-  # Recursive Memory mode with confidence-based early stopping
   recursive_memory:
     enabled: true
     skip_projection: true
-    hidden_size: 4096
-    num_heads: 8
+    hidden_size: 2048
+    num_heads: 16
     attn_rank: 64
     mlp_rank: 128
-    max_cycles: 10  # Maximum cycles (will early stop if confident)
-    confidence_threshold: -1.0  # >0: early stop enabled
+    max_cycles: 10
+    confidence_threshold: -1.0
     top_k: 10
     verbose_cycles: false
 
   # Latent settings (kept for compatibility)
   weaver:
-    model_name: Qwen/Qwen3-8B
+    model_name: HuggingFaceTB/SmolLM3-3B
     prompt_latents_len: 8
     inference_latents_len: 8
 

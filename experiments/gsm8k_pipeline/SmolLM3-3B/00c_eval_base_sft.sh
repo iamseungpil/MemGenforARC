@@ -87,8 +87,6 @@ python -m accelerate.commands.launch \
     model.weaver.model_name ${MODEL_NAME} \
     model.weaver.prompt_latents_len 8 \
     model.weaver.inference_latents_len 8 \
-    model.trigger.model_name ${MODEL_NAME} \
-    model.trigger.active False \
     model.load_model_path ${BASE_SFT_PATH} \
     run.mode evaluate \
     run.interaction.do_sample False \

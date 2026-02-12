@@ -383,7 +383,6 @@ z = query_latents.unsqueeze(0).expand(B, -1, -1).clone()
 recursive_memory:
   enabled: true
   skip_projection: false    # true: projection 없이 학습
-  weaver_style: true        # WeaverStyle compressor 사용
   hidden_size: 4096
   num_heads: 8
   attn_rank: 64

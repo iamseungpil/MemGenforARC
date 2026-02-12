@@ -55,8 +55,6 @@ python -m accelerate.commands.launch \
     model.weaver.model_name ${MODEL_NAME} \
     model.weaver.prompt_latents_len 8 \
     model.weaver.inference_latents_len 8 \
-    model.trigger.model_name ${MODEL_NAME} \
-    model.trigger.active False \
     run.mode evaluate \
     run.interaction.do_sample False \
     run.interaction.temperature 0.0 \

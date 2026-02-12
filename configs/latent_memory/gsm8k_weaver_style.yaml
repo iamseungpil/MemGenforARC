@@ -5,7 +5,6 @@ model:
   model_name: Qwen/Qwen3-8B
   load_model_path: null
   load_weaver_path: null
-  load_trigger_path: null
 
   max_prompt_aug_num: 1
   max_inference_aug_num: 5
@@ -14,7 +13,7 @@ model:
   # Like LLM Weaver: [context, z] -> CausalSelfAttn -> z = last num_latents
   recursive_memory:
     enabled: true
-    weaver_style: true    # Use WeaverStyleCompressor (causal self-attn on [context, z])
+    skip_projection: true
     two_level: false
     hidden_size: 4096
     num_heads: 8
@@ -23,29 +22,13 @@ model:
     max_cycles: 10
     confidence_threshold: -1.0  # -1 = no early stopping
     top_k: 10
+    verbose_cycles: false
 
+  # Latent settings (kept for compatibility)
   weaver:
     model_name: Qwen/Qwen3-8B
     prompt_latents_len: 8
     inference_latents_len: 8
-    lora_config:
-      r: 16
-      lora_alpha: 32
-      target_modules: ["q_proj", "v_proj"]
-      lora_dropout: 0.1
-      bias: "none"
-      task_type: "CAUSAL_LM"
-
-  trigger:
-    model_name: Qwen/Qwen3-8B
-    active: false
-    lora_config:
-      r: 16
-      lora_alpha: 32
-      target_modules: ["q_proj", "v_proj"]
-      lora_dropout: 0.1
-      bias: "none"
-      task_type: "CAUSAL_LM"
 
 dataset:
   name: gsm8k
@@ -56,9 +39,7 @@ dataset:
 run:
   seed: 42
   mode: train
-  train_weaver: true
-  train_weaver_method: sft
-  train_trigger: false
+  train_method: sft
 
   weaver:
     sft:
@@ -86,9 +67,6 @@ run:
       bf16: true
       report_to:
         - wandb
-
-  ltpo:
-    enabled: false
 
   interaction:
     max_turns: 1

@@ -1,101 +1,73 @@
+# GSM8K Configuration for Recursive Memory
+# Math problem solving dataset
+
 model:
-  # base llm
   model_name: Qwen/Qwen2.5-1.5B-Instruct
   load_model_path: null
-  load_weaver_path: null   # path to weaver LoRA checkpoint (e.g., .../weaver/weaver_lora)
-  load_trigger_path: null  # path to trigger LoRA checkpoint (e.g., .../trigger/trigger_lora)
+  load_weaver_path: null
 
-  # max prompt/inference augmentation num
-  max_prompt_aug_num: 1  # single turn
+  max_prompt_aug_num: 1
   max_inference_aug_num: 5
 
-  # weaver configs
+  # Recursive Memory configuration
+  recursive_memory:
+    enabled: true
+    skip_projection: true
+    hidden_size: 1536  # Qwen2.5-1.5B hidden size
+    num_heads: 12
+    attn_rank: 64
+    mlp_rank: 128
+    max_cycles: 10
+    confidence_threshold: -1.0
+    top_k: 10
+    verbose_cycles: false
+
+  # Latent settings (kept for compatibility)
   weaver:
     model_name: Qwen/Qwen2.5-1.5B-Instruct
     prompt_latents_len: 8
     inference_latents_len: 8
-    
-    lora_config:
-      r: 16
-      lora_alpha: 32
-      target_modules: ["q_proj", "v_proj"]
-      lora_dropout: 0.1
-      bias: "none"
-      task_type: "CAUSAL_LM"
 
-  # trigger configs
-  trigger:
-    model_name: Qwen/Qwen2.5-1.5B-Instruct
-    active: False
-   
-    lora_config:
-      r: 16
-      lora_alpha: 32
-      target_modules: ["q_proj", "v_proj"]
-      lora_dropout: 0.1
-      bias: "none"
-      task_type: "CAUSAL_LM"
-      
-# dataset configs
-dataset: 
+dataset:
   name: gsm8k
-  mode: sft  # options: ["sft", "grpo"], should manually keep align with the training method in `run` configs
+  mode: sft
   sft:
     val_ratio: 0.1
-  grpo: 
+  grpo:
     val_ratio: 0.1
 
-# training/evaluation configs
-run: 
-
+run:
   seed: 42
-  
-  # route
   mode: train
-  train_weaver: True
-  train_weaver_method: sft    # sft or grpo
-  train_trigger: False
-  train_trigger_method: grpo  # grpo only
+  train_method: sft
 
-  # processor training configs
   weaver:
-    
-    # sft configs
     sft:
-      # epochs and batchsize
       num_train_epochs: 2
       per_device_train_batch_size: 4
       per_device_eval_batch_size: 4
       gradient_accumulation_steps: 1
-
-      # gradient checkpointing for DeepSpeed compatibility
-      gradient_checkpointing: True
+      gradient_checkpointing: true
       gradient_checkpointing_kwargs:
-        use_reentrant: False
-      
-      # optimizer configs
+        use_reentrant: false
       optim: adamw_torch
       lr_scheduler_type: cosine
       warmup_ratio: 0.1
-      learning_rate: 1e-5
-      
-      # duration
+      learning_rate: 1e-4
       logging_strategy: steps
       logging_steps: 1
       eval_strategy: epoch
       eval_steps: 100
       save_strategy: epoch
       save_steps: 100
- 
-      assistant_only_loss: False   # used only in conversational dataset
-      max_length: 1024  # max sequence length
-      remove_unused_columns: False
-      load_best_model_at_end: True
-      bf16: True
+      assistant_only_loss: false
+      max_length: 1024
+      remove_unused_columns: false
+      load_best_model_at_end: true
+      bf16: true
       report_to:
         - wandb
 
-    # grpo configs
     grpo:
       num_train_epochs: 1
       per_device_train_batch_size: 8
@@ -105,97 +77,34 @@ run:
       gradient_accumulation_steps: 1
       beta: 0.0
       loss_type: grpo
-
-      # gradient checkpointing for DeepSpeed compatibility
-      gradient_checkpointing: True
+      gradient_checkpointing: true
       gradient_checkpointing_kwargs:
-        use_reentrant: False
-
+        use_reentrant: false
       max_prompt_length: 1024
-      max_completion_length: 1024  # must match run.interaction.max_response_length
+      max_completion_length: 1024
       temperature: 1.0
-      
-      # optimizer configs
       optim: adamw_torch
       lr_scheduler_type: cosine
       warmup_ratio: 0.1
       learning_rate: 1e-5
-      
-      # duration
       logging_strategy: steps
       logging_steps: 1
       eval_strategy: epoch
       eval_steps: 100
       save_strategy: epoch
       save_steps: 100
-
-      remove_unused_columns: False
-      load_best_model_at_end: True
-      bf16: True
+      remove_unused_columns: false
+      load_best_model_at_end: true
+      bf16: true
       report_to:
         - wandb
 
-  # trigger training configs
-  trigger:
-
-    grpo:
-      num_train_epochs: 1
-      per_device_train_batch_size: 8
-      per_device_eval_batch_size: 8
-      num_generations: 8
-      num_iterations: 1
-      gradient_accumulation_steps: 1
-      beta: 0.0
-      loss_type: bnpo
-
-      # gradient checkpointing for DeepSpeed compatibility
-      gradient_checkpointing: True
-      gradient_checkpointing_kwargs:
-        use_reentrant: False
-
-      max_prompt_length: 1024
-      max_completion_length: 1024  # must match run.interaction.max_response_length
-      temperature: 1.0
-
-      # optimizer configs
-      optim: adamw_torch
-      learning_rate: 1e-5
-      lr_scheduler_type: cosine
-      warmup_ratio: 0.1
-      
-      # duration
-      logging_strategy: steps
-      logging_steps: 1
-      eval_strategy: epoch
-      eval_steps: 100
-      save_strategy: epoch
-      save_steps: 100
-
-      remove_unused_columns: False
-      load_best_model_at_end: True
-      bf16: True
-      report_to:
-        - wandb
-
-  # interaction config for evaluation
   interaction:
     max_turns: 1
-    max_start_length: 1024     # Maximum length of the initial prompt.
-    max_prompt_length: 4096    # Maximum prompt length during multi-turn interactions (includes all conversation history across turns).
+    max_start_length: 1024
+    max_prompt_length: 4096
     max_response_length: 1024
     max_obs_length: 512
-    do_sample: False
-    temperature: 1.0
+    do_sample: false
+    temperature: 0.0
     batch_size: 8
-
-  # LTPO (Latent Thought Policy Optimization) config for test-time optimization
-  ltpo:
-    enabled: true
-    lr: 0.1                   # learning rate for latent optimization (increased from 0.03)
-    sigma: 0.2                # initial noise std for exploration (increased from 0.1)
-    sigma_decay: 0.95         # noise decay per step (faster decay)
-    max_steps: 20             # maximum optimization steps per sample (increased from 10)
-    reward_threshold: -1.0    # early stopping threshold (-1 = disabled)
-    top_k: 10                 # number of top tokens for confidence calculation
-    use_auto_grad: true       # use PyTorch autograd (True) vs REINFORCE (False)
-    verbose: false            # print detailed optimization logs

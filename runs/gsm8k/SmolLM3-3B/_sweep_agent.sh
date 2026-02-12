@@ -118,7 +118,7 @@ export MAIN_PROCESS_PORT=${MAIN_PROCESS_PORT:-29540}
 # wandb: sweep agent가 WANDB_RUN_ID를 설정하므로 여기서는 건드리지 않음
 export WANDB_ENTITY=${WANDB_ENTITY:-gistdslab}
 export WANDB_PROJECT=${WANDB_PROJECT:-RecursiveMem}
-export WANDB_RUN_NAME="mc${MAX_CYCLES}_lr${LEARNING_RATE}_ep${NUM_EPOCHS}_bi${BIDIRECTIONAL}_cu${CONTEXT_UPDATE}_frm${FULL_RANK_MLP}_${TIMESTAMP}"
+export WANDB_RUN_NAME="mc${MAX_CYCLES}_lr${LEARNING_RATE}_ep${NUM_EPOCHS}_bi${BIDIRECTIONAL}_cu${CONTEXT_UPDATE}_nl${NUM_LATENTS}_tl${TWO_LEVEL}_${TIMESTAMP}"
 
 # ============================================================================
 # Print config
@@ -127,7 +127,7 @@ echo "============================================"
 echo "Sweep Agent: Recursive Memory (GSM8K, SmolLM3-3B)"
 echo "============================================"
 echo "max_cycles=${MAX_CYCLES}  lr=${LEARNING_RATE}  epochs=${NUM_EPOCHS}  bs=${BATCH_SIZE}"
-echo "bidirectional=${BIDIRECTIONAL}  context_update=${CONTEXT_UPDATE}  full_rank_mlp=${FULL_RANK_MLP}"
+echo "bidirectional=${BIDIRECTIONAL}  context_update=${CONTEXT_UPDATE}  two_level=${TWO_LEVEL}"
 echo "attn_rank=${ATTN_RANK}  mlp_rank=${MLP_RANK}  num_latents=${NUM_LATENTS}"
 echo "stepwise=${STEPWISE_TRAINING}  two_level=${TWO_LEVEL}  skip_proj=${SKIP_PROJECTION}"
 echo "max_inference_aug_num=${MAX_INFERENCE_AUG_NUM}"
@@ -140,7 +140,6 @@ echo "============================================"
 SHARED_OPTIONS="\
   model.model_name ${MODEL_NAME} \
   model.weaver.model_name ${MODEL_NAME} \
-  model.trigger.model_name ${MODEL_NAME} \
   model.recursive_memory.hidden_size ${RECURSIVE_HIDDEN_SIZE} \
   model.recursive_memory.num_heads ${RECURSIVE_NUM_HEADS} \
   model.recursive_memory.max_cycles ${MAX_CYCLES} \

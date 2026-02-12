@@ -31,13 +31,15 @@ parameters:
   # ===========================================================================
   max_cycles:
     # compression cycle 반복 횟수. 높을수록 더 많이 압축 시도
-    values: [3, 5, 10]
+    min: 3
+    max: 10
   learning_rate:
     # 학습률. recursive memory (~7.9M params)는 비교적 높은 lr 가능
-    values: [1e-4, 5e-5, 1e-5]
+    values: [1e-4, 5e-5]
   num_train_epochs:
     # 학습 epoch 수
-    values: [2, 3]
+    min: 2
+    max: 4
 
   # ===========================================================================
   # Architecture toggles
@@ -50,10 +52,10 @@ parameters:
     # true: TRM-style context update — z_H=context(slow), z_L=z(fast)로 분리
     # false: 단순 cycle 반복 (default)
     values: [true, false]
-  full_rank_mlp:
-    # true: nn.Linear full-rank MLP (~16.8M)
-    # false: LowRankSwiGLU — low-rank factorized SwiGLU (default, ~7.9M)
-    values: [true, false]
+  # full_rank_mlp:
+  #   # true: nn.Linear full-rank MLP (~16.8M)
+  #   # false: LowRankSwiGLU — low-rank factorized SwiGLU (default, ~7.9M)
+  #   values: [true, false]
 
   # ===========================================================================
   # Architecture (numeric) — 주석 해제로 활성화
@@ -64,10 +66,10 @@ parameters:
   # mlp_rank:
   #   # SwiGLU MLP의 low-rank 차원. 높을수록 표현력↑, 파라미터↑
   #   values: [64, 128, 256]
-  # num_latents:
-  #   # memory token 수 (= prompt_latents_len = inference_latents_len)
-  #   # 높을수록 더 많은 정보 저장 가능하지만 연산량 증가
-  #   values: [4, 8, 16]
+  num_latents:
+    # memory token 수 (= prompt_latents_len = inference_latents_len)
+    # 높을수록 더 많은 정보 저장 가능하지만 연산량 증가
+    values: [4, 8, 16]
 
   # ===========================================================================
   # Stepwise training — 주석 해제로 활성화
@@ -84,10 +86,10 @@ parameters:
   # Two-level cycle — 주석 해제로 활성화
   # 주의: two_level=true이면 max_cycles 무시, l_cycles × max_h_cycles로 동작
   # ===========================================================================
-  # two_level:
-  #   # true: H-cycle(외부) × L-cycle(내부) 2단계 구조
-  #   # false: single-level cycle (default)
-  #   values: [true, false]
+  two_level:
+    # true: H-cycle(외부) × L-cycle(내부) 2단계 구조
+    # false: single-level cycle (default)
+    values: [true, false]
   # l_cycles:
   #   # 내부 루프 반복 횟수 (two_level=true일 때만 유효)
   #   values: [4, 6, 8]

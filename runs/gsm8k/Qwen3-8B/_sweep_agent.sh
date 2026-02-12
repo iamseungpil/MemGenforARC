@@ -140,7 +140,6 @@ echo "============================================"
 SHARED_OPTIONS="\
   model.model_name ${MODEL_NAME} \
   model.weaver.model_name ${MODEL_NAME} \
-  model.trigger.model_name ${MODEL_NAME} \
   model.recursive_memory.hidden_size ${RECURSIVE_HIDDEN_SIZE} \
   model.recursive_memory.num_heads ${RECURSIVE_NUM_HEADS} \
   model.recursive_memory.max_cycles ${MAX_CYCLES} \

@@ -7,7 +7,6 @@ model:
   model_name: Qwen/Qwen3-8B
   load_model_path: null
   load_weaver_path: null
-  load_trigger_path: null
 
   max_prompt_aug_num: 1
   max_inference_aug_num: 5
@@ -16,7 +15,6 @@ model:
   recursive_memory:
     enabled: true
     skip_projection: true      # Train ONLY recursive_compressor, no projections
-    weaver_style: true
     hidden_size: 4096
     num_heads: 8
     attn_rank: 64
@@ -33,28 +31,11 @@ model:
     l_cycles: 6                # 6 L-cycles per H-step
     max_h_cycles: 3            # 3 H-steps (only last has gradient)
 
+  # Latent settings (kept for compatibility)
   weaver:
     model_name: Qwen/Qwen3-8B
     prompt_latents_len: 8
     inference_latents_len: 8
-    lora_config:
-      r: 16
-      lora_alpha: 32
-      target_modules: ["q_proj", "v_proj"]
-      lora_dropout: 0.1
-      bias: "none"
-      task_type: "CAUSAL_LM"
-
-  trigger:
-    model_name: Qwen/Qwen3-8B
-    active: false
-    lora_config:
-      r: 16
-      lora_alpha: 32
-      target_modules: ["q_proj", "v_proj"]
-      lora_dropout: 0.1
-      bias: "none"
-      task_type: "CAUSAL_LM"
 
 dataset:
   name: gsm8k
@@ -65,9 +46,7 @@ dataset:
 run:
   seed: 42
   mode: train
-  train_weaver: true
-  train_weaver_method: sft
-  train_trigger: false
+  train_method: sft
 
   weaver:
     sft:
@@ -95,9 +74,6 @@ run:
       bf16: true
       report_to:
         - wandb
-
-  ltpo:
-    enabled: false
 
   interaction:
     max_turns: 1

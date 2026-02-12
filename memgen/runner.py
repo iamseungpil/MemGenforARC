@@ -1,5 +1,4 @@
 import os
-import random
 import logging
 
 from accelerate import Accelerator
@@ -8,6 +7,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from trl import SFTTrainer, SFTConfig
+
 from trl.models import unwrap_model_for_generation
 
 from data import (
@@ -25,18 +25,15 @@ from memgen.model.modeling_memgen import MemGenModel
 
 # Lazy imports for GRPO trainers (to avoid vLLM compatibility issues)
 WeaverGRPOTrainer = None
-TriggerGRPOTrainer = None
 GRPOConfig = None
 
 def _lazy_import_grpo():
     """Lazy import GRPO components to avoid vLLM compatibility issues."""
-    global WeaverGRPOTrainer, TriggerGRPOTrainer, GRPOConfig
+    global WeaverGRPOTrainer, GRPOConfig
     if WeaverGRPOTrainer is None:
         from memgen.trainer.weaver_grpo_trainer import WeaverGRPOTrainer as _WeaverGRPOTrainer
-        from memgen.trainer.trigger_grpo_trainer import TriggerGRPOTrainer as _TriggerGRPOTrainer
         from trl import GRPOConfig as _GRPOConfig
         WeaverGRPOTrainer = _WeaverGRPOTrainer
-        TriggerGRPOTrainer = _TriggerGRPOTrainer
         GRPOConfig = _GRPOConfig
 
 from memgen.utils import (
@@ -56,13 +53,13 @@ class MemGenRunner:
         data_builder: BaseBuilder,
         config: dict,
         working_dir: str,
-    ):  
+    ):
         # parse configs
         self.config = config
         self.working_dir = working_dir
 
-        self._parse_configs(config.get("run"))  
-        
+        self._parse_configs(config.get("run"))
+
         # parse model
         self.processing_class = model.tokenizer
         self.model = model
@@ -73,15 +70,13 @@ class MemGenRunner:
         self.env = self.env_cls(config.get("dataset"))
 
         # partition datasets
-        self.weaver_train_dataset, self.trigger_train_dataset = self._parse_train_dataset(self.dataset_dict["train"])
-        self.weaver_valid_dataset, self.trigger_valid_dataset = self._parse_valid_dataset(self.dataset_dict["valid"])
+        self.train_dataset = self.dataset_dict["train"]
+        self.valid_dataset = self.dataset_dict["valid"]
         self.test_dataset = self.dataset_dict["test"]
-        
-        self.weaver_train_dataset = self._filter_dataset(self.weaver_train_dataset)
-        self.trigger_train_dataset = self._filter_dataset(self.trigger_train_dataset)
-        self.weaver_valid_dataset = self._filter_dataset(self.weaver_valid_dataset)
-        self.trigger_valid_dataset = self._filter_dataset(self.trigger_valid_dataset)
-        
+
+        self.train_dataset = self._filter_dataset(self.train_dataset)
+        self.valid_dataset = self._filter_dataset(self.valid_dataset)
+
         # initialize generation manager
         if self.env_cls.ENV_CARD == "STATIC":
             self.inter_cls = SingleTurnInteractionManager
@@ -95,31 +90,17 @@ class MemGenRunner:
             )
         else:
             raise ValueError("Unsupported environment type.")
-    
-    def _parse_train_dataset(self, train_dataset: Dataset) -> tuple[Dataset, Dataset]:
-        
-        trigger_trainset_size = min(len(train_dataset) // 2, len(train_dataset))
-        rand_indices = random.sample(range(len(train_dataset)), trigger_trainset_size)
-        return train_dataset, train_dataset.select(rand_indices)
-    
-    def _parse_valid_dataset(self, valid_dataset: Dataset) -> tuple[Dataset, Dataset]:
-
-        trigger_validset_size = min(len(valid_dataset) // 2, len(valid_dataset))
-        rand_indices = random.sample(range(len(valid_dataset)), trigger_validset_size)
-        return valid_dataset, valid_dataset.select(rand_indices)
 
     def _filter_dataset(self, dataset: Dataset) -> Dataset:
         tokenizer = self.processing_class
 
         # Determine max length based on training mode
         max_len = 1024  # default for evaluation mode
-        if self.train_weaver and self.train_weaver_method == "sft":
-            max_len = self.weaver_sft_training_args.max_length
-        elif self.train_weaver and self.train_weaver_method == "grpo":
-            max_len = self.weaver_grpo_training_args.max_prompt_length
-        elif self.train_trigger and self.train_trigger_method == "grpo":
-            max_len = self.trigger_grpo_training_args.max_prompt_length
-        # For evaluate/evaluate_ltpo mode, use interaction config or default
+        if self.train_method == "sft":
+            max_len = self.sft_training_args.max_length
+        elif self.train_method == "grpo":
+            max_len = self.grpo_training_args.max_prompt_length
+        # For evaluate mode, use interaction config or default
         elif hasattr(self, 'interaction_config') and self.interaction_config is not None:
             max_len = getattr(self.interaction_config, 'max_prompt_length', 1024)
 
@@ -131,35 +112,35 @@ class MemGenRunner:
             elif "messages" in sample and sample["messages"] is not None:
                 conversation = tokenizer.apply_chat_template(sample["messages"][:2], tokenize=True)
                 return len(conversation) < max_len
-            return True 
+            return True
 
         # Apply filtering
         dataset = dataset.filter(filter_func)
 
         return dataset
-    
-    # ===== train weaver =====
-    def _create_weaver_trainer(self):
+
+    # ===== train recursive memory =====
+    def _create_trainer(self):
 
         # SFT Trainer
-        if self.train_weaver_method == "sft":
-            weaver_trainer = SFTTrainer(
+        if self.train_method == "sft":
+            trainer = SFTTrainer(
                 model=self.model,
-                args=self.weaver_sft_training_args,
-                train_dataset=self.weaver_train_dataset,
-                eval_dataset=self.weaver_valid_dataset,
+                args=self.sft_training_args,
+                train_dataset=self.train_dataset,
+                eval_dataset=self.valid_dataset,
                 processing_class=self.processing_class,
             )
-        
+
         # GRPO Trainer
-        elif self.train_weaver_method == 'grpo':
+        elif self.train_method == 'grpo':
             _lazy_import_grpo()  # Lazy import to avoid vLLM compatibility issues
-            weaver_trainer = WeaverGRPOTrainer(
+            trainer = WeaverGRPOTrainer(
                 model=self.model,
                 reward_funcs=[self.env_cls.compute_reward],
-                args=self.weaver_grpo_training_args,
-                train_dataset=self.weaver_train_dataset,
-                eval_dataset=self.weaver_valid_dataset,
+                args=self.grpo_training_args,
+                train_dataset=self.train_dataset,
+                eval_dataset=self.valid_dataset,
                 processing_class=self.processing_class,
                 # --- add env into trainer ---
                 env_class=self.env_cls,
@@ -167,226 +148,51 @@ class MemGenRunner:
                 generation_manager=self.generation_manager,
             )
         else:
-            raise ValueError("Unsupported weaver training method.")
+            raise ValueError("Unsupported training method.")
 
-        return weaver_trainer
+        return trainer
 
-    def _train_weaver(self):
+    def _train(self):
 
-        # fix trigger parameters
-        self.model.fix_component("trigger")
-        projection_only = self.model.config.projection_only
-        skip_lora = self.model.config.skip_lora
-        skip_projection = self.model.config.skip_projection
-        latent_processor = self.model.config.latent_processor
-        recursive_memory = self.model.config.recursive_memory
+        # Open recursive memory components for training
+        self.model.open_component()
+
+        # Log recursive memory mode info
+        recursive_two_level = self.model.config.recursive_two_level
         recursive_skip_projection = self.model.config.recursive_skip_projection
-        self.model.open_component("weaver", projection_only=projection_only, skip_lora=skip_lora, latent_processor=latent_processor, skip_projection=skip_projection, recursive_memory=recursive_memory, recursive_skip_projection=recursive_skip_projection)
 
-        if recursive_memory:
-            # Check for two-level cycle structure
-            recursive_two_level = self.model.config.recursive_two_level
-            if recursive_two_level:
-                l_cycles = self.model.config.recursive_l_cycles
-                max_h_cycles = self.model.config.recursive_max_h_cycles
-                cycle_info = f"two_level (L={l_cycles}, H={max_h_cycles}, max_ops={l_cycles * max_h_cycles})"
-            else:
-                max_cycles = self.model.config.recursive_max_cycles
-                cycle_info = f"single_level (max_cycles={max_cycles})"
+        if recursive_two_level:
+            l_cycles = self.model.config.recursive_l_cycles
+            max_h_cycles = self.model.config.recursive_max_h_cycles
+            cycle_info = f"two_level (L={l_cycles}, H={max_h_cycles}, max_ops={l_cycles * max_h_cycles})"
+        else:
+            max_cycles = self.model.config.recursive_max_cycles
+            cycle_info = f"single_level (max_cycles={max_cycles})"
 
-            # Stepwise training info
-            stepwise_info = ""
-            if getattr(self.model.config, 'recursive_stepwise_training', False):
-                sw_weight = self.model.config.recursive_stepwise_loss_weight
-                stepwise_info = f", stepwise_training (weight={sw_weight})"
+        # Stepwise training info
+        stepwise_info = ""
+        if getattr(self.model.config, 'recursive_stepwise_training', False):
+            sw_weight = self.model.config.recursive_stepwise_loss_weight
+            stepwise_info = f", stepwise_training (weight={sw_weight})"
 
-            if recursive_skip_projection:
-                logging.info(f"Recursive Memory mode ({cycle_info}, skip_projection{stepwise_info}): training recursive_compressor ONLY (no projections)")
-            else:
-                logging.info(f"Recursive Memory mode ({cycle_info}{stepwise_info}): training recursive_compressor + projections")
-        elif projection_only:
-            logging.info("Projection-only mode enabled: training only projection layers")
-        elif skip_projection and skip_lora:
-            logging.info("Skip-projection mode enabled: training query_latents only (no LoRA, no projections)")
-        elif skip_projection:
-            logging.info("Skip-projection mode enabled: training query_latents + LoRA (no projections)")
-        elif latent_processor:
-            logging.info("LatentProcessor mode enabled: training query_latents, projections, and latent_processor (no LoRA)")
-        elif skip_lora:
-            logging.info("Skip-LoRA mode enabled: training query_latents and projections (no LoRA)")
+        if recursive_skip_projection:
+            logging.info(f"Recursive Memory mode ({cycle_info}, skip_projection{stepwise_info}): training recursive_compressor ONLY (no projections)")
+        else:
+            logging.info(f"Recursive Memory mode ({cycle_info}{stepwise_info}): training recursive_compressor + projections")
 
         log_trainable_params(self.model)
 
-        # train weaver
-        weaver_trainer = self._create_weaver_trainer()
-        weaver_trainer.train()
+        # train
+        trainer = self._create_trainer()
+        trainer.train()
 
-        output_dir = weaver_trainer.args.output_dir
+        output_dir = trainer.args.output_dir
         os.makedirs(output_dir, exist_ok=True)
 
-        # Save checkpoint based on mode
-        if recursive_memory:
-            # Recursive Memory: save query_latents + recursive_compressor (no projections, no LoRA)
-            self._save_recursive_memory_checkpoint(output_dir)
-        elif projection_only:
-            # Projection-only: save only projection layers
-            self._save_projection_only_checkpoint(output_dir)
-        elif skip_projection:
-            # Skip-Projection: save query_latents (and optionally LoRA if not skip_lora)
-            self._save_skip_projection_checkpoint(output_dir)
-        elif latent_processor:
-            # LatentProcessor: save projections + query_latents + latent_processor (no LoRA adapter)
-            self._save_latent_processor_checkpoint(output_dir)
-        elif skip_lora:
-            # Skip-LoRA: save projections + query_latents (no LoRA adapter)
-            self._save_skip_lora_checkpoint(output_dir)
-        else:
-            # Default: adapter-only saving (MemGen_reproduce 방식, ~170MB)
-            self._save_weaver_checkpoint(output_dir)
-
-        # Optional: full model saving (47GB, requires run.save_full_model: true)
-        save_full_model = self.config.get("run", {}).get("save_full_model", False)
-        if save_full_model:
-            weaver_trainer.save_model()  # saves full merged model
-            self._save_weaver_projections(output_dir)  # also save projections for load_model_path
+        # Save recursive memory checkpoint
+        self._save_recursive_memory_checkpoint(output_dir)
 
         remove_trainer_checkpoints(output_dir)
-
-    def _save_weaver_projections(self, output_dir: str):
-        """
-        Save weaver projections and query_latents to projections.pt
-
-        This is needed for load_weaver_path loading method.
-        The PEFT adapter is saved by trainer.save_model() to output_dir/weaver/
-        """
-        proj_path = os.path.join(output_dir, "projections.pt")
-
-        proj_data = {
-            'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
-            'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
-            'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
-            'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
-        }
-
-        torch.save(proj_data, proj_path)
-        logging.info(f"Saved weaver projections and query_latents to {proj_path}")
-
-    def _save_weaver_checkpoint(self, output_dir: str):
-        """
-        Save weaver LoRA weights and projection layers to output_dir.
-        (MemGen_reproduce 방식 - adapter-only 저장)
-
-        This saves:
-        1. weaver_lora/ - LoRA adapter weights (~82MB)
-        2. projections.pt - projection layers and query latents (~82MB)
-
-        Total size: ~170MB (vs 47GB for trainer.save_model())
-        """
-        try:
-            # 1. Save weaver LoRA adapter
-            weaver_lora_path = os.path.join(output_dir, "weaver_lora")
-            if hasattr(self.model.weaver.model, 'save_pretrained'):
-                self.model.weaver.model.save_pretrained(weaver_lora_path, safe_serialization=False)
-                logging.info(f"Saved weaver LoRA to {weaver_lora_path}")
-
-            # 2. Save projection layers and query latents
-            proj_path = os.path.join(output_dir, "projections.pt")
-            torch.save({
-                'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
-                'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
-                'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
-                'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
-            }, proj_path)
-            logging.info(f"Saved projections to {proj_path}")
-        except Exception as e:
-            logging.warning(f"Failed to save weaver checkpoint: {e}")
-
-    def _save_projection_only_checkpoint(self, output_dir: str):
-        """
-        Save only projection layers for projection-only mode.
-        (No LoRA, no query_latents - just projection layers)
-
-        This saves:
-        1. projections_only.pt - projection layers only (~33MB)
-        """
-        try:
-            proj_path = os.path.join(output_dir, "projections_only.pt")
-            torch.save({
-                'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
-                'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
-            }, proj_path)
-            logging.info(f"Saved projection-only checkpoint to {proj_path}")
-        except Exception as e:
-            logging.warning(f"Failed to save projection-only checkpoint: {e}")
-
-    def _save_skip_lora_checkpoint(self, output_dir: str):
-        """
-        Save projections + query_latents for skip-lora mode.
-        (No LoRA adapter - just projections and query_latents)
-
-        This saves:
-        1. skip_lora.pt - projection layers + query_latents (~33.5MB)
-        """
-        try:
-            skip_lora_path = os.path.join(output_dir, "skip_lora.pt")
-            torch.save({
-                'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
-                'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
-                'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
-                'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
-            }, skip_lora_path)
-            logging.info(f"Saved skip-lora checkpoint to {skip_lora_path}")
-        except Exception as e:
-            logging.warning(f"Failed to save skip-lora checkpoint: {e}")
-
-    def _save_latent_processor_checkpoint(self, output_dir: str):
-        """
-        Save projections + query_latents + latent_processor for latent_processor mode.
-        (No LoRA adapter - uses LatentProcessor MLP instead)
-
-        This saves:
-        1. latent_processor.pt - projection layers + query_latents + latent_processor MLP
-        """
-        try:
-            lp_path = os.path.join(output_dir, "latent_processor.pt")
-            checkpoint = {
-                'reasoner_to_weaver': self.model.reasoner_to_weaver.state_dict(),
-                'weaver_to_reasoner': self.model.weaver_to_reasoner.state_dict(),
-                'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
-                'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
-                'latent_processor': self.model.latent_processor.state_dict(),
-            }
-            torch.save(checkpoint, lp_path)
-            logging.info(f"Saved latent_processor checkpoint to {lp_path}")
-        except Exception as e:
-            logging.warning(f"Failed to save latent_processor checkpoint: {e}")
-
-    def _save_skip_projection_checkpoint(self, output_dir: str):
-        """
-        Save checkpoint for skip-projection mode (no projection layers).
-
-        Saves:
-        - If skip_lora=True: query_latents only (skip_projection.pt) - ~64K params
-        - If skip_lora=False: query_latents + LoRA (weaver_lora/ + skip_projection.pt) - ~9M params
-        """
-        try:
-            skip_lora = self.model.config.skip_lora
-
-            # 1. Save query latents (common for both modes)
-            skip_proj_path = os.path.join(output_dir, "skip_projection.pt")
-            torch.save({
-                'prompt_query_latents': self.model.weaver.prompt_query_latents.data.cpu(),
-                'inference_query_latents': self.model.weaver.inference_query_latents.data.cpu(),
-            }, skip_proj_path)
-            logging.info(f"Saved skip-projection query_latents to {skip_proj_path}")
-
-            # 2. Save LoRA only if skip_lora is False
-            if not skip_lora:
-                weaver_lora_path = os.path.join(output_dir, "weaver_lora")
-                self.model.weaver.model.save_pretrained(weaver_lora_path, safe_serialization=False)
-                logging.info(f"Saved weaver LoRA to {weaver_lora_path}")
-        except Exception as e:
-            logging.warning(f"Failed to save skip-projection checkpoint: {e}")
 
     def _save_recursive_memory_checkpoint(self, output_dir: str):
         """
@@ -400,7 +206,7 @@ class MemGenRunner:
             # Save recursive_compressor (includes prompt_query_latents, inference_query_latents)
             rm_path = os.path.join(output_dir, "recursive_memory.pt")
             checkpoint = {
-                # Note: query_latents are inside recursive_compressor, not weaver
+                # Note: query_latents are inside recursive_compressor
                 'recursive_compressor': self.model.recursive_compressor.state_dict(),
             }
             torch.save(checkpoint, rm_path)
@@ -421,74 +227,14 @@ class MemGenRunner:
             logging.warning(f"Failed to save recursive_memory checkpoint: {e}")
 
 
-    # ===== train trigger =====
-    def _create_trigger_trainer(self):
-        
-        if self.train_trigger_method == "grpo":
-            _lazy_import_grpo()  # Lazy import to avoid vLLM compatibility issues
-            trigger_trainer = TriggerGRPOTrainer(
-                model=self.model, 
-                processing_class=self.processing_class, 
-                train_dataset=self.trigger_train_dataset, 
-                eval_dataset=self.trigger_valid_dataset, 
-                reward_funcs=[self.env_cls.compute_reward],
-                args=self.trigger_grpo_training_args
-            )
-        else:
-            raise ValueError("Unsupported trigger training method.")
-
-        return trigger_trainer
-    
-    def _train_trigger(self):
-
-        # fix weaver parameters
-        self.model.fix_component("weaver")
-        self.model.open_component("trigger")
-        log_trainable_params(self.model)
-
-        # train trigger
-        trigger_trainer = self._create_trigger_trainer()
-        trigger_trainer.train()
-
-        output_dir = trigger_trainer.args.output_dir
-        os.makedirs(output_dir, exist_ok=True)
-
-        # Save trigger LoRA adapter
-        try:
-            trigger_lora_path = os.path.join(output_dir, "trigger_lora")
-            if hasattr(self.model.trigger.model, 'save_pretrained'):
-                self.model.trigger.model.save_pretrained(trigger_lora_path, safe_serialization=False)
-                logging.info(f"Saved trigger LoRA to {trigger_lora_path}")
-        except Exception as e:
-            logging.warning(f"Failed to save trigger separately: {e}")
-            trigger_trainer.save_model()  # fallback to trainer.save_model()
-
-        # Also save weaver checkpoint (required for evaluation)
-        self._save_weaver_checkpoint(output_dir)
-
-        # Optional: full model saving
-        save_full_model = self.config.get("run", {}).get("save_full_model", False)
-        if save_full_model:
-            trigger_trainer.save_model()
-
-        remove_trainer_checkpoints(output_dir)
-
-    
-    # ===== train weaver/trigger =====
+    # ===== train =====
     def train(self):
-        # train weaver
-        if self.train_weaver:
-            self._train_weaver()
-            
-        # train trigger
-        if self.train_trigger:
-            self._train_trigger()
-    
+        self._train()
+
     # ===== evaluate =====
     def evaluate(self):
         self.model = self.model.to(torch.bfloat16)
-        self.model.fix_component("weaver")
-        self.model.fix_component("trigger")
+        self.model.fix_component()
 
         evaluate_func_mapping = {
             "STATIC": self._static_evaluate,
@@ -497,9 +243,9 @@ class MemGenRunner:
         evaluate_func = evaluate_func_mapping.get(self.env.ENV_CARD)
         if evaluate_func is None:
             raise ValueError("The env has unrecogonized ENV_CARD attribute")
-        
+
         return evaluate_func()
-    
+
     def _static_evaluate(self):
 
         accelerator = Accelerator()
@@ -555,7 +301,7 @@ class MemGenRunner:
 
 
     def _dynamic_evaluate(self):
-        
+
         def _set_batch_envs(batch: list) -> tuple[list[str], list[str], list]:  # batch set envs
             system_prompts, init_user_prompts, envs = [], [], []
             for task_config in batch:
@@ -565,9 +311,9 @@ class MemGenRunner:
                 system_prompts.append(system_prompt)
                 init_user_prompts.append(init_user_prompt)
                 envs.append(env)
-            
+
             return system_prompts, init_user_prompts, envs
-        
+
         def _build_data_proto(
             system_prompts: list[str], init_user_prompts: list[str], envs: list
         ) -> InteractionDataProto:
@@ -583,7 +329,7 @@ class MemGenRunner:
             data_proto.no_tensor_batch["envs"] = envs
 
             return data_proto
-        
+
         # ===== body =====
         output_dir = self.interaction_config.output_dir
 
@@ -593,11 +339,11 @@ class MemGenRunner:
         recorder = DynamicEvalRecorder(log_file=save_file)
 
         batch_size = self.interaction_config.batch_size
-        
+
         # prepare dataset and dataloader
         test_dataloader = accelerator.prepare(DataLoader(
-            dataset=self.test_dataset, 
-            batch_size=batch_size, 
+            dataset=self.test_dataset,
+            batch_size=batch_size,
             shuffle=False,
             collate_fn=lambda batch: batch  # use the identity function
         ))
@@ -605,18 +351,18 @@ class MemGenRunner:
         # prepare model
         model_wrapped = accelerator.prepare_model(model=self.model, evaluation_mode=True)
         model_wrapped.eval()
-        
+
         # batch generate
         for step, test_batch in tqdm(enumerate(test_dataloader)):
             with unwrap_model_for_generation(
                 model_wrapped, accelerator
             ) as unwrapped_model:
-                system_prompts, init_user_prompts, envs = _set_batch_envs(test_batch) 
+                system_prompts, init_user_prompts, envs = _set_batch_envs(test_batch)
                 input_data_proto = _build_data_proto(system_prompts, init_user_prompts, envs)
-                
+
                 self.generation_manager.actor_rollout_wg = unwrapped_model
                 outputs: InteractionDataProto = self.generation_manager.run_agent_loop(input_data_proto)
-                
+
                 inter_histories = outputs.no_tensor_batch["inter_histories"]
                 inter_context = self.processing_class.apply_chat_template(inter_histories, tokenize=False)
 
@@ -638,50 +384,33 @@ class MemGenRunner:
             wandb.finish()
 
     def _parse_configs(self, configs):
-        
-        self.train_weaver = configs.get("train_weaver", True)
-        self.train_trigger = configs.get("train_trigger", False)
 
-        # --- parse weaver training args ---
-        self.train_weaver_method = configs.get("train_weaver_method", "sft")
-        if self.train_weaver_method not in ["sft", "grpo"]:
-            raise ValueError("Unsupported weaver training method.")
-        
-        # parse weaver sft training args
-        weaver_config = configs.get("weaver", dict())
-        weaver_sft_config = weaver_config.get("sft", dict())
-        self.weaver_sft_training_args = SFTConfig(**weaver_sft_config)
-        self.weaver_sft_training_args.output_dir = os.path.join(self.working_dir, "weaver")
+        # --- parse training args ---
+        self.train_method = configs.get("train_method", "sft")
+        if self.train_method not in ["sft", "grpo"]:
+            raise ValueError("Unsupported training method.")
+
+        # parse sft training args
+        train_config = configs.get("weaver", dict())  # Keep "weaver" key for config compatibility
+        sft_config = train_config.get("sft", dict())
+        self.sft_training_args = SFTConfig(**sft_config)
+        self.sft_training_args.output_dir = os.path.join(self.working_dir, "weaver")
 
         # Disable auto save for recursive_memory mode (shared tensors crash)
         # We manually save in _save_recursive_memory_checkpoint() after training
         if self.config.get("model", {}).get("recursive_memory", {}).get("enabled", False):
-            self.weaver_sft_training_args.save_strategy = "no"
-            self.weaver_sft_training_args.load_best_model_at_end = False
+            self.sft_training_args.save_strategy = "no"
+            self.sft_training_args.load_best_model_at_end = False
             logging.info("Recursive Memory mode: disabled auto-save (save_strategy='no')")
 
-        # parse weaver grpo training args (only if using grpo)
-        weaver_grpo_config = weaver_config.get("grpo", dict())
-        if self.train_weaver_method == "grpo":
+        # parse grpo training args (only if using grpo)
+        grpo_config = train_config.get("grpo", dict())
+        if self.train_method == "grpo":
             _lazy_import_grpo()
-            self.weaver_grpo_training_args = GRPOConfig(**weaver_grpo_config)
-            self.weaver_grpo_training_args.output_dir = os.path.join(self.working_dir, "weaver")
+            self.grpo_training_args = GRPOConfig(**grpo_config)
+            self.grpo_training_args.output_dir = os.path.join(self.working_dir, "weaver")
         else:
-            self.weaver_grpo_training_args = None
-
-        # --- parse trigger training args ---
-        trigger_config = configs.get("trigger", dict())
-        self.train_trigger_method = configs.get("train_trigger_method", "grpo")
-        if self.train_trigger_method not in ["grpo"]:
-            raise ValueError("Unsupported trigger training method.")
-
-        trigger_grpo_config = trigger_config.get("grpo", dict())
-        if self.train_trigger:  # Only parse if training trigger
-            _lazy_import_grpo()
-            self.trigger_grpo_training_args = GRPOConfig(**trigger_grpo_config)
-            self.trigger_grpo_training_args.output_dir = os.path.join(self.working_dir, "trigger")
-        else:
-            self.trigger_grpo_training_args = None
+            self.grpo_training_args = None
 
         # --- parse interaction args ---
         interaction_configs = configs.get("interaction", {})
@@ -698,369 +427,3 @@ class MemGenRunner:
             batch_size=interaction_configs.get("batch_size", 32),
             output_dir=os.path.join(self.working_dir, "evaluate")
         )
-
-        # --- parse LTPO configs ---
-        ltpo_configs = configs.get("ltpo", {})
-        self.ltpo_config = ltpo_configs
-
-    # ===== LTPO Test-Time Evaluation =====
-    def _create_ltpo_optimizer(self):
-        """
-        Create MemGenLTPOOptimizer instance from configuration.
-
-        Returns:
-            MemGenLTPOOptimizer instance configured with LTPO parameters
-        """
-        from ltpo.memgen_ltpo import MemGenLTPOOptimizer
-
-        ltpo_cfg = self.ltpo_config
-        if not ltpo_cfg.get("enabled", False):
-            return None
-
-        ltpo_optimizer = MemGenLTPOOptimizer(
-            model=self.model.reasoner,
-            lr=ltpo_cfg.get("lr", 0.03),
-            sigma=ltpo_cfg.get("sigma", 0.1),
-            sigma_decay=ltpo_cfg.get("sigma_decay", 0.99),
-            max_steps=ltpo_cfg.get("max_steps", 10),
-            reward_threshold=ltpo_cfg.get("reward_threshold", -1.0),
-            top_k=ltpo_cfg.get("top_k", 10),
-            use_auto_grad=ltpo_cfg.get("use_auto_grad", True),
-        )
-
-        return ltpo_optimizer
-
-    def evaluate_with_ltpo(self):
-        """
-        Evaluate model with LTPO test-time optimization.
-
-        This method is the entry point for LTPO-enhanced evaluation.
-        It creates the LTPO optimizer and delegates to environment-specific
-        evaluation methods.
-        """
-        self.model = self.model.to(torch.bfloat16)
-        self.model.fix_component("weaver")
-        self.model.fix_component("trigger")
-
-        # Create LTPO optimizer
-        ltpo_optimizer = self._create_ltpo_optimizer()
-        ltpo_verbose = self.ltpo_config.get("verbose", False)
-
-        if ltpo_optimizer is None:
-            logging.warning("LTPO is disabled in config, falling back to standard evaluate()")
-            return self.evaluate()
-
-        logging.info(f"[LTPO] Starting LTPO-enhanced evaluation with config: {self.ltpo_config}")
-
-        evaluate_func_mapping = {
-            "STATIC": self._static_evaluate_with_ltpo,
-            "DYNAMIC": self._dynamic_evaluate_with_ltpo
-        }
-        evaluate_func = evaluate_func_mapping.get(self.env.ENV_CARD)
-        if evaluate_func is None:
-            raise ValueError("The env has unrecognized ENV_CARD attribute")
-
-        return evaluate_func(ltpo_optimizer, ltpo_verbose)
-
-    def _static_evaluate_with_ltpo(self, ltpo_optimizer, ltpo_verbose: bool = False):
-        """
-        Static environment evaluation with LTPO optimization.
-
-        Args:
-            ltpo_optimizer: MemGenLTPOOptimizer instance
-            ltpo_verbose: Whether to print LTPO optimization progress
-        """
-        accelerator = Accelerator()
-        init_wandb(save_dir=self.working_dir)
-
-        batch_size = self.interaction_config.batch_size
-        output_dir = self.interaction_config.output_dir
-
-        # prepare dataset and dataloader
-        test_dataloader = accelerator.prepare(DataLoader(
-            dataset=self.test_dataset,
-            batch_size=batch_size,
-            shuffle=False,
-            collate_fn=lambda batch: batch
-        ))
-
-        # prepare model
-        model_wrapped = accelerator.prepare_model(model=self.model, evaluation_mode=True)
-        model_wrapped.eval()
-
-        # construct eval recorder
-        test_funcs = [self.env_cls.compute_reward]
-        save_file = os.path.join(output_dir, "answer_ltpo.json")
-        recorder = StaticEvalRecorder(compute_metrics=test_funcs, log_file=save_file)
-
-        # batch generation with LTPO
-        for test_batch in tqdm(test_dataloader):
-            with unwrap_model_for_generation(
-                model_wrapped, accelerator
-            ) as unwrapped_model:
-                # construct InteractionDataProto object
-                prompts = [x["prompt"] for x in test_batch]
-                prompt_inputs = self.processing_class(
-                    text=prompts, return_tensors="pt", padding=True, padding_side="left", add_special_tokens=True
-                )
-                prompt_ids, prompt_mask = prompt_inputs["input_ids"], prompt_inputs["attention_mask"]
-                gen_batch = InteractionDataProto()
-                gen_batch.batch["input_ids"] = prompt_ids.to(accelerator.device)
-                gen_batch.batch["attention_mask"] = prompt_mask.to(accelerator.device)
-                gen_batch.no_tensor_batch["initial_prompts"] = [x["prompt"] for x in test_batch]
-
-                # Set LTPO optimizer on generation manager
-                self.generation_manager.actor_rollout_wg = unwrapped_model
-
-                # Run generation with LTPO - pass optimizer through generation call
-                gen_output = self._run_agent_loop_with_ltpo(
-                    gen_batch, unwrapped_model, ltpo_optimizer, ltpo_verbose
-                )
-
-                completion_ids = gen_output.batch["responses"]
-                completions = self.processing_class.batch_decode(completion_ids, skip_special_tokens=True)
-
-            recorder.record_batch(completions, test_batch)
-        recorder.finalize()
-        if accelerator.is_main_process:
-            wandb.finish()
-
-    def _dynamic_evaluate_with_ltpo(self, ltpo_optimizer, ltpo_verbose: bool = False):
-        """
-        Dynamic environment evaluation with LTPO optimization.
-
-        Args:
-            ltpo_optimizer: MemGenLTPOOptimizer instance
-            ltpo_verbose: Whether to print LTPO optimization progress
-        """
-        def _set_batch_envs(batch: list) -> tuple[list[str], list[str], list]:
-            system_prompts, init_user_prompts, envs = [], [], []
-            for task_config in batch:
-                env = self.env_cls(self.config.get("dataset"))
-                system_prompt, init_user_prompt = env.set_env(task_config)
-
-                system_prompts.append(system_prompt)
-                init_user_prompts.append(init_user_prompt)
-                envs.append(env)
-
-            return system_prompts, init_user_prompts, envs
-
-        def _build_data_proto(
-            system_prompts: list[str], init_user_prompts: list[str], envs: list
-        ) -> InteractionDataProto:
-            messages = []
-            for system_prompt, init_user_prompt in zip(system_prompts, init_user_prompts):
-                system_message = {"role": "system", "content": system_prompt}
-                user_message = {"role": "user", "content": init_user_prompt}
-                init_messages = [system_message, user_message]
-                messages.append(init_messages)
-
-            data_proto = InteractionDataProto()
-            data_proto.no_tensor_batch["init_prompts"] = messages
-            data_proto.no_tensor_batch["envs"] = envs
-
-            return data_proto
-
-        # ===== body =====
-        output_dir = self.interaction_config.output_dir
-
-        accelerator = Accelerator()
-        init_wandb(save_dir=self.working_dir)
-        save_file = os.path.join(output_dir, "conversations_ltpo.txt")
-        recorder = DynamicEvalRecorder(log_file=save_file)
-
-        batch_size = self.interaction_config.batch_size
-
-        # prepare dataset and dataloader
-        test_dataloader = accelerator.prepare(DataLoader(
-            dataset=self.test_dataset,
-            batch_size=batch_size,
-            shuffle=False,
-            collate_fn=lambda batch: batch
-        ))
-
-        # prepare model
-        model_wrapped = accelerator.prepare_model(model=self.model, evaluation_mode=True)
-        model_wrapped.eval()
-
-        # batch generate with LTPO
-        for step, test_batch in tqdm(enumerate(test_dataloader)):
-            with unwrap_model_for_generation(
-                model_wrapped, accelerator
-            ) as unwrapped_model:
-                system_prompts, init_user_prompts, envs = _set_batch_envs(test_batch)
-                input_data_proto = _build_data_proto(system_prompts, init_user_prompts, envs)
-
-                self.generation_manager.actor_rollout_wg = unwrapped_model
-
-                # Run generation with LTPO
-                outputs: InteractionDataProto = self._run_multiturn_loop_with_ltpo(
-                    input_data_proto, unwrapped_model, ltpo_optimizer, ltpo_verbose
-                )
-
-                inter_histories = outputs.no_tensor_batch["inter_histories"]
-                inter_context = self.processing_class.apply_chat_template(inter_histories, tokenize=False)
-
-            # batch record
-            rewards = []
-            for env in input_data_proto.no_tensor_batch["envs"]:
-                feedback = env.feedback()
-                if isinstance(feedback, tuple):
-                    reward = feedback[0]
-                else:
-                    reward = feedback
-                rewards.append(reward)
-
-            recorder.record_batch(inter_context, rewards)
-
-        recorder.finalize()
-        if accelerator.is_main_process:
-            wandb.finish()
-
-    def _run_agent_loop_with_ltpo(
-        self,
-        gen_batch: InteractionDataProto,
-        model,
-        ltpo_optimizer,
-        ltpo_verbose: bool
-    ) -> InteractionDataProto:
-        """
-        Run single-turn agent loop with LTPO optimization.
-
-        This method wraps the generation call to pass LTPO optimizer.
-        """
-        from transformers import GenerationConfig
-
-        input_ids = gen_batch.batch["input_ids"]
-        attention_mask = gen_batch.batch["attention_mask"]
-
-        # Create generation config
-        gen_config = GenerationConfig(
-            max_new_tokens=self.interaction_config.max_response_length,
-            do_sample=self.interaction_config.do_sample,
-            temperature=self.interaction_config.temperature if self.interaction_config.do_sample else None,
-            pad_token_id=self.processing_class.pad_token_id,
-            eos_token_id=self.processing_class.eos_token_id,
-        )
-
-        # Generate with LTPO optimizer
-        generated_ids = model.generate(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            generation_config=gen_config,
-            ltpo_optimizer=ltpo_optimizer,
-            ltpo_verbose=ltpo_verbose,
-        )
-
-        # Extract only generated tokens (remove prompt)
-        prompt_len = input_ids.size(1)
-        response_ids = generated_ids[:, prompt_len:]
-
-        # Build output proto
-        output = InteractionDataProto()
-        output.batch["responses"] = response_ids
-        output.no_tensor_batch = gen_batch.no_tensor_batch
-
-        return output
-
-    def _run_multiturn_loop_with_ltpo(
-        self,
-        input_data_proto: InteractionDataProto,
-        model,
-        ltpo_optimizer,
-        ltpo_verbose: bool
-    ) -> InteractionDataProto:
-        """
-        Run multi-turn agent loop with LTPO optimization.
-
-        This method wraps the multi-turn generation to pass LTPO optimizer.
-        """
-        from transformers import GenerationConfig
-
-        envs = input_data_proto.no_tensor_batch["envs"]
-        init_prompts = input_data_proto.no_tensor_batch["init_prompts"]
-        max_turns = self.interaction_config.max_turns
-
-        # Initialize histories
-        inter_histories = [list(init_prompt) for init_prompt in init_prompts]
-        done_flags = [False] * len(envs)
-
-        for turn in range(max_turns):
-            # Skip if all done
-            if all(done_flags):
-                break
-
-            # Prepare batch for generation
-            active_indices = [i for i, done in enumerate(done_flags) if not done]
-
-            # Tokenize current conversation histories
-            batch_messages = [inter_histories[i] for i in active_indices]
-            batch_texts = [
-                self.processing_class.apply_chat_template(
-                    msgs, tokenize=False, add_generation_prompt=True
-                )
-                for msgs in batch_messages
-            ]
-
-            # Tokenize with left padding
-            inputs = self.processing_class(
-                text=batch_texts,
-                return_tensors="pt",
-                padding=True,
-                padding_side="left",
-                truncation=True,
-                max_length=self.interaction_config.max_prompt_length,
-            )
-
-            input_ids = inputs["input_ids"].to(model.device)
-            attention_mask = inputs["attention_mask"].to(model.device)
-
-            # Create generation config
-            gen_config = GenerationConfig(
-                max_new_tokens=self.interaction_config.max_response_length,
-                do_sample=self.interaction_config.do_sample,
-                temperature=self.interaction_config.temperature if self.interaction_config.do_sample else None,
-                pad_token_id=self.processing_class.pad_token_id,
-                eos_token_id=self.processing_class.eos_token_id,
-            )
-
-            # Generate with LTPO optimizer
-            generated_ids = model.generate(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                generation_config=gen_config,
-                ltpo_optimizer=ltpo_optimizer,
-                ltpo_verbose=ltpo_verbose,
-            )
-
-            # Extract responses
-            prompt_len = input_ids.size(1)
-            response_ids = generated_ids[:, prompt_len:]
-            responses = self.processing_class.batch_decode(response_ids, skip_special_tokens=True)
-
-            # Process each response through environment
-            for batch_idx, orig_idx in enumerate(active_indices):
-                response = responses[batch_idx].strip()
-                env = envs[orig_idx]
-
-                # Preprocess action
-                action = env.preprocess_action(response) if hasattr(env, 'preprocess_action') else response
-
-                # Step environment
-                observation, reward, done = env.step(action)
-
-                # Update history
-                inter_histories[orig_idx].append({"role": "assistant", "content": response})
-
-                if done:
-                    done_flags[orig_idx] = True
-                else:
-                    # Add observation as next user message
-                    inter_histories[orig_idx].append({"role": "user", "content": observation})
-
-        # Build output proto
-        output = InteractionDataProto()
-        output.no_tensor_batch["inter_histories"] = inter_histories
-        output.no_tensor_batch["envs"] = envs
-
-        return output

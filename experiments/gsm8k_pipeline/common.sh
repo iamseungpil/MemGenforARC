@@ -78,39 +78,6 @@ find_latest_weaver_checkpoint() {
 }
 
 # ============================================================================
-# find_latest_trigger_checkpoint
-# ============================================================================
-# Find the most recent trigger checkpoint for a given dataset and model.
-#
-# Args:
-#   $1: dataset name (e.g., "gsm8k", "arc")
-#   $2: model name with slashes replaced by underscores (e.g., "Qwen_Qwen2.5-1.5B-Instruct")
-#
-# Returns:
-#   Path to trigger_lora directory, or empty string if not found
-# ============================================================================
-find_latest_trigger_checkpoint() {
-    local dataset=$1
-    local model_name=$2
-
-    local latest_dir=$(find_latest_timestamp_dir "$dataset" "$model_name")
-    if [ -z "$latest_dir" ]; then
-        echo ""
-        return 1
-    fi
-
-    # Check for trigger_lora directory
-    local trigger_lora="${latest_dir}/trigger/trigger_lora"
-    if [ -d "$trigger_lora" ]; then
-        echo "$trigger_lora"
-        return 0
-    fi
-
-    echo ""
-    return 1
-}
-
-# ============================================================================
 # get_model_name_safe
 # ============================================================================
 # Extract model name for filesystem path (last part after /)
@@ -132,7 +99,7 @@ get_model_name_safe() {
 # Print formatted checkpoint information for logging
 #
 # Args:
-#   $1: checkpoint type ("weaver" or "trigger")
+#   $1: checkpoint type ("weaver")
 #   $2: checkpoint path (can be empty)
 # ============================================================================
 print_checkpoint_info() {
@@ -244,12 +211,12 @@ list_all_checkpoints() {
     for dir in $(ls -td ${base_dir}/pn=* 2>/dev/null); do
         local dirname=$(basename "$dir")
         local has_weaver="N"
-        local has_trigger="N"
+        local has_recursive="N"
 
         [ -d "${dir}/weaver/weaver_lora" ] && has_weaver="Y"
-        [ -d "${dir}/trigger/trigger_lora" ] && has_trigger="Y"
+        [ -f "${dir}/weaver/recursive_memory.pt" ] && has_recursive="Y"
 
-        printf "[%d] %s (weaver:%s, trigger:%s)\n" "$index" "$dirname" "$has_weaver" "$has_trigger"
+        printf "[%d] %s (weaver:%s, recursive:%s)\n" "$index" "$dirname" "$has_weaver" "$has_recursive"
         index=$((index + 1))
     done
 
@@ -288,8 +255,8 @@ get_checkpoint_info() {
         echo "    - Weaver: ${weaver_size}"
     fi
 
-    if [ -d "${checkpoint_dir}/trigger/trigger_lora" ]; then
-        local trigger_size=$(du -sh "${checkpoint_dir}/trigger" 2>/dev/null | cut -f1)
-        echo "    - Trigger: ${trigger_size}"
+    if [ -f "${checkpoint_dir}/weaver/recursive_memory.pt" ]; then
+        local recursive_size=$(du -sh "${checkpoint_dir}/weaver/recursive_memory.pt" 2>/dev/null | cut -f1)
+        echo "    - Recursive Memory: ${recursive_size}"
     fi
 }

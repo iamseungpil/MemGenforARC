@@ -67,7 +67,6 @@ Recursive Memory 관련 config 필드 추가:
 ```python
 # 새로 추가된 필드
 recursive_memory: bool = False
-recursive_weaver_style: bool = True
 recursive_hidden_size: int = 4096
 recursive_num_heads: int = 8
 recursive_attn_rank: int = 64

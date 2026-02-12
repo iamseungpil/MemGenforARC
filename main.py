@@ -115,8 +115,5 @@ def main():
     elif config.run_cfg.mode == "evaluate":
         runner.evaluate()
 
-    elif config.run_cfg.mode == "evaluate_ltpo":
-        runner.evaluate_with_ltpo()
-
 if __name__ == "__main__":
     main()

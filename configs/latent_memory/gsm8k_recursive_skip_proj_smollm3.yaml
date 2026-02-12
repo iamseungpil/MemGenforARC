@@ -1,20 +1,21 @@
-# KodCode Configuration for Recursive Memory
-# Code generation dataset
+# GSM8K Training Configuration for Recursive Memory (Skip Projection, SmolLM3-3B)
+# Based on gsm8k_recursive_skip_proj.yaml with SmolLM3-3B dimensions:
+# - model: HuggingFaceTB/SmolLM3-3B
+# - hidden_size: 2048, num_heads: 16
 
 model:
-  model_name: Qwen/Qwen2.5-1.5B-Instruct
+  model_name: HuggingFaceTB/SmolLM3-3B
   load_model_path: null
   load_weaver_path: null
 
   max_prompt_aug_num: 1
   max_inference_aug_num: 5
 
-  # Recursive Memory configuration
   recursive_memory:
     enabled: true
     skip_projection: true
-    hidden_size: 1536  # Qwen2.5-1.5B hidden size
-    num_heads: 12
+    hidden_size: 2048
+    num_heads: 16
     attn_rank: 64
     mlp_rank: 128
     max_cycles: 10
@@ -24,21 +25,15 @@ model:
 
   # Latent settings (kept for compatibility)
   weaver:
-    model_name: Qwen/Qwen2.5-1.5B-Instruct
+    model_name: HuggingFaceTB/SmolLM3-3B
     prompt_latents_len: 8
     inference_latents_len: 8
 
 dataset:
-  name: kodcode
+  name: gsm8k
   mode: sft
   sft:
-    train_ratio: 0.7
-    valid_ratio: 0.1
-    test_ratio: 0.2
-  grpo:
-    train_ratio: 0.7
-    valid_ratio: 0.1
-    test_ratio: 0.2
+    val_ratio: 0.1
 
 run:
   seed: 42
@@ -66,37 +61,6 @@ run:
       save_steps: 100
       assistant_only_loss: false
       max_length: 1024
-      remove_unused_columns: false
-      load_best_model_at_end: true
-      bf16: true
-      report_to:
-        - wandb
-
-    grpo:
-      num_train_epochs: 1
-      per_device_train_batch_size: 8
-      per_device_eval_batch_size: 8
-      num_generations: 8
-      num_iterations: 1
-      gradient_accumulation_steps: 1
-      beta: 0.0
-      loss_type: grpo
-      gradient_checkpointing: true
-      gradient_checkpointing_kwargs:
-        use_reentrant: false
-      max_prompt_length: 1024
-      max_completion_length: 512
-      temperature: 1.0
-      optim: adamw_torch
-      lr_scheduler_type: cosine
-      warmup_ratio: 0.1
-      learning_rate: 1e-5
-      logging_strategy: steps
-      logging_steps: 1
-      eval_strategy: epoch
-      eval_steps: 100
-      save_strategy: epoch
-      save_steps: 100
       remove_unused_columns: false
       load_best_model_at_end: true
       bf16: true
