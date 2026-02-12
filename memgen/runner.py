@@ -278,8 +278,16 @@ class MemGenRunner:
             ) as unwrapped_model:
                 # construct InteractionDataProto object
                 prompts = [x["prompt"] for x in test_batch]
-                prompt_inputs = self.processing_class(
-                    text=prompts, return_tensors="pt", padding=True, padding_side="left", add_special_tokens=True
+                # Apply chat template for proper formatting
+                messages_list = [[{"role": "user", "content": p}] for p in prompts]
+                self.processing_class.padding_side = "left"
+                prompt_inputs = self.processing_class.apply_chat_template(
+                    messages_list,
+                    tokenize=True,
+                    add_generation_prompt=True,
+                    padding=True,
+                    return_tensors="pt",
+                    return_dict=True
                 )
                 prompt_ids, prompt_mask = prompt_inputs["input_ids"], prompt_inputs["attention_mask"]
                 gen_batch = InteractionDataProto()

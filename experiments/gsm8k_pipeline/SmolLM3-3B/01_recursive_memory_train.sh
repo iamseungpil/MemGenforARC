@@ -36,6 +36,7 @@ INFERENCE_LATENTS_LEN=8
 # Recursive Memory configs (SmolLM3: hidden=2048, heads=16)
 RECURSIVE_HIDDEN_SIZE=2048
 RECURSIVE_NUM_HEADS=16
+MAX_CYCLES=1  # 1-cycle training
 
 # Training hyperparameters
 BATCH_SIZE=4
@@ -90,6 +91,8 @@ python -m accelerate.commands.launch \
   model.weaver.model_name ${MODEL_NAME} \
   model.recursive_memory.hidden_size ${RECURSIVE_HIDDEN_SIZE} \
   model.recursive_memory.num_heads ${RECURSIVE_NUM_HEADS} \
+  model.recursive_memory.max_cycles ${MAX_CYCLES} \
+  model.recursive_memory.two_level false \
   run.weaver.sft.num_train_epochs ${NUM_EPOCHS} \
   run.weaver.sft.per_device_train_batch_size ${BATCH_SIZE} \
   run.weaver.sft.per_device_eval_batch_size ${BATCH_SIZE} \

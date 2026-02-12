@@ -11,14 +11,17 @@
 set -e  # Exit on error
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+cd "${PROJECT_ROOT}"
+
 source "${SCRIPT_DIR}/../common.sh"
 
 # Environment setup
 export WANDB_ENTITY="gistdslab"
-export WANDB_PROJECT="memgen_ltpo"
+export WANDB_PROJECT="ReMem_confidence"
 export DEBUG_MODE=true
 export LOG_PATH="./logs/00_vanilla_eval.log"
-export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=1
 export MAIN_PROCESS_PORT=29507
 export NCCL_DEBUG=INFO
 export NCCL_IB_DISABLE=1
@@ -43,22 +46,28 @@ echo "Dataset: ${DATASET_NAME}"
 echo "MemGen: DISABLED (vanilla baseline)"
 echo "============================================"
 
+# SmolLM3-3B dimensions
+RECURSIVE_HIDDEN_SIZE=2048
+RECURSIVE_NUM_HEADS=16
+
 python -m accelerate.commands.launch \
     --config_file=configs/zero2.yaml \
-    --num_processes=2 \
+    --num_processes=1 \
     main.py \
     --cfg-path configs/latent_memory/${DATASET_NAME}.yaml \
     --options \
     model.model_name ${MODEL_NAME} \
     model.max_prompt_aug_num 0 \
     model.max_inference_aug_num 0 \
+    model.recursive_memory.hidden_size ${RECURSIVE_HIDDEN_SIZE} \
+    model.recursive_memory.num_heads ${RECURSIVE_NUM_HEADS} \
     model.weaver.model_name ${MODEL_NAME} \
     model.weaver.prompt_latents_len 8 \
     model.weaver.inference_latents_len 8 \
     run.mode evaluate \
     run.interaction.do_sample False \
-    run.interaction.temperature 0.0 \
-    run.interaction.max_response_length 512
+    run.interaction.temperature 1.0 \
+    run.interaction.max_response_length 1024
 
 echo "============================================"
 echo "Vanilla evaluation completed!"
