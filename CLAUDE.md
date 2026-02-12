@@ -47,6 +47,7 @@
 | 4 | `modeling_memgen.py` | chat_template 복원 - multi-turn `<\|im_start\|>` 토큰 의존 |
 | 5 | `configs/zero2.yaml` | `mixed_precision: 'no'`로 복원 |
 | 6 | `modeling_memgen.py` | temperature falsy 버그 - `do_sample=False, temperature=0.0` 하드코딩 |
+| 7 | `runner.py` | **Static eval chat template 미적용** - 기존: `self.processing_class(text=prompts, ...)` 단순 토크나이징. **해결**: `apply_chat_template(messages_list, add_generation_prompt=True, ...)` 사용하여 `<\|im_start\|>user...<\|im_end\|><\|im_start\|>assistant` 형식 적용. |
 
 ---
 
