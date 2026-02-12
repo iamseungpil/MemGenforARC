@@ -59,18 +59,25 @@ class KodCodeBuilder(BaseBuilder):
         processed_prompt = format_template + prompt_template.format(prompt=question)
         processed_label = solution
 
+        # Build messages format for chat template (TRL SFTTrainer auto-applies)
+        messages = [
+            {"role": "user", "content": processed_prompt},
+            {"role": "assistant", "content": processed_label}
+        ]
+
         text_output = {
             "prompt": processed_prompt,
             "completion": processed_label,
             "solution": processed_label,
-            "test": example["test"].strip(),  
-            "test_info": example["test_info"]
+            "test": example["test"].strip(),
+            "test_info": example["test_info"],
+            "messages": messages,  # For chat template in training
         }
 
         return text_output
-    
+
     @classmethod
     def _sft_keep_keys(cls):
-        return ["prompt", "completion", "solution", "test", "test_info"]
+        return ["prompt", "completion", "solution", "test", "test_info", "messages"]
 
 

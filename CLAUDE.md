@@ -48,6 +48,7 @@
 | 5 | `configs/zero2.yaml` | `mixed_precision: 'no'`로 복원 |
 | 6 | `modeling_memgen.py` | temperature falsy 버그 - `do_sample=False, temperature=0.0` 하드코딩 |
 | 7 | `runner.py` | **Static eval chat template 미적용** - 기존: `self.processing_class(text=prompts, ...)` 단순 토크나이징. **해결**: `apply_chat_template(messages_list, add_generation_prompt=True, ...)` 사용하여 `<\|im_start\|>user...<\|im_end\|><\|im_start\|>assistant` 형식 적용. |
+| 8 | `data/*/builder.py` | **Train/Eval chat template 불일치** - Train: `prompt+completion` raw text, Eval: chat template 적용. **해결**: gsm8k, gpqa, kodcode builder에 `messages` 키 추가하여 TRL SFTTrainer가 자동으로 chat template 적용. triviaqa는 이미 messages 형식. |
 
 ---
 

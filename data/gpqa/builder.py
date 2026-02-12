@@ -90,13 +90,20 @@ class GPQABuilder(BaseBuilder):
         prompt_template = "Question: {prompt}\n"   
         processed_prompt = format_template + prompt_template.format(prompt=question)
 
+        # Build messages format for chat template (TRL SFTTrainer auto-applies)
+        messages = [
+            {"role": "user", "content": processed_prompt},
+            {"role": "assistant", "content": answer}
+        ]
+
         text_output = {
             "prompt": processed_prompt,
             "completion": answer,
-            "solution": answer    
+            "solution": answer,
+            "messages": messages,  # For chat template in training
         }
         return text_output
-    
+
     @classmethod
     def _keep_keys(cls):
-        return ["prompt", "completion", "solution"]
+        return ["prompt", "completion", "solution", "messages"]

@@ -58,17 +58,24 @@ class GSM8KBuilder(BaseBuilder):   # Env
         processed_prompt = format_template + prompt_template.format(prompt=question)
         processed_label = _preprocess_answer(answer)
 
+        # Build messages format for chat template (TRL SFTTrainer auto-applies)
+        messages = [
+            {"role": "user", "content": processed_prompt},
+            {"role": "assistant", "content": processed_label}
+        ]
+
         text_output = {
             "prompt": processed_prompt,
             "completion": processed_label,
-            "solution": processed_label,     
+            "solution": processed_label,
             "test": processed_label,
+            "messages": messages,  # For chat template in training
         }
-        
-        # NOTE - To use the built-in tokenization mechanism of SFTTrainer, 
-        # it is necessary to ensure that the prompt + completion is lossless.
+
+        # NOTE - TRL SFTTrainer auto-applies chat template when "messages" key exists.
+        # This ensures train/eval use the same input format (<|im_start|>...<|im_end|>).
         return text_output
-    
+
     @classmethod
     def _keep_keys(cls):
-        return ["prompt", "completion", "solution"]
+        return ["prompt", "completion", "solution", "messages"]
